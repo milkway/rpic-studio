@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { compile, ensureRpic } from "@/lib/rpic";
 import { sanitizeSvg } from "@/lib/sanitize";
+import { detectTexLabels } from "@/lib/detect";
 
 interface RpicThumbProps {
   source: string;
@@ -18,7 +19,11 @@ export function RpicThumb({ source, circuits, className }: RpicThumbProps) {
       .then(() => {
         if (cancelled) return;
         try {
-          setSvg(sanitizeSvg(compile(source, { circuits }).svg));
+          setSvg(
+            sanitizeSvg(
+              compile(source, { circuits, texlabels: detectTexLabels(source) }).svg,
+            ),
+          );
         } catch {
           setSvg(null);
         }

@@ -50,6 +50,37 @@ test("circuitos ligam automaticamente quando o código usa a biblioteca", async 
   });
 });
 
+test("digitar $…$ com build lean mostra aviso e fixa a preferência math", async ({ page }) => {
+  const code = page.locator('[data-testid="code-pane"] .cm-content');
+  await code.click();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+a" : "Control+a");
+  await page.keyboard.type('box "$x^2$" fit');
+  await expect(page.getByText(/reload the page|recarregue a página/)).toBeVisible({
+    timeout: 5_000,
+  });
+  expect(await page.evaluate(() => localStorage.getItem("rpic:math.v1"))).toBe("1");
+});
+
+test("com o build math, $…$ vira tipografia real no preview", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => {
+    localStorage.clear();
+    localStorage.setItem("rpic:math.v1", "1");
+    localStorage.setItem(
+      "rpic:draft.v1",
+      JSON.stringify({ source: 'box "$x^2 + y^2$" fit', circuits: false, savedAt: "" }),
+    );
+  });
+  await page.reload();
+  await page.waitForSelector('[data-testid="preview-stage"] svg', { timeout: 30_000 });
+  // fórmula tipografada = svg aninhado com glyph paths, sem texto literal
+  await expect(page.locator('[data-testid="preview-stage"] svg svg path').first()).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(page.locator('[data-testid="preview-stage"]')).not.toContainText("$x^2");
+  await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok");
+});
+
 test("exemplo com animação exibe o botão de replay", async ({ page }) => {
   // o welcome (default sem rascunho) tem manifesto de animação
   await expect(page.getByTestId("replay-button")).toBeVisible();

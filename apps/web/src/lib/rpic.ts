@@ -1,17 +1,49 @@
-// Wrapper fino sobre o compilador rpic (WASM). O módulo é inicializado uma
-// única vez; `?url` faz o Vite servir o .wasm como asset respeitando o base path.
+// Wrapper fino sobre o compilador rpic (WASM). Dois builds: lean (padrão,
+// ~400 KB) e math (~3 MB, RaTeX embutido para texlabels). A escolha é fixada
+// na primeira inicialização (limite do wasm-bindgen), então quem usa `$…$`
+// ganha um flag persistente e o build math passa a carregar nas próximas
+// visitas; na sessão corrente mostramos um aviso para recarregar.
 import * as rpic from "@strategicprojects/rpic";
 import type { Anim, Bundle, CompileOptions } from "@strategicprojects/rpic";
 import wasmUrl from "@strategicprojects/rpic/pkg/rpic_wasm_bg.wasm?url";
+import mathWasmUrl from "@strategicprojects/rpic/pkg/rpic_wasm_math_bg.wasm?url";
 
+const MATH_KEY = "rpic:math.v1";
+
+/** O usuário já usou math antes? (decide o build na próxima carga) */
+export function mathPreferred(): boolean {
+  try {
+    return window.localStorage.getItem(MATH_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** Marca que o app deve carregar o build math daqui em diante. */
+export function rememberMathPreference(): void {
+  try {
+    window.localStorage.setItem(MATH_KEY, "1");
+  } catch {
+    // sem persistência — o aviso de reload continua aparecendo
+  }
+}
+
+let initializedBuild: "lean" | "math" | null = null;
 let readyPromise: Promise<void> | null = null;
 
-/** Inicializa o WASM (idempotente). */
+/** Inicializa o WASM (idempotente; o primeiro chamador fixa o build). */
 export function ensureRpic(): Promise<void> {
   if (!readyPromise) {
-    readyPromise = rpic.ready(wasmUrl);
+    const math = mathPreferred();
+    initializedBuild = math ? "math" : "lean";
+    readyPromise = rpic.ready(math ? mathWasmUrl : wasmUrl, { math });
   }
   return readyPromise;
+}
+
+/** O build carregado tipografa `$…$` de verdade? */
+export function mathActive(): boolean {
+  return initializedBuild === "math";
 }
 
 /** Compila código pic. Requer `ensureRpic()` resolvido. Lança em erro de sintaxe. */

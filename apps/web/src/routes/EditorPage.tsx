@@ -30,6 +30,7 @@ import { useI18n, type Locale } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import { PREFS_EVENT, pushPrefsSoon } from "@/lib/prefs";
 import { detectCircuits, detectTexLabels } from "@/lib/detect";
+import { mathActive, rememberMathPreference } from "@/lib/rpic";
 
 interface DocState {
   source: string;
@@ -38,10 +39,17 @@ interface DocState {
 
 function initialDoc(locale: Locale): DocState & { fromHash: boolean } {
   const shared = decodeShareHash(window.location.hash);
-  if (shared) return { ...shared, fromHash: true };
-  const draft = loadDraft();
-  if (draft) return { source: draft.source, circuits: draft.circuits, fromHash: false };
-  return { source: WELCOME_SOURCES[locale], circuits: false, fromHash: false };
+  const doc = shared
+    ? { ...shared, fromHash: true }
+    : (() => {
+        const draft = loadDraft();
+        return draft
+          ? { source: draft.source, circuits: draft.circuits, fromHash: false }
+          : { source: WELCOME_SOURCES[locale], circuits: false, fromHash: false };
+      })();
+  // Documento inicial já usa $…$? Fixa o build math ANTES do primeiro ready().
+  if (detectTexLabels(doc.source)) rememberMathPreference();
+  return doc;
 }
 
 /** Página principal: editor nanquim à esquerda, papel técnico à direita.
@@ -74,6 +82,17 @@ export function EditorPage() {
   const circuits = doc.circuits || autoCircuits;
 
   const rpic = useRpic(doc.source, { circuits, texlabels });
+
+  // Math digitado com o build lean carregado: fixa a preferência e avisa que
+  // um reload ativa a tipografia (a troca de build exige reinicializar o wasm).
+  const mathHintShown = useRef(false);
+  useEffect(() => {
+    if (texlabels && !mathActive() && !mathHintShown.current) {
+      mathHintShown.current = true;
+      rememberMathPreference();
+      toast(t("math.reloadHint"));
+    }
+  }, [texlabels, toast, t]);
 
   // Modo salvo: carrega o diagrama no editor quando a query resolve.
   const loadedIdRef = useRef<string | null>(null);

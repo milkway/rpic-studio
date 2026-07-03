@@ -20,8 +20,14 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   `packages/design-system/src/tokens.css` (bloco `@theme`).
 - **Alias**: `@/*` → `apps/web/src/*`; `@rpic/design-system` é alias exato (regex) — imports de
   subpath (`/tokens.css`) resolvem pelos exports do package, não pelo alias.
-- **WASM**: inicializar via `ensureRpic()` (`apps/web/src/lib/rpic.ts`); o `.wasm` entra como
-  asset com `?url`. Em Node/Vitest, passar os bytes: `ready(readFileSync(...))`.
+- **WASM**: inicializar via `ensureRpic()` (`apps/web/src/lib/rpic.ts`); os `.wasm` entram como
+  assets com `?url`. DOIS builds: lean (padrão) e math (RaTeX p/ texlabels, ~3 MB, lazy). A
+  escolha é FIXADA no primeiro `ready()` (wasm-bindgen) — flag `rpic:math.v1` decide na carga;
+  `$…$` digitado com lean ativo só mostra o aviso de reload. Em Node/Vitest, passar bytes:
+  `ready(readFileSync(...), { math? })` — teste math em ARQUIVO separado (isolamento do Vitest).
+- **Dependência vendorizada (temporária)**: `@strategicprojects/rpic` instala de
+  `vendor/strategicprojects-rpic-0.5.0.tgz` (build math ainda não publicado no npm). Quando o
+  próximo tag `v*` do rpic-lang publicar, trocar para a versão do registro e apagar `vendor/`.
 - **Erros do compilador**: formato `"linha:coluna: mensagem"` — parse em `errorPosition()`.
 - **SVG no DOM**: sempre via `sanitizeSvg()` (DOMPurify) — o código pode ter vindo de link de
   terceiros (`#pic=`).
