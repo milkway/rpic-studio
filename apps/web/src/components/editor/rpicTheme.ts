@@ -103,6 +103,18 @@ const darkHighlight = HighlightStyle.define([
   { tag: rpicTags.corner, color: "#80cbc4" },
   { tag: rpicTags.arrowop, color: "#a5d6a7", fontWeight: "bold" },
   { tag: t.operator, color: "#90a99a" },
+  // tags genéricas (abas SVG/Markdown em modo leitura)
+  { tag: t.tagName, color: "#a5d6a7" },
+  { tag: t.attributeName, color: "#9ccc65" },
+  { tag: t.attributeValue, color: "#d7c49e" },
+  { tag: t.angleBracket, color: "#90a99a" },
+  { tag: t.heading, color: "#c8e6c9", fontWeight: "bold" },
+  { tag: t.link, color: "#80cbc4", textDecoration: "underline" },
+  { tag: t.url, color: "#80cbc4" },
+  { tag: t.monospace, color: "#dce775" },
+  { tag: t.quote, color: "#b3c98f", fontStyle: "italic" },
+  { tag: t.processingInstruction, color: "#6f8274" },
+  { tag: t.blockComment, color: "#6f8274", fontStyle: "italic" },
 ]);
 
 // ---- rpic-forest-light (fundo #f7faf7, dado pelo painel via --color-ink) ----
@@ -139,6 +151,18 @@ const lightHighlight = HighlightStyle.define([
   { tag: rpicTags.corner, color: "#00796b" },
   { tag: rpicTags.arrowop, color: "#2e7d32", fontWeight: "bold" },
   { tag: t.operator, color: "#546e5a" },
+  // tags genéricas (abas SVG/Markdown em modo leitura)
+  { tag: t.tagName, color: "#2e7d32" },
+  { tag: t.attributeName, color: "#33691e" },
+  { tag: t.attributeValue, color: "#6d5c2e" },
+  { tag: t.angleBracket, color: "#546e5a" },
+  { tag: t.heading, color: "#194d33", fontWeight: "bold" },
+  { tag: t.link, color: "#00796b", textDecoration: "underline" },
+  { tag: t.url, color: "#00796b" },
+  { tag: t.monospace, color: "#827717" },
+  { tag: t.quote, color: "#4e6e33", fontStyle: "italic" },
+  { tag: t.processingInstruction, color: "#8a9a8d" },
+  { tag: t.blockComment, color: "#8a9a8d", fontStyle: "italic" },
 ]);
 
 /** Extensão de tema conforme o modo do app. */

@@ -11,6 +11,9 @@ pub struct User {
     pub email: String,
     pub name: String,
     pub picture_url: Option<String>,
+    /// Preferências do cliente (papel do diagrama, idioma, tema…), JSON livre.
+    #[schema(value_type = Object)]
+    pub prefs: serde_json::Value,
 }
 
 /// Diagrama completo (inclui o código-fonte).

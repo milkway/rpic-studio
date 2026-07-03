@@ -5,6 +5,8 @@ export interface User {
   email: string;
   name: string;
   picture_url: string | null;
+  /** Preferências salvas na conta (papel do diagrama, idioma, tema…). */
+  prefs: Record<string, unknown>;
 }
 
 export interface DiagramSummary {

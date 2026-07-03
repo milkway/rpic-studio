@@ -28,6 +28,7 @@ import { examples, WELCOME_SOURCES } from "@/lib/examples";
 import { useDiagram, useMe, useUpdateDiagram } from "@/lib/queries";
 import { useI18n, type Locale } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
+import { PREFS_EVENT, pushPrefsSoon } from "@/lib/prefs";
 
 interface DocState {
   source: string;
@@ -155,6 +156,14 @@ export function EditorPage() {
       saveSettings({ layout: next });
       return next;
     });
+    pushPrefsSoon();
+  }, []);
+
+  // Prefs da conta aplicadas ao storage → relê o layout.
+  useEffect(() => {
+    const onPrefs = () => setLayout(loadSettings().layout);
+    window.addEventListener(PREFS_EVENT, onPrefs);
+    return () => window.removeEventListener(PREFS_EVENT, onPrefs);
   }, []);
 
   // Divisor arrastável entre os painéis.
@@ -302,6 +311,7 @@ export function EditorPage() {
         <section className="min-h-0 min-w-0 bg-(--color-paper)">
           <PreviewTabs
             svg={rpic.svg}
+            source={doc.source}
             animations={rpic.animations}
             version={rpic.version}
             error={rpic.error}

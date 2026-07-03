@@ -45,5 +45,7 @@ test("abas SVG e Markdown mostram o código gerado", async ({ page }) => {
   await page.getByRole("tab", { name: "SVG" }).click();
   await expect(page.getByTestId("code-view-svg")).toContainText("<svg");
   await page.getByRole("tab", { name: "Markdown" }).click();
-  await expect(page.getByTestId("code-view-markdown")).toContainText("![diagrama](data:image");
+  await expect(page.getByTestId("code-view-markdown")).toContainText("![diagram](data:image");
+  // documento estruturado: imagem embutida + bloco de código pic
+  await expect(page.getByTestId("code-view-markdown")).toContainText("```pic");
 });

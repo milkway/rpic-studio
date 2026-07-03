@@ -27,7 +27,7 @@ pub async fn find_user(
 ) -> sqlx::Result<Option<(User, DateTime<Utc>)>> {
     let row = sqlx::query_as::<_, UserWithExpiry>(
         r#"
-        SELECT u.id, u.email, u.name, u.picture_url, s.expires_at
+        SELECT u.id, u.email, u.name, u.picture_url, u.prefs, s.expires_at
         FROM sessions s
         JOIN users u ON u.id = s.user_id
         WHERE s.token_hash = $1 AND s.expires_at > now()
@@ -43,6 +43,7 @@ pub async fn find_user(
                 email: r.email,
                 name: r.name,
                 picture_url: r.picture_url,
+                prefs: r.prefs,
             },
             r.expires_at,
         )
@@ -55,6 +56,7 @@ struct UserWithExpiry {
     email: String,
     name: String,
     picture_url: Option<String>,
+    prefs: serde_json::Value,
     expires_at: DateTime<Utc>,
 }
 

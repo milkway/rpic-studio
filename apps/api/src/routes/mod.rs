@@ -5,7 +5,7 @@ pub mod diagrams;
 pub mod health;
 
 use crate::AppState;
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use axum::Router;
 
 pub fn router(state: AppState) -> Router {
@@ -16,6 +16,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/google/callback", get(auth::google_callback))
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/me", get(auth::me))
+        .route("/api/auth/prefs", put(auth::set_prefs))
         .route("/api/diagrams", get(diagrams::list).post(diagrams::create))
         .route(
             "/api/diagrams/{id}",

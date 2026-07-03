@@ -6,6 +6,7 @@ import { useI18n } from "@/lib/i18n";
 import { animate, type Anim } from "@/lib/rpic";
 import { sanitizeSvg } from "@/lib/sanitize";
 import { loadCanvasSettings, saveCanvasSettings, type CanvasSettings } from "@/lib/storage";
+import { PREFS_EVENT, pushPrefsSoon } from "@/lib/prefs";
 import { CanvasSettingsPopover } from "./CanvasSettingsPopover";
 import { canvasBackground } from "./canvasStyle";
 import { Button } from "@/components/ui/Button";
@@ -43,6 +44,14 @@ export function PreviewPane({
   const changeCanvas = useCallback((next: CanvasSettings) => {
     setCanvas(next);
     saveCanvasSettings(next);
+    pushPrefsSoon();
+  }, []);
+
+  // Prefs da conta aplicadas ao storage → relê o papel.
+  useEffect(() => {
+    const onPrefs = () => setCanvas(loadCanvasSettings());
+    window.addEventListener(PREFS_EVENT, onPrefs);
+    return () => window.removeEventListener(PREFS_EVENT, onPrefs);
   }, []);
 
   // Injeta o SVG e (re)monta a timeline GSAP a cada compilação boa.

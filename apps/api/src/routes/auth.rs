@@ -149,3 +149,25 @@ pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> ApiResult<
 pub async fn me(CurrentUser(user): CurrentUser) -> Json<User> {
     Json(user)
 }
+
+const MAX_PREFS_BYTES: usize = 8 * 1024;
+
+/// PUT /api/auth/prefs — persiste as preferências do cliente na conta.
+pub async fn set_prefs(
+    State(state): State<AppState>,
+    CurrentUser(user): CurrentUser,
+    Json(prefs): Json<serde_json::Value>,
+) -> ApiResult<Json<serde_json::Value>> {
+    if !prefs.is_object() {
+        return Err(ApiError::BadRequest("prefs deve ser um objeto JSON".into()));
+    }
+    let size = serde_json::to_vec(&prefs).map(|v| v.len()).unwrap_or(0);
+    if size > MAX_PREFS_BYTES {
+        return Err(ApiError::BadRequest(format!(
+            "prefs excede o limite de {} KB",
+            MAX_PREFS_BYTES / 1024
+        )));
+    }
+    crate::repositories::users::set_prefs(&state.pool, user.id, &prefs).await?;
+    Ok(Json(prefs))
+}

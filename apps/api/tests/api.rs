@@ -286,6 +286,61 @@ async fn logout_invalida_a_sessao() {
 }
 
 #[tokio::test]
+async fn prefs_persistem_na_conta() {
+    let state = test_state().await;
+    let (_, cookie) = login_test_user(&state).await;
+    let app = build_router(state);
+
+    // me começa com prefs vazio
+    let res = app
+        .clone()
+        .oneshot(get_req("/api/auth/me", Some(&cookie)))
+        .await
+        .unwrap();
+    assert_eq!(body_json(res).await["prefs"], serde_json::json!({}));
+
+    // grava e lê de volta
+    let prefs =
+        serde_json::json!({ "canvas": { "pattern": "lines", "bg": "#faf4e6" }, "locale": "pt" });
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/api/auth/prefs")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(prefs.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    let res = app
+        .clone()
+        .oneshot(get_req("/api/auth/me", Some(&cookie)))
+        .await
+        .unwrap();
+    assert_eq!(body_json(res).await["prefs"], prefs);
+
+    // não-objeto é rejeitado
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/api/auth/prefs")
+                .header(header::COOKIE, &cookie)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from("[1,2,3]"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn valida_limites_de_titulo_e_fonte() {
     let state = test_state().await;
     let (_, cookie) = login_test_user(&state).await;

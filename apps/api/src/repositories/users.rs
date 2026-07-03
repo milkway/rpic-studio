@@ -2,6 +2,7 @@
 
 use crate::models::User;
 use sqlx::PgPool;
+use uuid::Uuid;
 
 pub async fn upsert_google_user(
     pool: &PgPool,
@@ -19,7 +20,7 @@ pub async fn upsert_google_user(
               name = EXCLUDED.name,
               picture_url = EXCLUDED.picture_url,
               last_login = now()
-        RETURNING id, email, name, picture_url
+        RETURNING id, email, name, picture_url, prefs
         "#,
     )
     .bind(google_sub)
@@ -28,4 +29,17 @@ pub async fn upsert_google_user(
     .bind(picture_url)
     .fetch_one(pool)
     .await
+}
+
+pub async fn set_prefs(
+    pool: &PgPool,
+    user_id: Uuid,
+    prefs: &serde_json::Value,
+) -> sqlx::Result<()> {
+    sqlx::query("UPDATE users SET prefs = $2 WHERE id = $1")
+        .bind(user_id)
+        .bind(prefs)
+        .execute(pool)
+        .await?;
+    Ok(())
 }

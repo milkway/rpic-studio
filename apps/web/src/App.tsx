@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/Tooltip";
 import { ToastProvider } from "@/components/ui/Toast";
 import { I18nProvider } from "@/lib/i18n";
 import { ThemeProvider } from "@/lib/theme";
+import { PrefsSync } from "@/components/app-shell/PrefsSync";
 import { EditorPage } from "@/routes/EditorPage";
 import { ExamplesPage } from "@/routes/ExamplesPage";
 import { HelpPage } from "@/routes/HelpPage";
@@ -23,6 +24,7 @@ export default function App() {
         <ThemeProvider>
           <TooltipProvider delayDuration={350}>
             <ToastProvider>
+              <PrefsSync />
           <BrowserRouter basename={import.meta.env.BASE_URL}>
             <Routes>
               <Route path="/" element={<EditorPage />} />

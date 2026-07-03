@@ -1,6 +1,7 @@
 // Tema claro/escuro como no site rpic.dev: classe `.dark` no <html>,
 // persistida em localStorage; padrão segue prefers-color-scheme.
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { PREFS_EVENT, pushPrefsSoon } from "./prefs";
 
 const THEME_KEY = "rpic:theme.v1";
 
@@ -27,6 +28,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.documentElement.classList.toggle("dark", dark);
   }, [dark]);
 
+  // Prefs da conta aplicadas ao storage → relê o tema.
+  useEffect(() => {
+    const onPrefs = () => setDark(initialDark());
+    window.addEventListener(PREFS_EVENT, onPrefs);
+    return () => window.removeEventListener(PREFS_EVENT, onPrefs);
+  }, []);
+
   const toggle = () => {
     setDark((d) => {
       const next = !d;
@@ -37,6 +45,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       }
       return next;
     });
+    pushPrefsSoon();
   };
 
   return <ThemeContext.Provider value={{ dark, toggle }}>{children}</ThemeContext.Provider>;

@@ -1,6 +1,7 @@
 // i18n leve e tipado: inglês (padrão) e português. Sem lib externa — um
 // contexto + dicionários com paridade de chaves garantida pelo TypeScript.
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { PREFS_EVENT, pushPrefsSoon } from "./prefs";
 
 export type Locale = "en" | "pt";
 
@@ -324,6 +325,13 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     document.documentElement.lang = locale === "pt" ? "pt-BR" : "en";
   }, [locale]);
 
+  // Prefs da conta aplicadas ao storage → relê o idioma.
+  useEffect(() => {
+    const onPrefs = () => setLocaleState(loadLocale());
+    window.addEventListener(PREFS_EVENT, onPrefs);
+    return () => window.removeEventListener(PREFS_EVENT, onPrefs);
+  }, []);
+
   const setLocale = (next: Locale) => {
     setLocaleState(next);
     try {
@@ -331,6 +339,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     } catch {
       // sem persistência — a escolha vale para a sessão
     }
+    pushPrefsSoon();
   };
 
   const t = (key: MessageKey, params?: Record<string, string>) => {

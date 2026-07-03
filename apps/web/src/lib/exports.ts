@@ -75,8 +75,50 @@ export async function copyText(text: string): Promise<void> {
   await navigator.clipboard.writeText(text);
 }
 
-/** Markdown com o SVG embutido em data URI (paridade com a aba Markdown do pikup). */
-export function toMarkdownSnippet(svg: string, title = "diagrama"): string {
+/** Imagem markdown com o SVG embutido em data URI. */
+export function toMarkdownImage(svg: string, title = "diagram"): string {
   const b64 = btoa(String.fromCharCode(...new TextEncoder().encode(svg)));
   return `![${title}](data:image/svg+xml;base64,${b64})`;
+}
+
+/** Documento markdown estruturado: imagem embutida + código-fonte em bloco. */
+export function toMarkdownSnippet(
+  svg: string,
+  source: string,
+  labels: { image: string; sourceBlock: string; title: string },
+): string {
+  return [
+    `<!-- ${labels.image} -->`,
+    "",
+    toMarkdownImage(svg, labels.title),
+    "",
+    `<!-- ${labels.sourceBlock} -->`,
+    "",
+    "```pic",
+    source.trim(),
+    "```",
+    "",
+  ].join("\n");
+}
+
+/** Reindenta um SVG/XML por profundidade de tags (legibilidade na aba SVG). */
+export function formatXml(xml: string): string {
+  const lines = xml
+    .replace(/>\s*</g, ">\n<")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  let depth = 0;
+  const out: string[] = [];
+  for (const line of lines) {
+    const isClosing = /^<\//.test(line);
+    const isSelfClosing = /\/>$/.test(line) || /^<[!?]/.test(line);
+    const opensAndCloses = /<\//.test(line) && !isClosing;
+    if (isClosing) depth = Math.max(depth - 1, 0);
+    out.push("  ".repeat(depth) + line);
+    if (!isClosing && !isSelfClosing && !opensAndCloses && /^<[A-Za-z]/.test(line)) {
+      depth += 1;
+    }
+  }
+  return out.join("\n");
 }
