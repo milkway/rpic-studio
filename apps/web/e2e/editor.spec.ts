@@ -44,15 +44,27 @@ test("typo em comando mostra sugestão e o clique pula para o erro", async ({ pa
 
   // mensagem humanizada + sugestão de correção
   await expect(page.getByTestId("compile-error")).toBeVisible({ timeout: 5_000 });
-  await expect(page.getByTestId("error-suggestion")).toContainText(/box/);
+  await expect(page.getByTestId("compile-error-suggestion")).toContainText(/box/);
 
   // clique na linha pula o cursor para a posição do erro
-  await page.getByTestId("error-jump").click();
+  await page.getByTestId("compile-error-jump").click();
   const cursorLine = await page.evaluate(() => {
     const active = document.querySelector(".cm-activeLineGutter");
     return active?.textContent;
   });
   expect(cursorLine).toBe("2");
+});
+
+test("atributo com typo gera warning com sugestão, sem quebrar o diagrama", async ({ page }) => {
+  const code = page.locator('[data-testid="code-pane"] .cm-content');
+  await code.click();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+a" : "Control+a");
+  await page.keyboard.type('box "a" dashd');
+
+  // compila (warning, não erro) e o aviso aparece com a correção
+  await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok");
+  await expect(page.getByTestId("compile-warning-0")).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByTestId("compile-warning-0-suggestion")).toContainText("dashed");
 });
 
 test("circuitos ligam automaticamente quando o código usa a biblioteca", async ({ page }) => {

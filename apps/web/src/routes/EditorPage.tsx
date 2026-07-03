@@ -4,7 +4,7 @@ import { BookOpen, ChevronDown, Eraser } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import { AppShell } from "@/components/app-shell/AppShell";
 import { CodePane, type CodePaneHandle } from "@/components/editor/CodePane";
-import { explainError } from "@/lib/errorInfo";
+import { explainDiagnostic, explainRawError } from "@/lib/errorInfo";
 import { EditorToolbar } from "@/components/editor/EditorToolbar";
 import { DiagnosticsPanel } from "@/components/preview/DiagnosticsPanel";
 import { PreviewTabs } from "@/components/preview/PreviewTabs";
@@ -85,10 +85,23 @@ export function EditorPage() {
   const rpic = useRpic(doc.source, { circuits, texlabels });
   const codeRef = useRef<CodePaneHandle>(null);
 
-  // Erro interpretado: posição precisa, texto humano e sugestão de correção.
+  // Diagnósticos interpretados: posição precisa, texto humano e sugestões.
   const errorInfo = useMemo(
-    () => (rpic.error ? explainError(rpic.error, doc.source, locale) : null),
-    [rpic.error, doc.source, locale],
+    () =>
+      rpic.errorDiag
+        ? explainDiagnostic(rpic.errorDiag, doc.source, locale, "error")
+        : rpic.error
+          ? explainRawError(rpic.error, locale)
+          : null,
+    [rpic.error, rpic.errorDiag, doc.source, locale],
+  );
+  const warningInfos = useMemo(
+    () => rpic.warnings.map((w) => explainDiagnostic(w, doc.source, locale, "warning")),
+    [rpic.warnings, doc.source, locale],
+  );
+  const allDiagnostics = useMemo(
+    () => (errorInfo ? [errorInfo] : warningInfos),
+    [errorInfo, warningInfos],
   );
 
   // Math digitado com o build lean carregado: fixa a preferência e avisa que
@@ -317,13 +330,14 @@ export function EditorPage() {
               ref={codeRef}
               value={doc.source}
               onChange={setSource}
-              error={errorInfo}
+              diagnostics={allDiagnostics}
               dark={dark}
               autoFocus
             />
           </div>
           <DiagnosticsPanel
             error={errorInfo}
+            warnings={warningInfos}
             prints={rpic.prints}
             onJump={(line, col) => codeRef.current?.focusAt(line, col)}
           />

@@ -24,31 +24,31 @@ export interface CodePaneHandle {
 interface CodePaneProps {
   value: string;
   onChange: (value: string) => void;
-  /** Erro de compilação interpretado (sublinhado preciso + mensagem humana). */
-  error: ErrorInfo | null;
+  /** Erros e avisos interpretados (sublinhado preciso + mensagem humana). */
+  diagnostics: ErrorInfo[];
   /** Tema do app — alterna rpic-forest-light/dark. */
   dark: boolean;
   autoFocus?: boolean;
 }
 
-function errorToDiagnostics(state: EditorState, error: ErrorInfo): Diagnostic[] {
+function toCmDiagnostics(state: EditorState, infos: ErrorInfo[]): Diagnostic[] {
   const doc = state.doc;
-  const line =
-    error.line && error.line >= 1 && error.line <= doc.lines
-      ? doc.line(error.line)
-      : doc.line(1);
-  const from = Math.min(line.from + Math.max((error.col ?? 1) - 1, 0), line.to);
-  // sublinha só o token ofensor quando o comprimento é conhecido
-  const to = error.tokenLength ? Math.min(from + error.tokenLength, line.to) : line.to;
-  const message = error.suggestion ? `${error.friendly} ${error.suggestion}` : error.friendly;
-  return [{ from, to: Math.max(to, from), severity: "error", message }];
+  return infos.map((info) => {
+    const line =
+      info.line && info.line >= 1 && info.line <= doc.lines ? doc.line(info.line) : doc.line(1);
+    const from = Math.min(line.from + Math.max((info.col ?? 1) - 1, 0), line.to);
+    // sublinha só o token ofensor quando o comprimento é conhecido
+    const to = info.tokenLength ? Math.min(from + info.tokenLength, line.to) : line.to;
+    const message = info.suggestion ? `${info.friendly} ${info.suggestion}` : info.friendly;
+    return { from, to: Math.max(to, from), severity: info.severity, message };
+  });
 }
 
 const themeCompartment = new Compartment();
 
 /** Editor CodeMirror 6 com a linguagem rpic e os temas rpic-forest. */
 export const CodePane = forwardRef<CodePaneHandle, CodePaneProps>(function CodePane(
-  { value, onChange, error, dark, autoFocus },
+  { value, onChange, diagnostics, dark, autoFocus },
   ref,
 ) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -120,13 +120,12 @@ export const CodePane = forwardRef<CodePaneHandle, CodePaneProps>(function CodeP
     }
   }, [value]);
 
-  // Reflete o erro do compilador como diagnóstico inline.
+  // Reflete erros/avisos do compilador como diagnósticos inline.
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
-    const diags = error ? errorToDiagnostics(view.state, error) : [];
-    view.dispatch(setDiagnostics(view.state, diags));
-  }, [error]);
+    view.dispatch(setDiagnostics(view.state, toCmDiagnostics(view.state, diagnostics)));
+  }, [diagnostics]);
 
   return <div ref={hostRef} data-testid="code-pane" className="h-full min-h-0" />;
 });

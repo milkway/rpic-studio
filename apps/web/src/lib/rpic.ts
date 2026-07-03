@@ -4,7 +4,13 @@
 // ganha um flag persistente e o build math passa a carregar nas próximas
 // visitas; na sessão corrente mostramos um aviso para recarregar.
 import * as rpic from "@strategicprojects/rpic";
-import type { Anim, Bundle, CompileOptions } from "@strategicprojects/rpic";
+import type {
+  Anim,
+  Bundle,
+  CompileError,
+  CompileOptions,
+  Diagnostic,
+} from "@strategicprojects/rpic";
 import wasmUrl from "@strategicprojects/rpic/pkg/rpic_wasm_bg.wasm?url";
 import mathWasmUrl from "@strategicprojects/rpic/pkg/rpic_wasm_math_bg.wasm?url";
 
@@ -54,7 +60,7 @@ export function compile(src: string, opts?: CompileOptions): Bundle {
 /** Monta e toca a timeline GSAP do manifesto de animação no SVG dentro de `root`. */
 export const animate = rpic.animate;
 
-export type { Anim, Bundle, CompileOptions };
+export type { Anim, Bundle, CompileError, CompileOptions, Diagnostic };
 
 /** Extrai posição "linha:coluna" de uma mensagem de erro do compilador
  *  (formato observado: `"2:1: expected an object, found …"`). */

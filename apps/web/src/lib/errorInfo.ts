@@ -1,46 +1,20 @@
-// Interpreta as mensagens de erro do compilador rpic para UX: posição e
-// extensão precisas, texto humano localizado e sugestões de "você quis
-// dizer…?" por distância de edição. Formatos catalogados do compilador real:
-//   1:1: expected an object, found Name("bxo")
-//   1:13: expected Rparen, found Newline
-//   2:1: unterminated string literal
-//   1:1: define: unterminated `{` body
-//   unknown label `A`             (sem posição — fase de avaliação)
-//   ordinal out of range          (sem posição)
-//   1:2: unexpected character `@`
+// Camada de UX sobre os diagnósticos ESTRUTURADOS do compilador rpic
+// (rpic-lang#178): o compilador entrega posição com span (line/col/end_col),
+// kind, found/expected e hint; aqui só localizamos o texto e complementamos a
+// sugestão quando o compilador não tem o vocabulário em escopo (ex.: macro de
+// circuitos digitada errado sem a biblioteca carregada).
+import type { Diagnostic as RpicDiagnostic } from "@strategicprojects/rpic";
 import type { Locale } from "./i18n";
 import { errorPosition } from "./rpic";
 
-// Vocabulário da linguagem (mesmas listas da gramática) para sugestões.
+// Vocabulário para o fallback de sugestão (o compilador cobre o que está em
+// escopo; isto cobre macros de circuito quando a biblioteca está desligada).
 const PRIMITIVES = "box circle ellipse line arrow arc spline move brace dot".split(" ");
 const CONTROL = "define undef if then else for do copy print reset animate".split(" ");
 const COMMON_CIRCUITS =
   "resistor capacitor inductor battery diode ground wire lamp fuse switch opamp and_gate or_gate xor_gate nand_gate nor_gate not_gate transformer relay motor led".split(
     " ",
   );
-
-/** Tokens internos do parser → como o usuário os digita. */
-const TOKEN_NAMES: Record<string, { en: string; pt: string }> = {
-  Rparen: { en: "a closing “)”", pt: "um “)” de fechamento" },
-  Lparen: { en: "an opening “(”", pt: "um “(” de abertura" },
-  RightBrace: { en: "a closing “}”", pt: "um “}” de fechamento" },
-  LeftBrace: { en: "an opening “{”", pt: "um “{” de abertura" },
-  Newline: { en: "the end of the line", pt: "o fim da linha" },
-  Eof: { en: "the end of the file", pt: "o fim do arquivo" },
-  Do: { en: "the keyword “do”", pt: "a palavra-chave “do”" },
-  Then: { en: "the keyword “then”", pt: "a palavra-chave “then”" },
-  Comma: { en: "a comma", pt: "uma vírgula" },
-};
-
-function tokenLabel(raw: string, locale: Locale): string {
-  const known = TOKEN_NAMES[raw];
-  if (known) return known[locale];
-  const name = /^Name\("(.+)"\)$/.exec(raw);
-  if (name) return `“${name[1]}”`;
-  const str = /^Str\("(.+)"\)$/.exec(raw);
-  if (str) return `"${str[1]}"`;
-  return `“${raw}”`;
-}
 
 // Damerau-Levenshtein (OSA): transposição adjacente custa 1 — é o typo mais
 // comum ("bxo" → "box") e o Levenshtein puro cobraria 2.
@@ -83,7 +57,8 @@ export function suggestWord(word: string, source: string): string | null {
 }
 
 export interface ErrorInfo {
-  /** 1-based; null quando o compilador não informa (fase de avaliação). */
+  severity: "error" | "warning";
+  /** 1-based; null quando desconhecida. */
   line: number | null;
   col: number | null;
   /** Comprimento do token ofensor (sublinhado preciso), quando conhecido. */
@@ -92,7 +67,7 @@ export interface ErrorInfo {
   friendly: string;
   /** Sugestão de correção ("você quis dizer…?"), quando houver. */
   suggestion: string | null;
-  /** Mensagem original do compilador (para quem quiser o detalhe). */
+  /** Mensagem original do compilador. */
   raw: string;
 }
 
@@ -110,8 +85,8 @@ const M = {
     pt: (e: string, f: string) => `Esperava ${e}, mas encontrou ${f}.`,
   },
   unterminatedString: {
-    en: () => "Unclosed string — a closing quote (\") is missing on the previous line.",
-    pt: () => 'String sem fechar — falta a aspa (") de fechamento na linha anterior.',
+    en: () => 'Unclosed string — this quote (") is never closed.',
+    pt: () => 'String sem fechar — esta aspa (") nunca é fechada.',
   },
   unterminatedBrace: {
     en: () => "The “{ … }” block of this define was never closed — add the missing “}”.",
@@ -124,20 +99,108 @@ const M = {
       `O rótulo “${l}” não existe. Rótulos precisam ser definidos antes do uso, ex.: ${l}: box`,
   },
   ordinalOutOfRange: {
-    en: () => "An ordinal reference points past what was drawn (e.g. “3rd box” with only 2).",
-    pt: () =>
-      "Uma referência ordinal aponta além do que foi desenhado (ex.: “3rd box” com só 2).",
+    en: (n: string, range: string) =>
+      `The ordinal “${n}” points past what was drawn (available: ${range}).`,
+    pt: (n: string, range: string) =>
+      `A referência ordinal “${n}” aponta além do que foi desenhado (disponível: ${range}).`,
   },
-  unexpectedChar: {
-    en: (c: string) => `Unexpected character “${c}”.`,
-    pt: (c: string) => `Caractere inesperado: “${c}”.`,
+  ignoredAttribute: {
+    en: (w: string) => `“${w}” is not a valid attribute here and was ignored.`,
+    pt: (w: string) => `“${w}” não é um atributo válido aqui e foi ignorado.`,
+  },
+  unknownEffect: {
+    en: (w: string, ok: string) => `Unknown animation effect “${w}”. Available: ${ok}.`,
+    pt: (w: string, ok: string) => `Efeito de animação desconhecido: “${w}”. Disponíveis: ${ok}.`,
   },
 };
 
-/** Interpreta a mensagem crua do compilador. */
-export function explainError(raw: string, source: string, locale: Locale): ErrorInfo {
-  const pos = errorPosition(raw);
+/** Frases do compilador → linguagem do usuário (campos expected/found). */
+const PHRASES: Record<string, { en: string; pt: string }> = {
+  "an object": { en: "a drawing command (box, circle, line…)", pt: "um comando de desenho (box, circle, line…)" },
+  "an expression": { en: "an expression (a number or formula)", pt: "uma expressão (número ou fórmula)" },
+  "end of line": { en: "the end of the line", pt: "o fim da linha" },
+  "end of file": { en: "the end of the file", pt: "o fim do arquivo" },
+};
+
+function phrase(raw: string, locale: Locale): string {
+  const clean = raw.replace(/`/g, "");
+  const known = PHRASES[clean];
+  if (known) return known[locale];
+  // token literal citado pelo compilador: `bxo` → “bxo”; ")" fica como está
+  const quoted = /^`(.+)`$/.exec(raw);
+  if (quoted) return `“${quoted[1]}”`;
+  return `“${clean}”`;
+}
+
+function localizeHint(hint: string | null, locale: Locale): string | null {
+  if (!hint) return null;
+  const m = /did you mean `(.+)`\?/.exec(hint);
+  return m ? M.didYouMean[locale](m[1]) : hint;
+}
+
+/** Interpreta um diagnóstico estruturado do compilador (erro ou warning). */
+export function explainDiagnostic(
+  d: RpicDiagnostic,
+  source: string,
+  locale: Locale,
+  severity: "error" | "warning" = "error",
+): ErrorInfo {
+  const tokenLength = d.col !== null && d.end_col !== null ? Math.max(d.end_col - d.col, 1) : null;
   const base: ErrorInfo = {
+    severity,
+    line: d.line,
+    col: d.col,
+    tokenLength,
+    friendly: d.message,
+    suggestion: localizeHint(d.hint, locale),
+    raw: d.message,
+  };
+  const word = d.found ? d.found.replace(/^`|`$/g, "") : null;
+
+  switch (d.kind) {
+    case "expected_token": {
+      if (d.expected === "an object" && word && /^[A-Za-z_]/.test(word)) {
+        const suggestion = base.suggestion ?? maybeSuggest(word, source, locale);
+        return { ...base, friendly: M.unknownCommand[locale](word), suggestion };
+      }
+      return {
+        ...base,
+        friendly: M.expectedFound[locale](phrase(d.expected ?? "?", locale), phrase(d.found ?? "?", locale)),
+      };
+    }
+    case "unterminated_string":
+      return { ...base, friendly: M.unterminatedString[locale]() };
+    case "unknown_label":
+      return { ...base, friendly: M.unknownLabel[locale](word ?? "?") };
+    case "ordinal_out_of_range":
+      return { ...base, friendly: M.ordinalOutOfRange[locale](word ?? "?", d.expected ?? "?") };
+    case "ignored_attribute": {
+      const suggestion = base.suggestion ?? maybeSuggest(word ?? "", source, locale);
+      return { ...base, friendly: M.ignoredAttribute[locale](word ?? "?"), suggestion };
+    }
+    case "unknown_animation_effect":
+      return { ...base, friendly: M.unknownEffect[locale](word ?? "?", d.expected ?? "…") };
+    case "parse":
+      if (/unterminated `\{` body/.test(d.message)) {
+        return { ...base, friendly: M.unterminatedBrace[locale]() };
+      }
+      return base;
+    default:
+      return base;
+  }
+}
+
+function maybeSuggest(word: string, source: string, locale: Locale): string | null {
+  const suggestion = suggestWord(word, source);
+  return suggestion ? M.didYouMean[locale](suggestion) : null;
+}
+
+/** Fallback para erros sem diagnóstico estruturado (mensagem crua). */
+export function explainRawError(raw: string, locale: Locale): ErrorInfo {
+  const pos = errorPosition(raw);
+  void locale;
+  return {
+    severity: "error",
     line: pos?.line ?? null,
     col: pos?.col ?? null,
     tokenLength: null,
@@ -145,90 +208,4 @@ export function explainError(raw: string, source: string, locale: Locale): Error
     suggestion: null,
     raw,
   };
-  const body = raw.replace(/^\d+:\d+:\s*/, "");
-
-  let m = /^expected an object, found Name\("(.+)"\)$/.exec(body);
-  if (m) {
-    const word = m[1];
-    const suggestion = suggestWord(word, source);
-    return {
-      ...base,
-      tokenLength: word.length,
-      friendly: M.unknownCommand[locale](word),
-      suggestion: suggestion ? M.didYouMean[locale](suggestion) : null,
-    };
-  }
-
-  m = /^expected (.+?), found (.+)$/.exec(body);
-  if (m) {
-    const found = /^Name\("(.+)"\)$/.exec(m[2]);
-    return {
-      ...base,
-      tokenLength: found ? found[1].length : null,
-      friendly: M.expectedFound[locale](
-        tokenLabel(m[1].replace(/^an? /, "").replace(/`/g, ""), locale),
-        tokenLabel(m[2], locale),
-      ),
-    };
-  }
-
-  if (/unterminated string literal/.test(body)) {
-    return { ...base, friendly: M.unterminatedString[locale]() };
-  }
-
-  if (/unterminated `\{` body/.test(body)) {
-    return { ...base, friendly: M.unterminatedBrace[locale]() };
-  }
-
-  m = /^unknown label `(.+)`$/.exec(body);
-  if (m) {
-    const label = m[1];
-    // O compilador não informa a posição — localiza a primeira ocorrência.
-    const found = findWord(source, label);
-    return {
-      ...base,
-      line: found?.line ?? base.line,
-      col: found?.col ?? base.col,
-      tokenLength: label.length,
-      friendly: M.unknownLabel[locale](label),
-    };
-  }
-
-  if (/ordinal out of range/.test(body)) {
-    const found = findOrdinal(source);
-    return {
-      ...base,
-      line: found?.line ?? base.line,
-      col: found?.col ?? base.col,
-      tokenLength: found?.length ?? null,
-      friendly: M.ordinalOutOfRange[locale](),
-    };
-  }
-
-  m = /^unexpected character `(.+)`$/.exec(body);
-  if (m) {
-    return { ...base, tokenLength: 1, friendly: M.unexpectedChar[locale](m[1]) };
-  }
-
-  return base;
-}
-
-function findWord(source: string, word: string): { line: number; col: number } | null {
-  const lines = source.split("\n");
-  const re = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`);
-  for (let i = 0; i < lines.length; i++) {
-    const m = re.exec(lines[i]);
-    if (m) return { line: i + 1, col: m.index + 1 };
-  }
-  return null;
-}
-
-function findOrdinal(source: string): { line: number; col: number; length: number } | null {
-  const lines = source.split("\n");
-  const re = /\b(\d+(?:st|nd|rd|th)(?:\s+last)?|last)\s+\w+/;
-  for (let i = 0; i < lines.length; i++) {
-    const m = re.exec(lines[i]);
-    if (m) return { line: i + 1, col: m.index + 1, length: m[0].length };
-  }
-  return null;
 }

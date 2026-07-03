@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { compile, ensureRpic, type Anim } from "./rpic";
+import { compile, ensureRpic, type Anim, type CompileError, type Diagnostic } from "./rpic";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 export interface RpicState {
@@ -8,8 +8,12 @@ export interface RpicState {
   animations: Anim[];
   /** Linhas emitidas por `print`. */
   prints: string[];
+  /** Avisos do compilador (aceito, mas suspeito — ex.: atributo ignorado). */
+  warnings: Diagnostic[];
   /** Erro de compilação atual, ou null quando o código está válido. */
   error: string | null;
+  /** Diagnóstico estruturado do erro (posição, kind, hint), quando disponível. */
+  errorDiag: Diagnostic | null;
   /** true enquanto o WASM carrega (primeiro uso). */
   loading: boolean;
   /** Tempo da última compilação bem-sucedida, em ms. */
@@ -27,7 +31,9 @@ const INITIAL: RpicState = {
   svg: "",
   animations: [],
   prints: [],
+  warnings: [],
   error: null,
+  errorDiag: null,
   loading: true,
   compileMs: null,
   version: 0,
@@ -76,15 +82,18 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
         svg: bundle.svg,
         animations: bundle.animations,
         prints: bundle.diagnostics,
+        warnings: bundle.warnings ?? [],
         error: null,
+        errorDiag: null,
         compileMs,
         version: versionRef.current,
       }));
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
+      const diag = (e as CompileError).errorInfo ?? null;
       // não pisca vermelho a cada tecla: o erro só aparece se persistir
       errorTimerRef.current = window.setTimeout(() => {
-        setState((s) => ({ ...s, error: message }));
+        setState((s) => ({ ...s, error: message, errorDiag: diag }));
       }, ERROR_GRACE_MS);
     }
     return () => {
