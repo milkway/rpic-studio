@@ -11,8 +11,24 @@ export interface Settings {
   layout: "horizontal" | "vertical";
 }
 
+/** Aparência do papel do diagrama (fundo do preview). */
+export interface CanvasSettings {
+  pattern: "dots" | "lines" | "plain";
+  bg: string;
+  gridColor: string;
+  gridSize: number;
+}
+
+export const DEFAULT_CANVAS: CanvasSettings = {
+  pattern: "dots",
+  bg: "#ffffff",
+  gridColor: "#cbd5e1",
+  gridSize: 22,
+};
+
 const DRAFT_KEY = "rpic:draft.v1";
 const SETTINGS_KEY = "rpic:settings.v1";
+const CANVAS_KEY = "rpic:canvas.v1";
 
 function read<T>(key: string): T | null {
   try {
@@ -46,4 +62,12 @@ export function loadSettings(): Settings {
 
 export function saveSettings(settings: Settings): void {
   write(SETTINGS_KEY, settings);
+}
+
+export function loadCanvasSettings(): CanvasSettings {
+  return { ...DEFAULT_CANVAS, ...read<Partial<CanvasSettings>>(CANVAS_KEY) };
+}
+
+export function saveCanvasSettings(settings: CanvasSettings): void {
+  write(CANVAS_KEY, settings);
 }

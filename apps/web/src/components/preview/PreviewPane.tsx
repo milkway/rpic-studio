@@ -5,6 +5,9 @@ import { motion } from "@rpic/design-system";
 import { useI18n } from "@/lib/i18n";
 import { animate, type Anim } from "@/lib/rpic";
 import { sanitizeSvg } from "@/lib/sanitize";
+import { loadCanvasSettings, saveCanvasSettings, type CanvasSettings } from "@/lib/storage";
+import { CanvasSettingsPopover } from "./CanvasSettingsPopover";
+import { canvasBackground } from "./canvasStyle";
 import { Button } from "@/components/ui/Button";
 import { Tip } from "@/components/ui/Tooltip";
 
@@ -34,7 +37,13 @@ export function PreviewPane({
   const canvasRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [canvas, setCanvas] = useState<CanvasSettings>(loadCanvasSettings);
   const { t } = useI18n();
+
+  const changeCanvas = useCallback((next: CanvasSettings) => {
+    setCanvas(next);
+    saveCanvasSettings(next);
+  }, []);
 
   // Injeta o SVG e (re)monta a timeline GSAP a cada compilação boa.
   useEffect(() => {
@@ -141,10 +150,16 @@ export function PreviewPane({
               <Scan size={14} />
             </Button>
           </Tip>
+          <CanvasSettingsPopover value={canvas} onChange={changeCanvas} />
         </div>
       </div>
 
-      <div ref={canvasRef} className="paper-grid relative min-h-0 flex-1 overflow-auto">
+      <div
+        ref={canvasRef}
+        data-testid="preview-canvas"
+        className="relative min-h-0 flex-1 overflow-auto"
+        style={canvasBackground(canvas)}
+      >
         {loading ? (
           <div className="flex h-full items-center justify-center gap-2.5 text-sm text-(--color-text-muted)">
             <Loader2 size={16} className="animate-spin" />

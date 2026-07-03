@@ -39,8 +39,32 @@ test("toggle claro/escuro aplica a classe .dark e persiste", async ({ page }) =>
 
   // o papel do diagrama continua claro nos dois temas (fidelidade do desenho)
   const canvasBg = await page
-    .locator(".paper-grid")
-    .first()
+    .getByTestId("preview-canvas")
     .evaluate((el) => getComputedStyle(el).backgroundColor);
   expect(canvasBg).toBe("rgb(255, 255, 255)");
+});
+
+test("papel do diagrama é configurável (padrão, fundo) e persiste", async ({ page }) => {
+  const canvas = page.getByTestId("preview-canvas");
+
+  // padrão inicial: pontos sobre branco
+  expect(await canvas.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain(
+    "radial-gradient",
+  );
+
+  // muda para linhas
+  await page.getByTestId("canvas-settings").click();
+  await page.getByTestId("canvas-pattern-lines").click();
+  expect(await canvas.evaluate((el) => getComputedStyle(el).backgroundImage)).toContain(
+    "linear-gradient",
+  );
+
+  // liso remove a grade
+  await page.getByTestId("canvas-pattern-plain").click();
+  expect(await canvas.evaluate((el) => getComputedStyle(el).backgroundImage)).toBe("none");
+
+  // persiste após recarregar
+  await page.reload();
+  await page.waitForSelector('[data-testid="preview-stage"] svg', { timeout: 20_000 });
+  expect(await canvas.evaluate((el) => getComputedStyle(el).backgroundImage)).toBe("none");
 });

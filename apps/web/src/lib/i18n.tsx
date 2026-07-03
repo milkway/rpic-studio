@@ -137,6 +137,18 @@ const en = {
     "From Kernighan's classic pipeline to full circuits — click any card to open it in the editor and build from there.",
   "examplesPage.open": "Open in editor",
 
+  // papel do diagrama
+  "canvas.button": "Diagram paper",
+  "canvas.pattern": "Pattern",
+  "canvas.plain": "Plain",
+  "canvas.dots": "Dots",
+  "canvas.lines": "Lines",
+  "canvas.bg": "Background",
+  "canvas.gridColor": "Grid color",
+  "canvas.gridSize": "Grid size",
+  "canvas.custom": "Custom color",
+  "canvas.reset": "Reset to default",
+
   // idioma
   "locale.label": "Language",
   "locale.en": "English",
@@ -264,6 +276,17 @@ const pt: Record<MessageKey, string> = {
   "examplesPage.subtitle":
     "Do pipeline clássico do Kernighan a circuitos completos — clique para abrir qualquer um no editor e partir dele.",
   "examplesPage.open": "Abrir no editor",
+
+  "canvas.button": "Papel do diagrama",
+  "canvas.pattern": "Padrão",
+  "canvas.plain": "Liso",
+  "canvas.dots": "Pontos",
+  "canvas.lines": "Linhas",
+  "canvas.bg": "Fundo",
+  "canvas.gridColor": "Cor da grade",
+  "canvas.gridSize": "Tamanho da grade",
+  "canvas.custom": "Cor personalizada",
+  "canvas.reset": "Restaurar padrão",
 
   "locale.label": "Idioma",
   "locale.en": "English",
