@@ -33,13 +33,23 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   extractor `CurrentUser`. Migrações são `.sql` puros em `db/migrations/`, aplicados pelo
   entrypoint do Postgres (recriar o volume para reaplicar).
 
+## i18n
+
+Inglês (padrão) e português, sem lib: contexto em `apps/web/src/lib/i18n.tsx` com dicionários
+de paridade forçada pelo TS (`t("chave")`, placeholders `{nome}`). Seletor de bandeiras na
+topbar; escolha em `rpic:locale.v1`. Conteúdo estruturado (exemplos, ajuda) carrega
+`{en, pt}` nos próprios dados. Novos textos de UI SEMPRE via `t()` nos dois idiomas.
+
 ## Direção visual (tema "rpic forest" — o mesmo do site rpic.dev)
 
-Paleta portada de `../rpic/site` e `../rpic/tools/highlight/themes/`: neutros slate sobre
-branco, acento verde-floresta (`--color-accent` #1b5e20), painel do editor no verde-tinta do
-tema oficial `rpic-forest-dark` (#1e2823) com as cores de sintaxe portadas 1:1 em
-`rpicTheme.ts`. Logo/favicon oficiais copiados do site (`public/brand/logo.svg` — um "r"
-desenhado no próprio rpic); wordmark `.brand-r`/`.brand-pic` (Alfa Slab One no design-system).
+Paleta portada de `../rpic/site` e `../rpic/tools/highlight/themes/`: light = slate sobre
+branco com acento #1b5e20; dark = classe `.dark` no `<html>` (slate-950, como o site), 100%
+via override das CSS vars em `tokens.css` — componentes nunca usam `dark:` do Tailwind. O
+editor alterna os temas oficiais `rpic-forest-light/dark` (portados 1:1 em `rpicTheme.ts`,
+troca via Compartment no CodePane). O papel do diagrama (`.paper-grid`, `--color-canvas`)
+fica CLARO nos dois temas, como no site. Logo/favicon oficiais copiados do site
+(`public/brand/logo.svg` — um "r" desenhado no próprio rpic); wordmark
+`.brand-r`/`.brand-pic` (Alfa Slab One no design-system).
 Fontes de UI: Bricolage Grotesque (display), Instrument Sans (UI), IBM Plex Mono (código).
 Motion GSAP discreto via `@rpic/design-system` `motion.*` (respeita `prefers-reduced-motion`).
 Ao mudar o tema, manter fidelidade ao site do rpic — é a mesma marca.

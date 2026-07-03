@@ -4,6 +4,7 @@ import { Copy } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import type { Anim } from "@/lib/rpic";
 import { toMarkdownSnippet, copyText } from "@/lib/exports";
+import { useI18n } from "@/lib/i18n";
 import { PreviewPane } from "./PreviewPane";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
@@ -38,10 +39,11 @@ function TabButton({ value, children }: { value: TabValue; children: string }) {
 export function PreviewTabs(props: PreviewTabsProps) {
   const [tab, setTab] = useState<TabValue>("imagem");
   const toast = useToast();
+  const { t } = useI18n();
 
   const tabsList = (
     <Tabs.List className="flex items-center gap-1">
-      <TabButton value="imagem">Imagem</TabButton>
+      <TabButton value="imagem">{t("preview.tabImage")}</TabButton>
       <TabButton value="svg">SVG</TabButton>
       <TabButton value="markdown">Markdown</TabButton>
     </Tabs.List>
@@ -69,11 +71,11 @@ export function PreviewTabs(props: PreviewTabsProps) {
                   size="sm"
                   onClick={async () => {
                     await copyText(codeContent);
-                    toast("Copiado para a área de transferência");
+                    toast(t("preview.copiedToClipboard"));
                   }}
                 >
                   <Copy size={13} />
-                  Copiar
+                  {t("preview.copy")}
                 </Button>
               </div>
             </div>

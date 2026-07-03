@@ -1,10 +1,9 @@
 /* =====================================================================
-   rpic studio — Design Tokens · tema "rpic forest"
-   Mesma paleta do site rpic.dev: neutros slate sobre branco, acento
-   verde-floresta (#1b5e20 / #2e7d32), teal para extensões, e o painel
-   de código no verde-tinta do tema rpic-forest-dark (#1e2823).
-   Tipos: Bricolage Grotesque (marca/títulos), Instrument Sans (UI),
-   IBM Plex Mono (código e rótulos técnicos).
+   rpic studio — Design Tokens · tema "rpic forest" (light + dark)
+   Mesma paleta do site rpic.dev: neutros slate sobre branco no claro,
+   slate-950 no escuro (classe .dark no <html>), acento verde-floresta,
+   e o painel de código nos temas oficiais rpic-forest-light/dark.
+   Componentes usam só as variáveis — o dark mode é 100% via overrides.
    ===================================================================== */
 
 @theme {
@@ -12,7 +11,7 @@
   --font-display: "Bricolage Grotesque Variable", "Bricolage Grotesque", var(--font-sans);
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* Papel — superfícies claras (branco/slate com leve tinta verde no papel) */
+  /* Superfícies claras (light) */
   --color-paper: #f7faf7;
   --color-surface: #ffffff;
   --color-surface-muted: #f1f5f2;
@@ -22,18 +21,27 @@
   --color-border: #e2e8f0;
   --color-border-strong: #cbd5e1;
 
-  /* Tinta — o painel do editor (rpic-forest-dark) */
-  --color-ink: #1e2823;
-  --color-ink-raised: #273229;
-  --color-ink-border: #37453b;
-  --color-ink-text: #d3e0d5;
-  --color-ink-muted: #6f8274;
+  /* Painel do editor — rpic-forest-light no claro */
+  --color-ink: #f7faf7;
+  --color-ink-raised: #eef3ee;
+  --color-ink-border: #dde7de;
+  --color-ink-text: #25342a;
+  --color-ink-muted: #8a9a8d;
 
-  /* Verde-floresta — o acento da marca rpic */
+  /* Papel do diagrama: claro nos DOIS modos (como o site — o desenho é
+     tinta sobre papel; exports e fidelidade não mudam com o tema). */
+  --color-canvas: #ffffff;
+  --color-canvas-dot: #cbd5e1;
+
+  /* Verde-floresta — acento da marca */
   --color-accent: #1b5e20;
   --color-accent-strong: #144a19;
   --color-accent-soft: #e2efe3;
   --color-accent-contrast: #ffffff;
+
+  /* Marca (wordmark do site: R emerald-950/emerald-50, PIC teal-700/300) */
+  --color-brand-r: #022c22;
+  --color-brand-pic: #0f766e;
 
   /* Semântica */
   --color-success: #2e7d32;
@@ -50,6 +58,43 @@
   --shadow-pop: 0 8px 32px rgba(15, 40, 25, 0.16);
 }
 
+/* ---- Dark mode (classe .dark no <html>, como no site rpic.dev) ---- */
+.dark {
+  --color-paper: #020617; /* slate-950 */
+  --color-surface: #0f172a; /* slate-900 */
+  --color-surface-muted: #1e293b; /* slate-800 */
+  --color-text: #f8fafc;
+  --color-text-body: #cbd5e1; /* slate-300 */
+  --color-text-muted: #64748b; /* slate-500 */
+  --color-border: #1e293b; /* slate-800 */
+  --color-border-strong: #334155; /* slate-700 */
+
+  /* Painel do editor — rpic-forest-dark */
+  --color-ink: #1e2823;
+  --color-ink-raised: #273229;
+  --color-ink-border: #37453b;
+  --color-ink-text: #d3e0d5;
+  --color-ink-muted: #6f8274;
+
+  /* Acento no escuro: emerald mais claro (site usa emerald-300/700) */
+  --color-accent: #047857; /* emerald-700 p/ fundos */
+  --color-accent-strong: #065f46;
+  --color-accent-soft: #06281f;
+  --color-accent-contrast: #ffffff;
+
+  --color-brand-r: #ecfdf5; /* emerald-50 */
+  --color-brand-pic: #5eead4; /* teal-300 */
+
+  --color-success: #81c784;
+  --color-warning: #d4a72c;
+  --color-danger: #ef9a9a;
+  --color-danger-soft: #3b1513;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 2px 14px rgba(0, 0, 0, 0.45);
+  --shadow-pop: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
 /* Fonte do wordmark da marca rpic (o "R" do site rpic.dev). */
 @font-face {
   font-family: "Alfa Slab One";
@@ -64,9 +109,11 @@
   font-family: "Alfa Slab One", serif;
   font-weight: 300;
   letter-spacing: 1px;
+  color: var(--color-brand-r);
 }
 .brand-pic {
   font-weight: 600;
   font-size: 1.045em;
   letter-spacing: 0.04em;
+  color: var(--color-brand-pic);
 }

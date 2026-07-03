@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { gsap } from "gsap";
 import { Loader2, Minus, Plus, RotateCcw, Scan } from "lucide-react";
 import { motion } from "@rpic/design-system";
+import { useI18n } from "@/lib/i18n";
 import { animate, type Anim } from "@/lib/rpic";
 import { sanitizeSvg } from "@/lib/sanitize";
 import { Button } from "@/components/ui/Button";
@@ -33,6 +34,7 @@ export function PreviewPane({
   const canvasRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   const [zoom, setZoom] = useState(1);
+  const { t } = useI18n();
 
   // Injeta o SVG e (re)monta a timeline GSAP a cada compilação boa.
   useEffect(() => {
@@ -95,24 +97,24 @@ export function PreviewPane({
         {tabs}
         <div className="ml-auto flex items-center gap-0.5">
           {animations.length > 0 && (
-            <Tip label="Repetir animação (⌘⏎)">
+            <Tip label={t("preview.replayTip")}>
               <Button
                 variant="ghost"
                 size="icon-sm"
                 onClick={replay}
                 data-testid="replay-button"
-                aria-label="Repetir animação"
+                aria-label={t("preview.replayAria")}
               >
                 <RotateCcw size={14} />
               </Button>
             </Tip>
           )}
-          <Tip label="Diminuir zoom">
+          <Tip label={t("preview.zoomOut")}>
             <Button
               variant="ghost"
               size="icon-sm"
               onClick={() => setZoom((z) => Math.max(z / 1.25, 0.2))}
-              aria-label="Diminuir zoom"
+              aria-label={t("preview.zoomOut")}
             >
               <Minus size={14} />
             </Button>
@@ -120,22 +122,22 @@ export function PreviewPane({
           <button
             className="min-w-11 cursor-pointer rounded-(--radius-sm) px-1 py-1 text-center font-mono text-[11px] text-(--color-text-muted) hover:bg-(--color-surface-muted)"
             onClick={() => setZoom(1)}
-            title="Restaurar 100%"
+            title={t("preview.zoomReset")}
           >
             {Math.round(zoom * 100)}%
           </button>
-          <Tip label="Aumentar zoom">
+          <Tip label={t("preview.zoomIn")}>
             <Button
               variant="ghost"
               size="icon-sm"
               onClick={() => setZoom((z) => Math.min(z * 1.25, 4))}
-              aria-label="Aumentar zoom"
+              aria-label={t("preview.zoomIn")}
             >
               <Plus size={14} />
             </Button>
           </Tip>
-          <Tip label="Ajustar à tela">
-            <Button variant="ghost" size="icon-sm" onClick={fit} aria-label="Ajustar à tela">
+          <Tip label={t("preview.fit")}>
+            <Button variant="ghost" size="icon-sm" onClick={fit} aria-label={t("preview.fit")}>
               <Scan size={14} />
             </Button>
           </Tip>
@@ -146,7 +148,7 @@ export function PreviewPane({
         {loading ? (
           <div className="flex h-full items-center justify-center gap-2.5 text-sm text-(--color-text-muted)">
             <Loader2 size={16} className="animate-spin" />
-            carregando o motor rpic…
+            {t("preview.loading")}
           </div>
         ) : (
           <div className="flex min-h-full min-w-full items-center justify-center p-8">
@@ -165,7 +167,7 @@ export function PreviewPane({
         {error && !loading && (
           <div className="pointer-events-none absolute inset-x-0 top-0 flex justify-center pt-3">
             <span className="rounded-full bg-(--color-danger-soft) px-3 py-1 text-xs font-medium text-(--color-danger)">
-              corrigindo… o último diagrama válido continua aí
+              {t("preview.fixing")}
             </span>
           </div>
         )}
@@ -181,10 +183,14 @@ export function PreviewPane({
             className="inline-block h-1.5 w-1.5 rounded-full"
             style={{ background: error ? "var(--color-danger)" : "var(--color-success)" }}
           />
-          {error ? "erro de compilação" : "compilado"}
+          {error ? t("preview.compileError") : t("preview.compiled")}
         </span>
         {compileMs !== null && !error && <span>{compileMs < 1 ? "<1" : Math.round(compileMs)} ms</span>}
-        {animations.length > 0 && <span>{animations.length} animações</span>}
+        {animations.length > 0 && (
+          <span>
+            {animations.length} {t("preview.animations")}
+          </span>
+        )}
       </div>
     </div>
   );

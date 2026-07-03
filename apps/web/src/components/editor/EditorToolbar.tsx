@@ -19,6 +19,7 @@ import {
   DropdownSeparator,
 } from "@/components/ui/DropdownMenu";
 import { useToast } from "@/components/ui/Toast";
+import { useI18n } from "@/lib/i18n";
 import { copyDiagramToClipboard, downloadPic, downloadPng, downloadSvg } from "@/lib/exports";
 import { ShareDialog } from "@/components/dialogs/ShareDialog";
 
@@ -52,11 +53,12 @@ export function EditorToolbar({
   shareSlug,
 }: EditorToolbarProps) {
   const toast = useToast();
+  const { t } = useI18n();
 
   return (
     <>
       {onSave && (
-        <Tip label="Salvar (⌘S)">
+        <Tip label={t("toolbar.saveTip")}>
           <Button
             variant={saveDirty ? "primary" : "ghost"}
             size="sm"
@@ -64,60 +66,58 @@ export function EditorToolbar({
             data-testid="save-button"
           >
             <Save size={14} />
-            Salvar
+            {t("toolbar.save")}
           </Button>
         </Tip>
       )}
 
       <DropdownMenu>
-        <Tip label="Exportar e copiar">
+        <Tip label={t("toolbar.exportTip")}>
           <DropdownTrigger asChild>
             <Button variant="ghost" size="sm" data-testid="export-button">
               <Download size={14} />
-              Exportar
+              {t("toolbar.export")}
             </Button>
           </DropdownTrigger>
         </Tip>
         <DropdownContent>
-          <DropdownLabel>Baixar</DropdownLabel>
+          <DropdownLabel>{t("toolbar.download")}</DropdownLabel>
           <DropdownItem onSelect={() => downloadPic(source, exportName)} data-testid="export-pic">
-            <FileText size={15} /> Código (.pic)
+            <FileText size={15} /> {t("toolbar.sourcePic")}
           </DropdownItem>
           <DropdownItem onSelect={() => downloadSvg(svg, exportName)} data-testid="export-svg">
-            <FileCode2 size={15} /> Vetor (.svg)
+            <FileCode2 size={15} /> {t("toolbar.vectorSvg")}
           </DropdownItem>
           <DropdownItem
             onSelect={() =>
-              downloadPng(svg, exportName).catch(() =>
-                toast("Não foi possível gerar o PNG", "error"),
-              )
+              downloadPng(svg, exportName).catch(() => toast(t("toast.pngError"), "error"))
             }
           >
-            <FileImage size={15} /> Imagem (.png, 2x)
+            <FileImage size={15} /> {t("toolbar.imagePng")}
           </DropdownItem>
           <DropdownSeparator />
-          <DropdownLabel>Copiar</DropdownLabel>
+          <DropdownLabel>{t("toolbar.copySection")}</DropdownLabel>
           <DropdownItem
             onSelect={async () => {
               try {
                 const kind = await copyDiagramToClipboard(svg);
-                toast(kind === "png" ? "Imagem copiada" : "SVG copiado como texto");
+                toast(kind === "png" ? t("toast.imageCopied") : t("toast.svgCopiedText"));
               } catch {
-                toast("Não foi possível copiar", "error");
+                toast(t("toast.copyError"), "error");
               }
             }}
           >
-            <ImageDown size={15} /> Imagem para a área de transferência
+            <ImageDown size={15} /> {t("toolbar.copyImage")}
           </DropdownItem>
         </DropdownContent>
       </DropdownMenu>
 
-      <Tip label={layout === "horizontal" ? "Empilhar painéis" : "Painéis lado a lado"}>
+      <Tip label={layout === "horizontal" ? t("toolbar.layoutStack") : t("toolbar.layoutSideBySide")}>
         <Button
           variant="ghost"
           size="icon-sm"
           onClick={onToggleLayout}
-          aria-label="Alternar layout"
+          aria-label={t("toolbar.layoutAria")}
           className="max-lg:hidden"
         >
           {layout === "horizontal" ? <Rows2 size={15} /> : <Columns2 size={15} />}

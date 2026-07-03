@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { buildShareUrl } from "@/lib/share";
 import { copyText } from "@/lib/exports";
 import { useToast } from "@/components/ui/Toast";
+import { useI18n } from "@/lib/i18n";
 import { useAuthConfig, useMe, useShareDiagram, useUnshareDiagram } from "@/lib/queries";
 
 interface ShareDialogProps {
@@ -18,6 +19,7 @@ interface ShareDialogProps {
 function CopyRow({ value, testid }: { value: string; testid: string }) {
   const [copied, setCopied] = useState(false);
   const toast = useToast();
+  const { t } = useI18n();
   return (
     <div className="flex items-center gap-2">
       <input
@@ -34,12 +36,12 @@ function CopyRow({ value, testid }: { value: string; testid: string }) {
         onClick={async () => {
           await copyText(value);
           setCopied(true);
-          toast("Link copiado");
+          toast(t("share.linkCopied"));
           window.setTimeout(() => setCopied(false), 1800);
         }}
       >
         {copied ? <Check size={15} /> : <Copy size={15} />}
-        {copied ? "Copiado" : "Copiar"}
+        {copied ? t("share.copied") : t("share.copy")}
       </Button>
     </div>
   );
@@ -53,6 +55,7 @@ export function ShareDialog({ source, circuits, diagramId, shareSlug }: ShareDia
   const share = useShareDiagram();
   const unshare = useUnshareDiagram();
   const toast = useToast();
+  const { t } = useI18n();
 
   // Só monta a URL com o dialog aberto (evita recomprimir a cada tecla).
   const url = useMemo(
@@ -69,30 +72,25 @@ export function ShareDialog({ source, circuits, diagramId, shareSlug }: ShareDia
       <DialogTrigger asChild>
         <Button variant="primary" size="sm" data-testid="share-button">
           <Link2 size={14} />
-          Compartilhar
+          {t("share.button")}
         </Button>
       </DialogTrigger>
-      <DialogContent
-        title="Compartilhar diagrama"
-        description="Quem abrir o link vê o diagrama e o código."
-      >
+      <DialogContent title={t("share.title")} description={t("share.desc")}>
         <div className="space-y-5">
           <section>
             <h3 className="mb-2 font-mono text-[11px] tracking-widest text-(--color-text-muted) uppercase">
-              Link com o código embutido
+              {t("share.embedHeader")}
             </h3>
             <CopyRow value={url} testid="share-url" />
             <p className="mt-2 text-xs text-(--color-text-muted)">
-              {tooLong
-                ? "Diagrama grande: este link pode não caber em alguns aplicativos — prefira o link curto abaixo."
-                : "O código viaja comprimido dentro do próprio link — nada é enviado a servidor algum."}
+              {tooLong ? t("share.tooLong") : t("share.embedNote")}
             </p>
           </section>
 
           <section>
             <h3 className="mb-2 flex items-center gap-1.5 font-mono text-[11px] tracking-widest text-(--color-text-muted) uppercase">
               <Sparkles size={12} className="text-(--color-accent)" />
-              Link curto
+              {t("share.shortHeader")}
             </h3>
             {shortUrl ? (
               <>
@@ -102,11 +100,11 @@ export function ShareDialog({ source, circuits, diagramId, shareSlug }: ShareDia
                   onClick={() =>
                     diagramId &&
                     unshare.mutate(diagramId, {
-                      onSuccess: () => toast("Link curto revogado"),
+                      onSuccess: () => toast(t("share.revoked")),
                     })
                   }
                 >
-                  Revogar link curto
+                  {t("share.revoke")}
                 </button>
               </>
             ) : diagramId ? (
@@ -117,19 +115,19 @@ export function ShareDialog({ source, circuits, diagramId, shareSlug }: ShareDia
                 disabled={share.isPending}
                 onClick={() =>
                   share.mutate(diagramId, {
-                    onError: () => toast("Não foi possível gerar o link", "error"),
+                    onError: () => toast(t("share.genError"), "error"),
                   })
                 }
               >
-                Gerar link curto público
+                {t("share.generate")}
               </Button>
             ) : (
               <p className="text-xs text-(--color-text-muted)">
                 {me
-                  ? "Salve o diagrama na sua conta para gerar um link curto."
+                  ? t("share.saveFirst")
                   : authConfig?.google_login
-                    ? "Entre com sua conta e salve o diagrama para gerar um link curto."
-                    : "Chega junto com o login — por enquanto, use o link acima."}
+                    ? t("share.signInFirst")
+                    : t("share.comingWithLogin")}
               </p>
             )}
           </section>

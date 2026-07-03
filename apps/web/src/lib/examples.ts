@@ -1,15 +1,36 @@
 // Exemplos curados do repositório rpic-lang (examples/) — cada um demonstra
 // um recurso da linguagem. `circuits` indica que precisa da biblioteca nativa.
+import type { Locale } from "./i18n";
+
+interface Localized {
+  en: string;
+  pt: string;
+}
 
 export interface Example {
   id: string;
-  title: string;
-  description: string;
+  title: Localized;
+  description: Localized;
   circuits: boolean;
   source: string;
 }
 
-export const WELCOME_SOURCE = `.PS
+export const WELCOME_SOURCES: Record<Locale, string> = {
+  en: `.PS
+# welcome to rpic studio — edit and watch the drawing happen
+ellipse "idea"
+arrow
+box "rpic" fill 0.92
+arrow
+ellipse "diagram"
+
+animate 1st ellipse with "pop" for 0.4
+animate 1st arrow with "draw" after 1st ellipse
+animate 1st box with "fade" after 1st arrow
+animate 2nd arrow with "draw" after 1st box
+animate 2nd ellipse with "pop" after 2nd arrow
+.PE`,
+  pt: `.PS
 # bem-vindo ao rpic studio — edite e veja o desenho acontecer
 ellipse "ideia"
 arrow
@@ -22,20 +43,27 @@ animate 1st arrow with "draw" after 1st ellipse
 animate 1st box with "fade" after 1st arrow
 animate 2nd arrow with "draw" after 1st box
 animate 2nd ellipse with "pop" after 2nd arrow
-.PE`;
+.PE`,
+};
 
 export const examples: Example[] = [
   {
     id: "welcome",
-    title: "Boas-vindas (animado)",
-    description: "Primitivas básicas com a extensão animate — o cartão de visita do rpic.",
+    title: { en: "Welcome (animated)", pt: "Boas-vindas (animado)" },
+    description: {
+      en: "Basic primitives with the animate extension — rpic's calling card.",
+      pt: "Primitivas básicas com a extensão animate — o cartão de visita do rpic.",
+    },
     circuits: false,
-    source: WELCOME_SOURCE,
+    source: WELCOME_SOURCES.en,
   },
   {
     id: "pipeline",
-    title: "Pipeline do Kernighan",
-    description: "O diagrama clássico do paper original do pic (1982).",
+    title: { en: "Kernighan's pipeline", pt: "Pipeline do Kernighan" },
+    description: {
+      en: "The classic diagram from the original pic paper (1982).",
+      pt: "O diagrama clássico do paper original do pic (1982).",
+    },
     circuits: false,
     source: `.PS
 ellipse "document"
@@ -51,8 +79,11 @@ ellipse "typesetter"
   },
   {
     id: "control",
-    title: "Macros e laços",
-    description: "define, for e sprintf gerando uma cadeia de nós.",
+    title: { en: "Macros and loops", pt: "Macros e laços" },
+    description: {
+      en: "define, for and sprintf generating a chain of nodes.",
+      pt: "define, for e sprintf gerando uma cadeia de nós.",
+    },
     circuits: false,
     source: `.PS
 define node { circle rad 0.18 $1 }
@@ -62,8 +93,11 @@ for i = 1 to 4 do { arrow wid 0.4; node(sprintf("%g", i)) }
   },
   {
     id: "brace",
-    title: "Chaves de anotação",
-    description: "A extensão brace agrupando blocos com rótulos.",
+    title: { en: "Annotation braces", pt: "Chaves de anotação" },
+    description: {
+      en: "The brace extension grouping blocks with labels.",
+      pt: "A extensão brace agrupando blocos com rótulos.",
+    },
     circuits: false,
     source: `.PS
 right
@@ -77,8 +111,11 @@ brace from A.sw - (0,gap) to C.se - (0,gap) down "regression tests" wid .18 thic
   },
   {
     id: "hatch",
-    title: "Hachuras e preenchimento",
-    description: "hatch, crosshatch, ângulos e cores — texturas de desenho técnico.",
+    title: { en: "Hatching and fills", pt: "Hachuras e preenchimento" },
+    description: {
+      en: "hatch, crosshatch, angles and colors — technical-drawing textures.",
+      pt: "hatch, crosshatch, ângulos e cores — texturas de desenho técnico.",
+    },
     circuits: false,
     source: `.PS
 boxwid = 0.78
@@ -101,8 +138,11 @@ line right 0.85 then up 0.52 then left 0.85 then down 0.52 \\
   },
   {
     id: "rlc",
-    title: "Circuito RLC",
-    description: "Bateria, resistor, capacitor e indutor da biblioteca de circuitos.",
+    title: { en: "RLC circuit", pt: "Circuito RLC" },
+    description: {
+      en: "Battery, resistor, capacitor and inductor from the circuit library.",
+      pt: "Bateria, resistor, capacitor e indutor da biblioteca de circuitos.",
+    },
     circuits: true,
     source: `.PS
 SW: (0,0)
@@ -118,8 +158,11 @@ dot at NW; dot at NE; dot at SE; dot at SW
   },
   {
     id: "logic",
-    title: "Portas lógicas",
-    description: "AND, OR, XOR e NAND da biblioteca de circuitos.",
+    title: { en: "Logic gates", pt: "Portas lógicas" },
+    description: {
+      en: "AND, OR, XOR and NAND from the circuit library.",
+      pt: "AND, OR, XOR e NAND da biblioteca de circuitos.",
+    },
     circuits: true,
     source: `.PS
 margin = 0.08
@@ -139,8 +182,11 @@ nand_gate(G4)
   },
   {
     id: "flashlight",
-    title: "Lanterna (circuito completo)",
-    description: "Fusível, chave, lâmpada e sentido de corrente com rótulos.",
+    title: { en: "Flashlight (full circuit)", pt: "Lanterna (circuito completo)" },
+    description: {
+      en: "Fuse, switch, lamp and current direction, with labels.",
+      pt: "Fusível, chave, lâmpada e sentido de corrente com rótulos.",
+    },
     circuits: true,
     source: `.PS
 margin = 0.08

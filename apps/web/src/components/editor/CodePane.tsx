@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import {
   EditorView,
   keymap,
@@ -21,6 +21,8 @@ interface CodePaneProps {
   onChange: (value: string) => void;
   /** Erro de compilação atual (vira sublinhado/lint no editor). */
   error: string | null;
+  /** Tema do app — alterna rpic-forest-light/dark. */
+  dark: boolean;
   autoFocus?: boolean;
 }
 
@@ -32,12 +34,15 @@ function errorToDiagnostics(state: EditorState, error: string): Diagnostic[] {
   return [{ from, to: line.to, severity: "error", message: error }];
 }
 
-/** Editor CodeMirror 6 com a linguagem rpic e o tema nanquim. */
-export function CodePane({ value, onChange, error, autoFocus }: CodePaneProps) {
+const themeCompartment = new Compartment();
+
+/** Editor CodeMirror 6 com a linguagem rpic e os temas rpic-forest. */
+export function CodePane({ value, onChange, error, dark, autoFocus }: CodePaneProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const initialDarkRef = useRef(dark);
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -54,7 +59,7 @@ export function CodePane({ value, onChange, error, autoFocus }: CodePaneProps) {
           bracketMatching(),
           keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
           rpicLanguage(),
-          rpicEditorTheme(),
+          themeCompartment.of(rpicEditorTheme(initialDarkRef.current)),
           EditorView.lineWrapping,
           EditorView.updateListener.of((update) => {
             if (update.docChanged) onChangeRef.current(update.state.doc.toString());
@@ -71,6 +76,13 @@ export function CodePane({ value, onChange, error, autoFocus }: CodePaneProps) {
     };
     // O editor é criado uma única vez; `value` inicial vem do primeiro render.
   }, []);
+
+  // Troca de tema ao alternar claro/escuro.
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: themeCompartment.reconfigure(rpicEditorTheme(dark)),
+    });
+  }, [dark]);
 
   // Sincroniza mudanças externas (exemplo carregado, link importado, reset).
   useEffect(() => {

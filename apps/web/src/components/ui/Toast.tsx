@@ -31,7 +31,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             role="status"
             className={cn(
               "flex items-center gap-2 rounded-(--radius-md) px-3.5 py-2.5 text-sm font-medium shadow-(--shadow-pop)",
-              "bg-(--color-ink) text-(--color-ink-text)",
+              // invertido em relação ao tema: chip escuro no claro e vice-versa
+              "bg-(--color-text) text-(--color-paper)",
             )}
           >
             {t.kind === "success" ? (

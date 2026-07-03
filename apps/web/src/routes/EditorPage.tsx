@@ -24,20 +24,22 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { decodeShareHash } from "@/lib/share";
 import { loadDraft, loadSettings, saveDraft, saveSettings } from "@/lib/storage";
-import { examples, WELCOME_SOURCE } from "@/lib/examples";
+import { examples, WELCOME_SOURCES } from "@/lib/examples";
 import { useDiagram, useMe, useUpdateDiagram } from "@/lib/queries";
+import { useI18n, type Locale } from "@/lib/i18n";
+import { useTheme } from "@/lib/theme";
 
 interface DocState {
   source: string;
   circuits: boolean;
 }
 
-function initialDoc(): DocState & { fromHash: boolean } {
+function initialDoc(locale: Locale): DocState & { fromHash: boolean } {
   const shared = decodeShareHash(window.location.hash);
   if (shared) return { ...shared, fromHash: true };
   const draft = loadDraft();
   if (draft) return { source: draft.source, circuits: draft.circuits, fromHash: false };
-  return { source: WELCOME_SOURCE, circuits: false, fromHash: false };
+  return { source: WELCOME_SOURCES[locale], circuits: false, fromHash: false };
 }
 
 /** Página principal: editor nanquim à esquerda, papel técnico à direita.
@@ -47,8 +49,10 @@ export function EditorPage() {
   const savedMode = !!id;
   const navigate = useNavigate();
   const toast = useToast();
+  const { t, locale } = useI18n();
+  const { dark } = useTheme();
 
-  const [initial] = useState(initialDoc);
+  const [initial] = useState(() => initialDoc(locale));
   const [doc, setDoc] = useState<DocState>({ source: initial.source, circuits: initial.circuits });
   const [layout, setLayout] = useState(() => loadSettings().layout);
   const [split, setSplit] = useState(0.42);
@@ -76,10 +80,10 @@ export function EditorPage() {
   // Diagrama inexistente/sem acesso → volta ao rascunho.
   useEffect(() => {
     if (savedMode && diagram.isError) {
-      toast("Diagrama não encontrado", "error");
+      toast(t("editor.notFound"), "error");
       navigate("/", { replace: true });
     }
-  }, [savedMode, diagram.isError, navigate, toast]);
+  }, [savedMode, diagram.isError, navigate, toast, t]);
 
   const dirty =
     savedMode && diagram.data
@@ -124,14 +128,14 @@ export function EditorPage() {
           circuits: doc.circuits,
         },
         {
-          onSuccess: () => toast("Diagrama salvo"),
-          onError: () => toast("Não foi possível salvar", "error"),
+          onSuccess: () => toast(t("save.saved")),
+          onError: () => toast(t("save.error"), "error"),
         },
       );
     } else if (me) {
       setSaveOpen(true);
     }
-  }, [savedMode, diagram.data, doc, me, update, toast]);
+  }, [savedMode, diagram.data, doc, me, update, toast, t]);
 
   // Atalho ⌘S / Ctrl+S.
   useEffect(() => {
@@ -187,7 +191,7 @@ export function EditorPage() {
           circuits={doc.circuits}
           layout={layout}
           onToggleLayout={toggleLayout}
-          exportName={diagram.data?.title ?? "diagrama"}
+          exportName={diagram.data?.title ?? (locale === "pt" ? "diagrama" : "diagram")}
           onSave={savedMode || me ? save : undefined}
           saveDirty={dirty && (savedMode ? !update.isPending : true)}
           diagramId={diagram.data?.id}
@@ -217,46 +221,46 @@ export function EditorPage() {
               className="max-w-44 truncate font-mono text-[11px] tracking-widest text-(--color-ink-muted) uppercase"
               data-testid="doc-title"
             >
-              {savedMode ? (diagram.data?.title ?? "…") : "rascunho"}
+              {savedMode ? (diagram.data?.title ?? "…") : t("editor.draft")}
               {savedMode && dirty && <span className="ml-1 text-(--color-accent)">●</span>}
             </span>
             <DropdownMenu>
               <DropdownTrigger asChild>
                 <Button variant="ink-ghost" size="sm" data-testid="examples-menu">
                   <BookOpen size={13} />
-                  Exemplos
+                  {t("editor.examples")}
                   <ChevronDown size={12} />
                 </Button>
               </DropdownTrigger>
               <DropdownContent align="start">
-                <DropdownLabel>Carregar exemplo</DropdownLabel>
+                <DropdownLabel>{t("editor.loadExample")}</DropdownLabel>
                 {examples.map((ex) => (
                   <DropdownItem
                     key={ex.id}
                     onSelect={() => setDoc({ source: ex.source, circuits: ex.circuits })}
                   >
-                    {ex.title}
+                    {ex.title[locale]}
                   </DropdownItem>
                 ))}
               </DropdownContent>
             </DropdownMenu>
             <div className="ml-auto flex items-center gap-3">
-              <Tip label="Habilita resistor(), lamp(), and_gate()…">
+              <Tip label={t("editor.circuitsTip")}>
                 <span>
                   <Switch
                     ink
                     id="circuits-switch"
                     checked={doc.circuits}
                     onCheckedChange={(circuits) => setDoc((d) => ({ ...d, circuits }))}
-                    label="circuitos"
+                    label={t("editor.circuits")}
                   />
                 </span>
               </Tip>
-              <Tip label="Limpar editor">
+              <Tip label={t("editor.clear")}>
                 <Button
                   variant="ink-ghost"
                   size="icon-sm"
-                  aria-label="Limpar editor"
+                  aria-label={t("editor.clear")}
                   onClick={() => setDoc((d) => ({ ...d, source: "" }))}
                 >
                   <Eraser size={14} />
@@ -265,7 +269,13 @@ export function EditorPage() {
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
-            <CodePane value={doc.source} onChange={setSource} error={rpic.error} autoFocus />
+            <CodePane
+              value={doc.source}
+              onChange={setSource}
+              error={rpic.error}
+              dark={dark}
+              autoFocus
+            />
           </div>
           <DiagnosticsPanel error={rpic.error} prints={rpic.prints} />
         </section>

@@ -5,10 +5,12 @@ import { motion } from "@rpic/design-system";
 import { AppShell } from "@/components/app-shell/AppShell";
 import { RpicThumb } from "@/components/preview/RpicThumb";
 import { examples, type Example } from "@/lib/examples";
+import { useI18n } from "@/lib/i18n";
 import { saveDraft } from "@/lib/storage";
 
 function ExampleCard({ example }: { example: Example }) {
   const navigate = useNavigate();
+  const { t, locale } = useI18n();
 
   const open = () => {
     saveDraft(example.source, example.circuits);
@@ -30,16 +32,16 @@ function ExampleCard({ example }: { example: Example }) {
       </div>
       <div className="flex flex-1 flex-col gap-1 p-4">
         <h3 className="font-display flex items-center gap-2 font-semibold text-(--color-text)">
-          {example.title}
+          {example.title[locale]}
           {example.circuits && (
             <span className="flex items-center gap-1 rounded-full bg-(--color-surface-muted) px-2 py-0.5 font-mono text-[10px] font-normal tracking-wide text-(--color-text-muted)">
-              <Cpu size={10} /> circuitos
+              <Cpu size={10} /> {t("editor.circuits")}
             </span>
           )}
         </h3>
-        <p className="text-sm text-(--color-text-body)">{example.description}</p>
+        <p className="text-sm text-(--color-text-body)">{example.description[locale]}</p>
         <span className="mt-2 flex items-center gap-1.5 text-sm font-medium text-(--color-accent) opacity-0 transition-opacity group-hover:opacity-100">
-          Abrir no editor <ArrowRight size={14} />
+          {t("examplesPage.open")} <ArrowRight size={14} />
         </span>
       </div>
     </button>
@@ -49,6 +51,7 @@ function ExampleCard({ example }: { example: Example }) {
 /** Galeria de exemplos — cada cartão compila e mostra o diagrama de verdade. */
 export function ExamplesPage() {
   const gridRef = useRef<HTMLDivElement>(null);
+  const { t } = useI18n();
 
   useEffect(() => {
     const cards = gridRef.current?.querySelectorAll("[data-card]");
@@ -60,12 +63,9 @@ export function ExamplesPage() {
       <div className="h-full overflow-auto">
         <div className="mx-auto max-w-6xl px-6 py-10">
           <h1 className="font-display text-3xl font-semibold tracking-tight text-(--color-text)">
-            Exemplos
+            {t("examplesPage.title")}
           </h1>
-          <p className="mt-2 max-w-xl text-(--color-text-body)">
-            Do pipeline clássico do Kernighan a circuitos completos — clique para abrir qualquer um
-            no editor e partir dele.
-          </p>
+          <p className="mt-2 max-w-xl text-(--color-text-body)">{t("examplesPage.subtitle")}</p>
           <div ref={gridRef} className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {examples.map((ex) => (
               <ExampleCard key={ex.id} example={ex} />

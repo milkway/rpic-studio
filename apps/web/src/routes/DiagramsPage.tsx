@@ -13,6 +13,7 @@ import {
 import { Dialog, DialogContent, DialogClose, DialogFooter } from "@/components/ui/Dialog";
 import { useToast } from "@/components/ui/Toast";
 import { loginUrl } from "@/lib/api";
+import { formatDate, useI18n } from "@/lib/i18n";
 import {
   useAuthConfig,
   useDeleteDiagram,
@@ -26,13 +27,10 @@ import { api } from "@/lib/api";
 import type { Diagram, DiagramSummary } from "@/lib/types";
 import { copyText } from "@/lib/exports";
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
-}
-
 function DiagramRow({ diagram }: { diagram: DiagramSummary }) {
   const navigate = useNavigate();
   const toast = useToast();
+  const { t, locale } = useI18n();
   const del = useDeleteDiagram();
   const share = useShareDiagram();
   const unshare = useUnshareDiagram();
@@ -48,11 +46,16 @@ function DiagramRow({ diagram }: { diagram: DiagramSummary }) {
     try {
       const full = await api<Diagram>(`/api/diagrams/${diagram.id}`);
       update.mutate(
-        { id: diagram.id, title: newTitle.trim() || diagram.title, source: full.source, circuits: full.circuits },
+        {
+          id: diagram.id,
+          title: newTitle.trim() || diagram.title,
+          source: full.source,
+          circuits: full.circuits,
+        },
         { onSuccess: () => setRenameOpen(false) },
       );
     } catch {
-      toast("Não foi possível renomear", "error");
+      toast(t("diagrams.renameError"), "error");
     }
   };
 
@@ -64,50 +67,54 @@ function DiagramRow({ diagram }: { diagram: DiagramSummary }) {
       <Link to={`/e/${diagram.id}`} className="min-w-0 flex-1">
         <p className="truncate font-medium text-(--color-text)">{diagram.title}</p>
         <p className="mt-0.5 font-mono text-[11px] text-(--color-text-muted)">
-          {formatDate(diagram.updated_at)}
-          {diagram.circuits && " · circuitos"}
+          {formatDate(diagram.updated_at, locale)}
+          {diagram.circuits && ` · ${t("diagrams.circuitsTag")}`}
         </p>
       </Link>
       {diagram.share_slug && (
         <button
-          className="flex cursor-pointer items-center gap-1 rounded-full bg-(--color-accent-soft) px-2.5 py-1 text-[11px] font-medium text-(--color-accent-strong)"
-          title="Copiar link público"
+          className="flex cursor-pointer items-center gap-1 rounded-full bg-(--color-accent-soft) px-2.5 py-1 text-[11px] font-medium text-(--color-accent)"
+          title={t("diagrams.copyPublic")}
           onClick={async () => {
             await copyText(`${window.location.origin}${base}/d/${diagram.share_slug}`);
-            toast("Link público copiado");
+            toast(t("diagrams.publicCopied"));
           }}
         >
-          <Link2 size={11} /> público
+          <Link2 size={11} /> {t("diagrams.public")}
         </button>
       )}
       <DropdownMenu>
         <DropdownTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label={`Ações de ${diagram.title}`}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t("diagrams.actionsFor", { title: diagram.title })}
+          >
             <MoreHorizontal size={16} />
           </Button>
         </DropdownTrigger>
         <DropdownContent>
           <DropdownItem onSelect={() => navigate(`/e/${diagram.id}`)}>
-            <Pencil size={15} /> Abrir no editor
+            <Pencil size={15} /> {t("diagrams.open")}
           </DropdownItem>
           <DropdownItem onSelect={() => setRenameOpen(true)}>
-            <Pencil size={15} /> Renomear
+            <Pencil size={15} /> {t("diagrams.rename")}
           </DropdownItem>
           {diagram.share_slug ? (
             <DropdownItem
               onSelect={() =>
-                unshare.mutate(diagram.id, { onSuccess: () => toast("Link público revogado") })
+                unshare.mutate(diagram.id, { onSuccess: () => toast(t("diagrams.revoked")) })
               }
             >
-              <Link2 size={15} /> Revogar link público
+              <Link2 size={15} /> {t("diagrams.revokeLink")}
             </DropdownItem>
           ) : (
             <DropdownItem
               onSelect={() =>
-                share.mutate(diagram.id, { onSuccess: () => toast("Link público criado") })
+                share.mutate(diagram.id, { onSuccess: () => toast(t("diagrams.created")) })
               }
             >
-              <Link2 size={15} /> Gerar link público
+              <Link2 size={15} /> {t("diagrams.makePublic")}
             </DropdownItem>
           )}
           <DropdownSeparator />
@@ -115,13 +122,13 @@ function DiagramRow({ diagram }: { diagram: DiagramSummary }) {
             className="text-(--color-danger) data-highlighted:text-(--color-danger)"
             onSelect={() => setConfirmDelete(true)}
           >
-            <Trash2 size={15} /> Excluir
+            <Trash2 size={15} /> {t("diagrams.delete")}
           </DropdownItem>
         </DropdownContent>
       </DropdownMenu>
 
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
-        <DialogContent title="Renomear diagrama">
+        <DialogContent title={t("diagrams.renameTitle")}>
           <input
             autoFocus
             value={newTitle}
@@ -131,10 +138,10 @@ function DiagramRow({ diagram }: { diagram: DiagramSummary }) {
           />
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="ghost">Cancelar</Button>
+              <Button variant="ghost">{t("save.cancel")}</Button>
             </DialogClose>
             <Button variant="primary" onClick={rename} disabled={update.isPending}>
-              Renomear
+              {t("diagrams.rename")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -142,12 +149,12 @@ function DiagramRow({ diagram }: { diagram: DiagramSummary }) {
 
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent
-          title="Excluir diagrama?"
-          description={`"${diagram.title}" será excluído para sempre, junto com o link público.`}
+          title={t("diagrams.deleteTitle")}
+          description={t("diagrams.deleteDesc", { title: diagram.title })}
         >
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="ghost">Cancelar</Button>
+              <Button variant="ghost">{t("save.cancel")}</Button>
             </DialogClose>
             <Button
               variant="primary"
@@ -156,13 +163,13 @@ function DiagramRow({ diagram }: { diagram: DiagramSummary }) {
                 del.mutate(diagram.id, {
                   onSuccess: () => {
                     setConfirmDelete(false);
-                    toast("Diagrama excluído");
+                    toast(t("diagrams.deleted"));
                   },
                 })
               }
               disabled={del.isPending}
             >
-              Excluir
+              {t("diagrams.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -176,6 +183,7 @@ export function DiagramsPage() {
   const { data: me, isLoading: meLoading } = useMe();
   const { data: authConfig } = useAuthConfig();
   const diagrams = useDiagrams(!!me);
+  const { t } = useI18n();
 
   return (
     <AppShell>
@@ -184,15 +192,13 @@ export function DiagramsPage() {
           <div className="flex items-end justify-between">
             <div>
               <h1 className="font-display text-3xl font-semibold tracking-tight text-(--color-text)">
-                Meus diagramas
+                {t("diagrams.title")}
               </h1>
-              <p className="mt-2 text-(--color-text-body)">
-                Salvos na sua conta — abra, renomeie ou gere um link público.
-              </p>
+              <p className="mt-2 text-(--color-text-body)">{t("diagrams.subtitle")}</p>
             </div>
             <Link to="/">
               <Button variant="primary" size="md">
-                <FilePlus2 size={15} /> Novo
+                <FilePlus2 size={15} /> {t("diagrams.new")}
               </Button>
             </Link>
           </div>
@@ -202,9 +208,7 @@ export function DiagramsPage() {
               <div className="rounded-(--radius-lg) border border-(--color-border) bg-(--color-surface) p-10 text-center">
                 {authConfig?.google_login ? (
                   <>
-                    <p className="text-(--color-text-body)">
-                      Entre com sua conta Google para salvar e organizar diagramas.
-                    </p>
+                    <p className="text-(--color-text-body)">{t("diagrams.signInCta")}</p>
                     <Button
                       variant="primary"
                       className="mt-4"
@@ -212,18 +216,15 @@ export function DiagramsPage() {
                         window.location.href = loginUrl("/diagramas");
                       }}
                     >
-                      <LogIn size={15} /> Entrar com Google
+                      <LogIn size={15} /> {t("diagrams.signInButton")}
                     </Button>
                   </>
                 ) : (
-                  <p className="text-(--color-text-body)">
-                    O login ainda não está disponível — enquanto isso, seu rascunho fica salvo
-                    neste navegador e você pode compartilhar qualquer diagrama por link.
-                  </p>
+                  <p className="text-(--color-text-body)">{t("diagrams.loginUnavailable")}</p>
                 )}
               </div>
             ) : diagrams.isLoading ? (
-              <p className="p-6 text-sm text-(--color-text-muted)">carregando…</p>
+              <p className="p-6 text-sm text-(--color-text-muted)">{t("diagrams.loading")}</p>
             ) : diagrams.data?.length ? (
               <div className="overflow-hidden rounded-(--radius-lg) border border-(--color-border) shadow-(--shadow-sm)">
                 {diagrams.data.map((d) => (
@@ -232,7 +233,7 @@ export function DiagramsPage() {
               </div>
             ) : (
               <div className="rounded-(--radius-lg) border border-dashed border-(--color-border-strong) p-10 text-center text-(--color-text-body)">
-                Nenhum diagrama salvo ainda — volte ao editor e use “Salvar”.
+                {t("diagrams.empty")}
               </div>
             )}
           </div>

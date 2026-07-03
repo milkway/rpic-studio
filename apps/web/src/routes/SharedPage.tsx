@@ -4,6 +4,7 @@ import { AppShell } from "@/components/app-shell/AppShell";
 import { RpicThumb } from "@/components/preview/RpicThumb";
 import { Button } from "@/components/ui/Button";
 import { useSharedDiagram } from "@/lib/queries";
+import { useI18n } from "@/lib/i18n";
 import { saveDraft } from "@/lib/storage";
 
 /** Visualização pública de um diagrama compartilhado por link curto. */
@@ -11,21 +12,20 @@ export function SharedPage() {
   const { slug } = useParams<{ slug: string }>();
   const { data, isLoading, isError } = useSharedDiagram(slug);
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   return (
     <AppShell>
       <div className="h-full overflow-auto">
         <div className="mx-auto max-w-4xl px-6 py-10">
           {isLoading ? (
-            <p className="text-sm text-(--color-text-muted)">carregando…</p>
+            <p className="text-sm text-(--color-text-muted)">{t("shared.loading")}</p>
           ) : isError || !data ? (
             <div className="rounded-(--radius-lg) border border-(--color-border) bg-(--color-surface) p-10 text-center">
               <h1 className="font-display text-xl font-semibold text-(--color-text)">
-                Diagrama não encontrado
+                {t("shared.notFound")}
               </h1>
-              <p className="mt-2 text-(--color-text-body)">
-                O link pode ter sido revogado pelo autor.
-              </p>
+              <p className="mt-2 text-(--color-text-body)">{t("shared.notFoundDesc")}</p>
             </div>
           ) : (
             <>
@@ -38,7 +38,7 @@ export function SharedPage() {
                     {data.title}
                   </h1>
                   <p className="mt-1 font-mono text-xs text-(--color-text-muted)">
-                    diagrama compartilhado · somente leitura
+                    {t("shared.readonly")}
                   </p>
                 </div>
                 <Button
@@ -49,11 +49,11 @@ export function SharedPage() {
                     navigate("/");
                   }}
                 >
-                  <PencilLine size={15} /> Abrir no editor
+                  <PencilLine size={15} /> {t("shared.openInEditor")}
                 </Button>
               </div>
 
-              <div className="paper-grid mt-6 flex min-h-64 items-center justify-center rounded-(--radius-lg) border border-(--color-border) bg-(--color-paper) p-8">
+              <div className="paper-grid mt-6 flex min-h-64 items-center justify-center rounded-(--radius-lg) border border-(--color-border) p-8">
                 <RpicThumb
                   source={data.source}
                   circuits={data.circuits}

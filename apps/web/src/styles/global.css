@@ -19,10 +19,14 @@ body {
   color-scheme: light;
   -webkit-font-smoothing: antialiased;
 }
+.dark body {
+  color-scheme: dark;
+}
 
-/* Grade de pontos do "papel técnico" do preview. */
+/* Papel técnico do diagrama — claro nos dois temas (fidelidade do desenho). */
 .paper-grid {
-  background-image: radial-gradient(circle, var(--color-border-strong) 1px, transparent 1px);
+  background-color: var(--color-canvas);
+  background-image: radial-gradient(circle, var(--color-canvas-dot) 1px, transparent 1px);
   background-size: 22px 22px;
   background-position: center;
 }

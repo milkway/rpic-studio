@@ -1,0 +1,46 @@
+import { test, expect } from "@playwright/test";
+
+test.beforeEach(async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForSelector('[data-testid="preview-stage"] svg', { timeout: 20_000 });
+});
+
+test("inglês é o padrão; seletor de bandeiras troca para português e persiste", async ({
+  page,
+}) => {
+  // padrão: inglês
+  await expect(page.getByRole("link", { name: "Examples" })).toBeVisible();
+  await expect(page.getByTestId("locale-switcher")).toContainText("🇺🇸");
+
+  // troca para português
+  await page.getByTestId("locale-switcher").click();
+  await page.getByTestId("locale-pt").click();
+  await expect(page.getByRole("link", { name: "Exemplos" })).toBeVisible();
+  await expect(page.getByTestId("share-button")).toContainText("Compartilhar");
+  await expect(page.getByTestId("locale-switcher")).toContainText("🇧🇷");
+
+  // persiste após recarregar
+  await page.reload();
+  await expect(page.getByRole("link", { name: "Exemplos" })).toBeVisible();
+});
+
+test("toggle claro/escuro aplica a classe .dark e persiste", async ({ page }) => {
+  const isDark = () => page.evaluate(() => document.documentElement.classList.contains("dark"));
+
+  const started = await isDark(); // segue prefers-color-scheme
+  await page.getByTestId("theme-toggle").click();
+  expect(await isDark()).toBe(!started);
+
+  await page.reload();
+  await page.waitForSelector('[data-testid="preview-stage"] svg', { timeout: 20_000 });
+  expect(await isDark()).toBe(!started);
+
+  // o papel do diagrama continua claro nos dois temas (fidelidade do desenho)
+  const canvasBg = await page
+    .locator(".paper-grid")
+    .first()
+    .evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(canvasBg).toBe("rgb(255, 255, 255)");
+});

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { FolderOpen, LogIn, LogOut } from "lucide-react";
 import { useAuthConfig, useMe, useLogout } from "@/lib/queries";
 import { loginUrl } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/Button";
 import {
   DropdownMenu,
@@ -19,6 +20,7 @@ export function UserMenu() {
   const { data: authConfig } = useAuthConfig();
   const logout = useLogout();
   const location = useLocation();
+  const { t } = useI18n();
 
   if (isLoading) return null;
 
@@ -35,7 +37,7 @@ export function UserMenu() {
         }}
       >
         <LogIn size={14} />
-        Entrar
+        {t("user.signIn")}
       </Button>
     );
   }
@@ -48,7 +50,7 @@ export function UserMenu() {
         <button
           data-testid="user-menu"
           className="flex h-8 w-8 cursor-pointer items-center justify-center overflow-hidden rounded-full border border-(--color-border-strong) bg-(--color-surface-muted) text-sm font-semibold text-(--color-text) transition-shadow hover:shadow-(--shadow-sm)"
-          aria-label={`Conta: ${me.email}`}
+          aria-label={`${t("user.account")}: ${me.email}`}
         >
           {me.picture_url ? (
             <img src={me.picture_url} alt="" referrerPolicy="no-referrer" />
@@ -61,12 +63,12 @@ export function UserMenu() {
         <DropdownLabel>{me.email}</DropdownLabel>
         <DropdownItem asChild>
           <Link to="/diagramas">
-            <FolderOpen size={15} /> Meus diagramas
+            <FolderOpen size={15} /> {t("user.myDiagrams")}
           </Link>
         </DropdownItem>
         <DropdownSeparator />
         <DropdownItem onSelect={() => logout.mutate()}>
-          <LogOut size={15} /> Sair
+          <LogOut size={15} /> {t("user.signOut")}
         </DropdownItem>
       </DropdownContent>
     </DropdownMenu>
