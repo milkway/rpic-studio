@@ -1,7 +1,7 @@
 import { useLocation } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { FolderOpen, LogIn, LogOut } from "lucide-react";
-import { useMe, useLogout } from "@/lib/queries";
+import { useAuthConfig, useMe, useLogout } from "@/lib/queries";
 import { loginUrl } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import {
@@ -16,12 +16,15 @@ import {
 /** Entrar com Google / menu do usuário logado (meus diagramas, sair). */
 export function UserMenu() {
   const { data: me, isLoading } = useMe();
+  const { data: authConfig } = useAuthConfig();
   const logout = useLogout();
   const location = useLocation();
 
   if (isLoading) return null;
 
   if (!me) {
+    // Sem login configurado (ou API fora do ar), o app é anônimo — sem botão.
+    if (!authConfig?.google_login) return null;
     return (
       <Button
         variant="outline"

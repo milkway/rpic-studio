@@ -32,6 +32,13 @@ fn oauth_cookie(state: &AppState, value: String, minutes: i64) -> Cookie<'static
     c.into_owned()
 }
 
+/// GET /api/auth/config — o frontend só exibe "Entrar" se o login existir.
+pub async fn config(State(state): State<AppState>) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "google_login": !state.config.google_client_id.is_empty()
+    }))
+}
+
 #[derive(Deserialize)]
 pub struct LoginParams {
     next: Option<String>,

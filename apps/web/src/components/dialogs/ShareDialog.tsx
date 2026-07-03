@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { buildShareUrl } from "@/lib/share";
 import { copyText } from "@/lib/exports";
 import { useToast } from "@/components/ui/Toast";
-import { useMe, useShareDiagram, useUnshareDiagram } from "@/lib/queries";
+import { useAuthConfig, useMe, useShareDiagram, useUnshareDiagram } from "@/lib/queries";
 
 interface ShareDialogProps {
   source: string;
@@ -49,6 +49,7 @@ function CopyRow({ value, testid }: { value: string; testid: string }) {
 export function ShareDialog({ source, circuits, diagramId, shareSlug }: ShareDialogProps) {
   const [open, setOpen] = useState(false);
   const { data: me } = useMe();
+  const { data: authConfig } = useAuthConfig();
   const share = useShareDiagram();
   const unshare = useUnshareDiagram();
   const toast = useToast();
@@ -126,7 +127,9 @@ export function ShareDialog({ source, circuits, diagramId, shareSlug }: ShareDia
               <p className="text-xs text-(--color-text-muted)">
                 {me
                   ? "Salve o diagrama na sua conta para gerar um link curto."
-                  : "Entre com sua conta e salve o diagrama para gerar um link curto."}
+                  : authConfig?.google_login
+                    ? "Entre com sua conta e salve o diagrama para gerar um link curto."
+                    : "Chega junto com o login — por enquanto, use o link acima."}
               </p>
             )}
           </section>

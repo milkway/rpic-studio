@@ -11,6 +11,7 @@ use axum::Router;
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health::health))
+        .route("/api/auth/config", get(auth::config))
         .route("/api/auth/google/login", get(auth::google_login))
         .route("/api/auth/google/callback", get(auth::google_callback))
         .route("/api/auth/logout", post(auth::logout))

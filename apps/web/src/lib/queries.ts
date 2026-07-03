@@ -4,6 +4,23 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./api";
 import type { Diagram, DiagramInput, DiagramSummary, SharedDiagram, User } from "./types";
 
+/** Login está configurado/disponível? false também quando a API está fora
+ *  do ar — o app segue 100% funcional anônimo, sem botão quebrado. */
+export function useAuthConfig() {
+  return useQuery({
+    queryKey: ["auth-config"],
+    staleTime: Infinity,
+    retry: false,
+    queryFn: async (): Promise<{ google_login: boolean }> => {
+      try {
+        return await api<{ google_login: boolean }>("/api/auth/config");
+      } catch {
+        return { google_login: false };
+      }
+    },
+  });
+}
+
 /** Usuário logado, ou null (401 = anônimo, nunca erro). */
 export function useMe() {
   return useQuery({

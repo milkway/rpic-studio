@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogClose, DialogFooter } from "@/components/u
 import { useToast } from "@/components/ui/Toast";
 import { loginUrl } from "@/lib/api";
 import {
+  useAuthConfig,
   useDeleteDiagram,
   useDiagrams,
   useMe,
@@ -173,6 +174,7 @@ function DiagramRow({ diagram }: { diagram: DiagramSummary }) {
 /** Lista dos diagramas salvos do usuário. */
 export function DiagramsPage() {
   const { data: me, isLoading: meLoading } = useMe();
+  const { data: authConfig } = useAuthConfig();
   const diagrams = useDiagrams(!!me);
 
   return (
@@ -198,18 +200,27 @@ export function DiagramsPage() {
           <div className="mt-8">
             {meLoading ? null : !me ? (
               <div className="rounded-(--radius-lg) border border-(--color-border) bg-(--color-surface) p-10 text-center">
-                <p className="text-(--color-text-body)">
-                  Entre com sua conta Google para salvar e organizar diagramas.
-                </p>
-                <Button
-                  variant="primary"
-                  className="mt-4"
-                  onClick={() => {
-                    window.location.href = loginUrl("/diagramas");
-                  }}
-                >
-                  <LogIn size={15} /> Entrar com Google
-                </Button>
+                {authConfig?.google_login ? (
+                  <>
+                    <p className="text-(--color-text-body)">
+                      Entre com sua conta Google para salvar e organizar diagramas.
+                    </p>
+                    <Button
+                      variant="primary"
+                      className="mt-4"
+                      onClick={() => {
+                        window.location.href = loginUrl("/diagramas");
+                      }}
+                    >
+                      <LogIn size={15} /> Entrar com Google
+                    </Button>
+                  </>
+                ) : (
+                  <p className="text-(--color-text-body)">
+                    O login ainda não está disponível — enquanto isso, seu rascunho fica salvo
+                    neste navegador e você pode compartilhar qualquer diagrama por link.
+                  </p>
+                )}
               </div>
             ) : diagrams.isLoading ? (
               <p className="p-6 text-sm text-(--color-text-muted)">carregando…</p>
