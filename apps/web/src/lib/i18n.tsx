@@ -88,6 +88,7 @@ const en = {
   "editor.loadExample": "Load example",
   "editor.circuits": "circuits",
   "editor.circuitsTip": "Enables resistor(), lamp(), and_gate()…",
+  "editor.circuitsAuto": "Turned on automatically — the code calls circuit-library macros",
   "editor.clear": "Clear editor",
   "editor.notFound": "Diagram not found",
 
@@ -232,6 +233,7 @@ const pt: Record<MessageKey, string> = {
   "editor.loadExample": "Carregar exemplo",
   "editor.circuits": "circuitos",
   "editor.circuitsTip": "Habilita resistor(), lamp(), and_gate()…",
+  "editor.circuitsAuto": "Ligado automaticamente — o código chama macros da biblioteca de circuitos",
   "editor.clear": "Limpar editor",
   "editor.notFound": "Diagrama não encontrado",
 

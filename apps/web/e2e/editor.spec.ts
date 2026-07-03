@@ -36,6 +36,20 @@ test("erro de sintaxe mostra o painel de diagnóstico e preserva o último SVG",
   await expect(page.locator('[data-testid="preview-stage"] svg')).toContainText("ok");
 });
 
+test("circuitos ligam automaticamente quando o código usa a biblioteca", async ({ page }) => {
+  const code = page.locator('[data-testid="code-pane"] .cm-content');
+  await code.click();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+a" : "Control+a");
+  await page.keyboard.type("A:(0,0); B:(2,0)");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("resistor(A,B)");
+  // o interruptor liga sozinho e o circuito compila
+  await expect(page.locator("#circuits-switch")).toHaveAttribute("data-state", "checked");
+  await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok", {
+    timeout: 5_000,
+  });
+});
+
 test("exemplo com animação exibe o botão de replay", async ({ page }) => {
   // o welcome (default sem rascunho) tem manifesto de animação
   await expect(page.getByTestId("replay-button")).toBeVisible();

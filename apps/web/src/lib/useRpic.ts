@@ -28,8 +28,13 @@ const INITIAL: RpicState = {
   version: 0,
 };
 
+export interface RpicOptions {
+  circuits: boolean;
+  texlabels: boolean;
+}
+
 /** Compila `source` ao vivo (debounce), preservando o último SVG bom em erro. */
-export function useRpic(source: string, circuits: boolean): RpicState {
+export function useRpic(source: string, { circuits, texlabels }: RpicOptions): RpicState {
   const debounced = useDebouncedValue(source, 200);
   const [state, setState] = useState<RpicState>(INITIAL);
   const versionRef = useRef(0);
@@ -54,7 +59,7 @@ export function useRpic(source: string, circuits: boolean): RpicState {
     if (state.loading) return;
     try {
       const t0 = performance.now();
-      const bundle = compile(debounced, { circuits });
+      const bundle = compile(debounced, { circuits, texlabels });
       const compileMs = performance.now() - t0;
       versionRef.current += 1;
       setState((s) => ({
@@ -70,7 +75,7 @@ export function useRpic(source: string, circuits: boolean): RpicState {
       const message = e instanceof Error ? e.message : String(e);
       setState((s) => ({ ...s, error: message }));
     }
-  }, [debounced, circuits, state.loading]);
+  }, [debounced, circuits, texlabels, state.loading]);
 
   return state;
 }

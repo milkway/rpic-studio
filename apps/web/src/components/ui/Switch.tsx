@@ -7,21 +7,25 @@ interface SwitchProps {
   label: string;
   /** Variante para fundo escuro (painel do editor). */
   ink?: boolean;
+  /** Travado (ex.: ligado automaticamente por detecção no código). */
+  disabled?: boolean;
   id?: string;
 }
 
-export function Switch({ checked, onCheckedChange, label, ink, id }: SwitchProps) {
+export function Switch({ checked, onCheckedChange, label, ink, disabled, id }: SwitchProps) {
   return (
     <label
       className={cn(
         "flex cursor-pointer items-center gap-2 text-xs font-medium select-none",
         ink ? "text-(--color-ink-muted)" : "text-(--color-text-body)",
+        disabled && "cursor-default",
       )}
       htmlFor={id}
     >
       <SwitchPrimitive.Root
         id={id}
         checked={checked}
+        disabled={disabled}
         onCheckedChange={onCheckedChange}
         className={cn(
           "relative h-4.5 w-8 shrink-0 cursor-pointer rounded-full transition-colors",

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { BookOpen, ChevronDown, Eraser } from "lucide-react";
 import { cn } from "@rpic/design-system";
@@ -29,6 +29,7 @@ import { useDiagram, useMe, useUpdateDiagram } from "@/lib/queries";
 import { useI18n, type Locale } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import { PREFS_EVENT, pushPrefsSoon } from "@/lib/prefs";
+import { detectCircuits, detectTexLabels } from "@/lib/detect";
 
 interface DocState {
   source: string;
@@ -66,7 +67,13 @@ export function EditorPage() {
   const diagram = useDiagram(id);
   const update = useUpdateDiagram();
 
-  const rpic = useRpic(doc.source, doc.circuits);
+  // Circuitos e texlabels ligam sozinhos quando o código os usa; o
+  // interruptor continua servindo de override manual quando nada é detectado.
+  const autoCircuits = useMemo(() => detectCircuits(doc.source), [doc.source]);
+  const texlabels = useMemo(() => detectTexLabels(doc.source), [doc.source]);
+  const circuits = doc.circuits || autoCircuits;
+
+  const rpic = useRpic(doc.source, { circuits, texlabels });
 
   // Modo salvo: carrega o diagrama no editor quando a query resolve.
   const loadedIdRef = useRef<string | null>(null);
@@ -88,7 +95,7 @@ export function EditorPage() {
 
   const dirty =
     savedMode && diagram.data
-      ? doc.source !== diagram.data.source || doc.circuits !== diagram.data.circuits
+      ? doc.source !== diagram.data.source || circuits !== diagram.data.circuits
       : true;
 
   // Link importado: limpa o fragment para a URL voltar a ser "do usuário".
@@ -126,7 +133,7 @@ export function EditorPage() {
           id: diagram.data.id,
           title: diagram.data.title,
           source: doc.source,
-          circuits: doc.circuits,
+          circuits,
         },
         {
           onSuccess: () => toast(t("save.saved")),
@@ -197,7 +204,7 @@ export function EditorPage() {
         <EditorToolbar
           source={doc.source}
           svg={rpic.svg}
-          circuits={doc.circuits}
+          circuits={circuits}
           layout={layout}
           onToggleLayout={toggleLayout}
           exportName={diagram.data?.title ?? (locale === "pt" ? "diagrama" : "diagram")}
@@ -210,7 +217,7 @@ export function EditorPage() {
     >
       <SaveDialog
         source={doc.source}
-        circuits={doc.circuits}
+        circuits={circuits}
         open={saveOpen}
         onOpenChange={setSaveOpen}
       />
@@ -254,14 +261,15 @@ export function EditorPage() {
               </DropdownContent>
             </DropdownMenu>
             <div className="ml-auto flex items-center gap-3">
-              <Tip label={t("editor.circuitsTip")}>
+              <Tip label={autoCircuits ? t("editor.circuitsAuto") : t("editor.circuitsTip")}>
                 <span>
                   <Switch
                     ink
                     id="circuits-switch"
-                    checked={doc.circuits}
-                    onCheckedChange={(circuits) => setDoc((d) => ({ ...d, circuits }))}
-                    label={t("editor.circuits")}
+                    checked={circuits}
+                    disabled={autoCircuits}
+                    onCheckedChange={(on) => setDoc((d) => ({ ...d, circuits: on }))}
+                    label={autoCircuits ? `${t("editor.circuits")} ✦` : t("editor.circuits")}
                   />
                 </span>
               </Tip>
@@ -312,7 +320,7 @@ export function EditorPage() {
           <PreviewTabs
             svg={rpic.svg}
             source={doc.source}
-            circuits={doc.circuits}
+            circuits={circuits}
             animations={rpic.animations}
             version={rpic.version}
             error={rpic.error}
