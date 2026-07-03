@@ -18,6 +18,11 @@ export interface RpicState {
   version: number;
 }
 
+export interface RpicOptions {
+  circuits: boolean;
+  texlabels: boolean;
+}
+
 const INITIAL: RpicState = {
   svg: "",
   animations: [],
@@ -28,16 +33,16 @@ const INITIAL: RpicState = {
   version: 0,
 };
 
-export interface RpicOptions {
-  circuits: boolean;
-  texlabels: boolean;
-}
+/** Atraso extra antes de EXIBIR um erro ("lazy red"): sucesso aparece na hora,
+ *  mas vermelho no meio da digitação só se o erro persistir. */
+const ERROR_GRACE_MS = 600;
 
 /** Compila `source` ao vivo (debounce), preservando o último SVG bom em erro. */
 export function useRpic(source: string, { circuits, texlabels }: RpicOptions): RpicState {
   const debounced = useDebouncedValue(source, 200);
   const [state, setState] = useState<RpicState>(INITIAL);
   const versionRef = useRef(0);
+  const errorTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +67,10 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
       const bundle = compile(debounced, { circuits, texlabels });
       const compileMs = performance.now() - t0;
       versionRef.current += 1;
+      if (errorTimerRef.current !== null) {
+        window.clearTimeout(errorTimerRef.current);
+        errorTimerRef.current = null;
+      }
       setState((s) => ({
         ...s,
         svg: bundle.svg,
@@ -73,8 +82,17 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
       }));
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      setState((s) => ({ ...s, error: message }));
+      // não pisca vermelho a cada tecla: o erro só aparece se persistir
+      errorTimerRef.current = window.setTimeout(() => {
+        setState((s) => ({ ...s, error: message }));
+      }, ERROR_GRACE_MS);
     }
+    return () => {
+      if (errorTimerRef.current !== null) {
+        window.clearTimeout(errorTimerRef.current);
+        errorTimerRef.current = null;
+      }
+    };
   }, [debounced, circuits, texlabels, state.loading]);
 
   return state;

@@ -3,7 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { BookOpen, ChevronDown, Eraser } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import { AppShell } from "@/components/app-shell/AppShell";
-import { CodePane } from "@/components/editor/CodePane";
+import { CodePane, type CodePaneHandle } from "@/components/editor/CodePane";
+import { explainError } from "@/lib/errorInfo";
 import { EditorToolbar } from "@/components/editor/EditorToolbar";
 import { DiagnosticsPanel } from "@/components/preview/DiagnosticsPanel";
 import { PreviewTabs } from "@/components/preview/PreviewTabs";
@@ -82,6 +83,13 @@ export function EditorPage() {
   const circuits = doc.circuits || autoCircuits;
 
   const rpic = useRpic(doc.source, { circuits, texlabels });
+  const codeRef = useRef<CodePaneHandle>(null);
+
+  // Erro interpretado: posição precisa, texto humano e sugestão de correção.
+  const errorInfo = useMemo(
+    () => (rpic.error ? explainError(rpic.error, doc.source, locale) : null),
+    [rpic.error, doc.source, locale],
+  );
 
   // Math digitado com o build lean carregado: fixa a preferência e avisa que
   // um reload ativa a tipografia (a troca de build exige reinicializar o wasm).
@@ -306,14 +314,19 @@ export function EditorPage() {
           </div>
           <div className="min-h-0 flex-1 overflow-hidden">
             <CodePane
+              ref={codeRef}
               value={doc.source}
               onChange={setSource}
-              error={rpic.error}
+              error={errorInfo}
               dark={dark}
               autoFocus
             />
           </div>
-          <DiagnosticsPanel error={rpic.error} prints={rpic.prints} />
+          <DiagnosticsPanel
+            error={errorInfo}
+            prints={rpic.prints}
+            onJump={(line, col) => codeRef.current?.focusAt(line, col)}
+          />
         </section>
 
         {/* Divisor arrastável */}

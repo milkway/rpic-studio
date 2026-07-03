@@ -140,6 +140,9 @@ const en = {
     "From Kernighan's classic pipeline to full circuits — click any card to open it in the editor and build from there.",
   "examplesPage.open": "Open in editor",
 
+  // diagnósticos
+  "diag.line": "line {n}",
+
   // math
   "math.reloadHint": "Math $…$ detected — reload the page to typeset it",
 
@@ -284,6 +287,8 @@ const pt: Record<MessageKey, string> = {
   "examplesPage.subtitle":
     "Do pipeline clássico do Kernighan a circuitos completos — clique para abrir qualquer um no editor e partir dele.",
   "examplesPage.open": "Abrir no editor",
+
+  "diag.line": "linha {n}",
 
   "math.reloadHint": "Fórmulas $…$ detectadas — recarregue a página para tipografá-las",
 

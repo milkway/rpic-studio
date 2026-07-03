@@ -36,6 +36,25 @@ test("erro de sintaxe mostra o painel de diagnóstico e preserva o último SVG",
   await expect(page.locator('[data-testid="preview-stage"] svg')).toContainText("ok");
 });
 
+test("typo em comando mostra sugestão e o clique pula para o erro", async ({ page }) => {
+  const code = page.locator('[data-testid="code-pane"] .cm-content');
+  await code.click();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+a" : "Control+a");
+  await page.keyboard.type('box "a"\nbxo "b"');
+
+  // mensagem humanizada + sugestão de correção
+  await expect(page.getByTestId("compile-error")).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByTestId("error-suggestion")).toContainText(/box/);
+
+  // clique na linha pula o cursor para a posição do erro
+  await page.getByTestId("error-jump").click();
+  const cursorLine = await page.evaluate(() => {
+    const active = document.querySelector(".cm-activeLineGutter");
+    return active?.textContent;
+  });
+  expect(cursorLine).toBe("2");
+});
+
 test("circuitos ligam automaticamente quando o código usa a biblioteca", async ({ page }) => {
   const code = page.locator('[data-testid="code-pane"] .cm-content');
   await code.click();

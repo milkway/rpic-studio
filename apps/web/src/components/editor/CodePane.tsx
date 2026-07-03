@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { Compartment, EditorState } from "@codemirror/state";
 import {
   EditorView,
@@ -11,38 +11,63 @@ import {
 } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { bracketMatching } from "@codemirror/language";
-import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
+import { lintGutter, setDiagnostics, type Diagnostic } from "@codemirror/lint";
 import { rpicLanguage } from "./rpicLanguage";
 import { rpicEditorTheme } from "./rpicTheme";
-import { errorPosition } from "@/lib/rpic";
+import type { ErrorInfo } from "@/lib/errorInfo";
+
+export interface CodePaneHandle {
+  /** Move o cursor para a posição (1-based) e foca o editor. */
+  focusAt: (line: number, col: number) => void;
+}
 
 interface CodePaneProps {
   value: string;
   onChange: (value: string) => void;
-  /** Erro de compilação atual (vira sublinhado/lint no editor). */
-  error: string | null;
+  /** Erro de compilação interpretado (sublinhado preciso + mensagem humana). */
+  error: ErrorInfo | null;
   /** Tema do app — alterna rpic-forest-light/dark. */
   dark: boolean;
   autoFocus?: boolean;
 }
 
-function errorToDiagnostics(state: EditorState, error: string): Diagnostic[] {
-  const pos = errorPosition(error);
+function errorToDiagnostics(state: EditorState, error: ErrorInfo): Diagnostic[] {
   const doc = state.doc;
-  const line = pos && pos.line >= 1 && pos.line <= doc.lines ? doc.line(pos.line) : doc.line(1);
-  const from = Math.min(line.from + Math.max((pos?.col ?? 1) - 1, 0), line.to);
-  return [{ from, to: line.to, severity: "error", message: error }];
+  const line =
+    error.line && error.line >= 1 && error.line <= doc.lines
+      ? doc.line(error.line)
+      : doc.line(1);
+  const from = Math.min(line.from + Math.max((error.col ?? 1) - 1, 0), line.to);
+  // sublinha só o token ofensor quando o comprimento é conhecido
+  const to = error.tokenLength ? Math.min(from + error.tokenLength, line.to) : line.to;
+  const message = error.suggestion ? `${error.friendly} ${error.suggestion}` : error.friendly;
+  return [{ from, to: Math.max(to, from), severity: "error", message }];
 }
 
 const themeCompartment = new Compartment();
 
 /** Editor CodeMirror 6 com a linguagem rpic e os temas rpic-forest. */
-export function CodePane({ value, onChange, error, dark, autoFocus }: CodePaneProps) {
+export const CodePane = forwardRef<CodePaneHandle, CodePaneProps>(function CodePane(
+  { value, onChange, error, dark, autoFocus },
+  ref,
+) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const initialDarkRef = useRef(dark);
+
+  useImperativeHandle(ref, () => ({
+    focusAt(line, col) {
+      const view = viewRef.current;
+      if (!view) return;
+      const doc = view.state.doc;
+      const target = doc.line(Math.min(Math.max(line, 1), doc.lines));
+      const pos = Math.min(target.from + Math.max(col - 1, 0), target.to);
+      view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+      view.focus();
+    },
+  }));
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -51,6 +76,7 @@ export function CodePane({ value, onChange, error, dark, autoFocus }: CodePanePr
         doc: value,
         extensions: [
           lineNumbers(),
+          lintGutter(),
           highlightActiveLine(),
           highlightActiveLineGutter(),
           drawSelection(),
@@ -103,4 +129,4 @@ export function CodePane({ value, onChange, error, dark, autoFocus }: CodePanePr
   }, [error]);
 
   return <div ref={hostRef} data-testid="code-pane" className="h-full min-h-0" />;
-}
+});
