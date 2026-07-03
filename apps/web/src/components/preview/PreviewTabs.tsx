@@ -4,19 +4,29 @@ import { Copy } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import type { Anim } from "@/lib/rpic";
 import { copyText, formatXml, toMarkdownSnippet } from "@/lib/exports";
+import { toPythonSnippet, toRSnippet } from "@/lib/bindings";
 import { useI18n } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import { PreviewPane } from "./PreviewPane";
-import { ReadOnlyCode } from "./ReadOnlyCode";
+import { ReadOnlyCode, type CodeLanguage } from "./ReadOnlyCode";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 
-type TabValue = "imagem" | "svg" | "markdown";
+type TabValue = "imagem" | "svg" | "markdown" | "python" | "r";
+
+const TAB_LANGUAGE: Record<Exclude<TabValue, "imagem">, CodeLanguage> = {
+  svg: "xml",
+  markdown: "markdown",
+  python: "python",
+  r: "r",
+};
 
 interface PreviewTabsProps {
   svg: string;
-  /** Código pic atual — vai no bloco ```pic da aba Markdown. */
+  /** Código pic atual — vai nos snippets Markdown/Python/R. */
   source: string;
+  /** Biblioteca de circuitos ligada — reflete nos snippets dos bindings. */
+  circuits: boolean;
   animations: Anim[];
   version: number;
   error: string | null;
@@ -52,8 +62,8 @@ function TabButton({ value, children }: { value: TabValue; children: string }) {
   );
 }
 
-/** Painel direito: imagem ao vivo, código SVG formatado ou Markdown pronto. */
-export function PreviewTabs({ source, ...props }: PreviewTabsProps) {
+/** Painel direito: imagem ao vivo ou código pronto (SVG, Markdown, Python, R). */
+export function PreviewTabs({ source, circuits, ...props }: PreviewTabsProps) {
   const [tab, setTab] = useState<TabValue>("imagem");
   const toast = useToast();
   const { t, locale } = useI18n();
@@ -64,15 +74,26 @@ export function PreviewTabs({ source, ...props }: PreviewTabsProps) {
       <TabButton value="imagem">{t("preview.tabImage")}</TabButton>
       <TabButton value="svg">SVG</TabButton>
       <TabButton value="markdown">Markdown</TabButton>
+      <TabButton value="python">Python</TabButton>
+      <TabButton value="r">R</TabButton>
     </Tabs.List>
   );
 
   // Formata só quando a aba está aberta (o SVG muda a cada compilação).
   const codeContent = useMemo(() => {
-    if (tab === "svg") return formatXml(props.svg);
-    if (tab === "markdown") return toMarkdownSnippet(props.svg, source, MD_LABELS[locale]);
-    return "";
-  }, [tab, props.svg, source, locale]);
+    switch (tab) {
+      case "svg":
+        return formatXml(props.svg);
+      case "markdown":
+        return toMarkdownSnippet(props.svg, source, MD_LABELS[locale]);
+      case "python":
+        return toPythonSnippet(source, circuits, locale);
+      case "r":
+        return toRSnippet(source, circuits, locale);
+      default:
+        return "";
+    }
+  }, [tab, props.svg, source, circuits, locale]);
 
   return (
     <Tabs.Root
@@ -104,7 +125,7 @@ export function PreviewTabs({ source, ...props }: PreviewTabsProps) {
             </div>
             <ReadOnlyCode
               content={codeContent}
-              language={tab === "svg" ? "xml" : "markdown"}
+              language={TAB_LANGUAGE[tab]}
               dark={dark}
               testid={`code-view-${tab}`}
             />

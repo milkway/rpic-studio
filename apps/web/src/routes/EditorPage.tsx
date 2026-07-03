@@ -312,6 +312,7 @@ export function EditorPage() {
           <PreviewTabs
             svg={rpic.svg}
             source={doc.source}
+            circuits={doc.circuits}
             animations={rpic.animations}
             version={rpic.version}
             error={rpic.error}

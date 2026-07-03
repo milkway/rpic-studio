@@ -49,3 +49,14 @@ test("abas SVG e Markdown mostram o código gerado", async ({ page }) => {
   // documento estruturado: imagem embutida + bloco de código pic
   await expect(page.getByTestId("code-view-markdown")).toContainText("```pic");
 });
+
+test("abas Python e R trazem snippets dos bindings com o código atual", async ({ page }) => {
+  await page.getByRole("tab", { name: "Python" }).click();
+  await expect(page.getByTestId("code-view-python")).toContainText("import rpic");
+  await expect(page.getByTestId("code-view-python")).toContainText("rpic.render_svg(src)");
+  await expect(page.getByTestId("code-view-python")).toContainText("ellipse");
+
+  await page.getByRole("tab", { name: "R", exact: true }).click();
+  await expect(page.getByTestId("code-view-r")).toContainText("library(rpic)");
+  await expect(page.getByTestId("code-view-r")).toContainText("rpic_svg(src)");
+});
