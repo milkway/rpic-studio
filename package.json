@@ -1,0 +1,21 @@
+{
+  "name": "rpic-app",
+  "private": true,
+  "version": "0.1.0",
+  "description": "rpic studio — editor web de diagramas na linguagem rpic (pic). Escreva o desenho, veja-o nascer.",
+  "license": "BSD-2-Clause",
+  "workspaces": [
+    "apps/web",
+    "packages/design-system"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace apps/web",
+    "build": "npm run build --workspace apps/web",
+    "lint": "npm run lint --workspace apps/web",
+    "test": "npm run test --workspace apps/web",
+    "e2e": "npm run e2e --workspace apps/web"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

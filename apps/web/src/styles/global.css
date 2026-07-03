@@ -1,0 +1,40 @@
+@import "tailwindcss";
+@import "@rpic/design-system/tokens.css";
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/instrument-sans";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-paper);
+  color: var(--color-text);
+  color-scheme: light;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Grade de pontos do "papel técnico" do preview. */
+.paper-grid {
+  background-image: radial-gradient(circle, var(--color-border-strong) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-position: center;
+}
+
+/* Scrollbars discretas, cor de tinta diluída. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+
+/* Seleção com o vermelhão da marca. */
+::selection {
+  background: var(--color-accent-soft);
+  color: var(--color-text);
+}

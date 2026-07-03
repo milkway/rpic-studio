@@ -1,0 +1,50 @@
+/* =====================================================================
+   rpic studio — Design Tokens · direção "nanquim & papel"
+   Um ateliê de desenho técnico: papel quente com grade de pontos,
+   tinta nanquim escura no editor, acento vermelhão de caneta técnica.
+   Tipos: Bricolage Grotesque (marca/títulos), Instrument Sans (UI),
+   IBM Plex Mono (código e rótulos técnicos).
+   ===================================================================== */
+
+@theme {
+  --font-sans: "Instrument Sans Variable", "Instrument Sans", system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque Variable", "Bricolage Grotesque", var(--font-sans);
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Papel — superfícies claras */
+  --color-paper: #f6f3ec;
+  --color-surface: #fffdf8;
+  --color-surface-muted: #efebe1;
+  --color-text: #26221c;
+  --color-text-body: #57503f;
+  --color-text-muted: #8d8471;
+  --color-border: #e5dfd1;
+  --color-border-strong: #d5cdba;
+
+  /* Tinta — o painel do editor e elementos escuros */
+  --color-ink: #211e1a;
+  --color-ink-raised: #2b2721;
+  --color-ink-border: #3a352d;
+  --color-ink-text: #ece5d8;
+  --color-ink-muted: #948b7a;
+
+  /* Vermelhão — o acento único (caneta técnica) */
+  --color-accent: #d1461f;
+  --color-accent-strong: #b23917;
+  --color-accent-soft: #f7ded3;
+  --color-accent-contrast: #fffdf8;
+
+  /* Semântica */
+  --color-success: #4a7c59;
+  --color-warning: #b07d20;
+  --color-danger: #b3341d;
+  --color-danger-soft: #f6ded8;
+
+  /* Raios e sombras (suaves, quentes) */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 3px rgba(43, 35, 22, 0.07);
+  --shadow-card: 0 2px 14px rgba(43, 35, 22, 0.08);
+  --shadow-pop: 0 8px 32px rgba(43, 35, 22, 0.16);
+}
