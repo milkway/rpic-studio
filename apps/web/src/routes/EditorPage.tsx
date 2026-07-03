@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { BookOpen, ChevronDown, Eraser } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import { AppShell } from "@/components/app-shell/AppShell";
@@ -6,6 +7,7 @@ import { CodePane } from "@/components/editor/CodePane";
 import { EditorToolbar } from "@/components/editor/EditorToolbar";
 import { DiagnosticsPanel } from "@/components/preview/DiagnosticsPanel";
 import { PreviewTabs } from "@/components/preview/PreviewTabs";
+import { SaveDialog } from "@/components/dialogs/SaveDialog";
 import { Button } from "@/components/ui/Button";
 import {
   DropdownMenu,
@@ -16,12 +18,14 @@ import {
 } from "@/components/ui/DropdownMenu";
 import { Switch } from "@/components/ui/Switch";
 import { Tip } from "@/components/ui/Tooltip";
+import { useToast } from "@/components/ui/Toast";
 import { useRpic } from "@/lib/useRpic";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { decodeShareHash } from "@/lib/share";
 import { loadDraft, loadSettings, saveDraft, saveSettings } from "@/lib/storage";
 import { examples, WELCOME_SOURCE } from "@/lib/examples";
+import { useDiagram, useMe, useUpdateDiagram } from "@/lib/queries";
 
 interface DocState {
   source: string;
@@ -36,17 +40,51 @@ function initialDoc(): DocState & { fromHash: boolean } {
   return { source: WELCOME_SOURCE, circuits: false, fromHash: false };
 }
 
-/** Página principal: editor nanquim à esquerda, papel técnico à direita. */
+/** Página principal: editor nanquim à esquerda, papel técnico à direita.
+ *  Em `/` edita o rascunho local; em `/e/:id` edita um diagrama salvo. */
 export function EditorPage() {
+  const { id } = useParams<{ id: string }>();
+  const savedMode = !!id;
+  const navigate = useNavigate();
+  const toast = useToast();
+
   const [initial] = useState(initialDoc);
   const [doc, setDoc] = useState<DocState>({ source: initial.source, circuits: initial.circuits });
   const [layout, setLayout] = useState(() => loadSettings().layout);
   const [split, setSplit] = useState(0.42);
+  const [saveOpen, setSaveOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const narrow = useMediaQuery("(max-width: 1023px)");
   const vertical = narrow || layout === "vertical";
 
+  const { data: me } = useMe();
+  const diagram = useDiagram(id);
+  const update = useUpdateDiagram();
+
   const rpic = useRpic(doc.source, doc.circuits);
+
+  // Modo salvo: carrega o diagrama no editor quando a query resolve.
+  const loadedIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (savedMode && diagram.data && loadedIdRef.current !== diagram.data.id) {
+      loadedIdRef.current = diagram.data.id;
+      setDoc({ source: diagram.data.source, circuits: diagram.data.circuits });
+    }
+    if (!savedMode) loadedIdRef.current = null;
+  }, [savedMode, diagram.data]);
+
+  // Diagrama inexistente/sem acesso → volta ao rascunho.
+  useEffect(() => {
+    if (savedMode && diagram.isError) {
+      toast("Diagrama não encontrado", "error");
+      navigate("/", { replace: true });
+    }
+  }, [savedMode, diagram.isError, navigate, toast]);
+
+  const dirty =
+    savedMode && diagram.data
+      ? doc.source !== diagram.data.source || doc.circuits !== diagram.data.circuits
+      : true;
 
   // Link importado: limpa o fragment para a URL voltar a ser "do usuário".
   useEffect(() => {
@@ -62,17 +100,50 @@ export function EditorPage() {
       if (shared) {
         setDoc(shared);
         history.replaceState(null, "", window.location.pathname + window.location.search);
+        if (savedMode) navigate("/", { replace: true });
       }
     };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
-  }, []);
+  }, [savedMode, navigate]);
 
-  // Autosave do rascunho (funciona sem login).
+  // Autosave do rascunho — apenas no modo rascunho (não sobrescreve com
+  // conteúdo de diagramas salvos).
   const debouncedDoc = useDebouncedValue(doc, 500);
   useEffect(() => {
-    saveDraft(debouncedDoc.source, debouncedDoc.circuits);
-  }, [debouncedDoc]);
+    if (!savedMode) saveDraft(debouncedDoc.source, debouncedDoc.circuits);
+  }, [debouncedDoc, savedMode]);
+
+  const save = useCallback(() => {
+    if (savedMode && diagram.data) {
+      update.mutate(
+        {
+          id: diagram.data.id,
+          title: diagram.data.title,
+          source: doc.source,
+          circuits: doc.circuits,
+        },
+        {
+          onSuccess: () => toast("Diagrama salvo"),
+          onError: () => toast("Não foi possível salvar", "error"),
+        },
+      );
+    } else if (me) {
+      setSaveOpen(true);
+    }
+  }, [savedMode, diagram.data, doc, me, update, toast]);
+
+  // Atalho ⌘S / Ctrl+S.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        save();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [save]);
 
   const toggleLayout = useCallback(() => {
     setLayout((l) => {
@@ -116,9 +187,20 @@ export function EditorPage() {
           circuits={doc.circuits}
           layout={layout}
           onToggleLayout={toggleLayout}
+          exportName={diagram.data?.title ?? "diagrama"}
+          onSave={savedMode || me ? save : undefined}
+          saveDirty={dirty && (savedMode ? !update.isPending : true)}
+          diagramId={diagram.data?.id}
+          shareSlug={diagram.data?.share_slug}
         />
       }
     >
+      <SaveDialog
+        source={doc.source}
+        circuits={doc.circuits}
+        open={saveOpen}
+        onOpenChange={setSaveOpen}
+      />
       <div
         ref={containerRef}
         className="grid h-full min-h-0"
@@ -131,8 +213,12 @@ export function EditorPage() {
         {/* Painel nanquim: o código */}
         <section className="flex min-h-0 min-w-0 flex-col bg-(--color-ink)">
           <div className="flex h-10 shrink-0 items-center gap-2 border-b border-(--color-ink-border) px-3">
-            <span className="font-mono text-[11px] tracking-widest text-(--color-ink-muted) uppercase">
-              código
+            <span
+              className="max-w-44 truncate font-mono text-[11px] tracking-widest text-(--color-ink-muted) uppercase"
+              data-testid="doc-title"
+            >
+              {savedMode ? (diagram.data?.title ?? "…") : "rascunho"}
+              {savedMode && dirty && <span className="ml-1 text-(--color-accent)">●</span>}
             </span>
             <DropdownMenu>
               <DropdownTrigger asChild>

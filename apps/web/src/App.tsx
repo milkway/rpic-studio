@@ -5,6 +5,8 @@ import { ToastProvider } from "@/components/ui/Toast";
 import { EditorPage } from "@/routes/EditorPage";
 import { ExamplesPage } from "@/routes/ExamplesPage";
 import { HelpPage } from "@/routes/HelpPage";
+import { DiagramsPage } from "@/routes/DiagramsPage";
+import { SharedPage } from "@/routes/SharedPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,6 +22,9 @@ export default function App() {
           <BrowserRouter basename={import.meta.env.BASE_URL}>
             <Routes>
               <Route path="/" element={<EditorPage />} />
+              <Route path="/e/:id" element={<EditorPage />} />
+              <Route path="/d/:slug" element={<SharedPage />} />
+              <Route path="/diagramas" element={<DiagramsPage />} />
               <Route path="/exemplos" element={<ExamplesPage />} />
               <Route path="/ajuda" element={<HelpPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />

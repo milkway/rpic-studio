@@ -1,4 +1,13 @@
-import { Columns2, Download, FileCode2, FileImage, FileText, ImageDown, Rows2 } from "lucide-react";
+import {
+  Columns2,
+  Download,
+  FileCode2,
+  FileImage,
+  FileText,
+  ImageDown,
+  Rows2,
+  Save,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Tip } from "@/components/ui/Tooltip";
 import {
@@ -10,12 +19,7 @@ import {
   DropdownSeparator,
 } from "@/components/ui/DropdownMenu";
 import { useToast } from "@/components/ui/Toast";
-import {
-  copyDiagramToClipboard,
-  downloadPic,
-  downloadPng,
-  downloadSvg,
-} from "@/lib/exports";
+import { copyDiagramToClipboard, downloadPic, downloadPng, downloadSvg } from "@/lib/exports";
 import { ShareDialog } from "@/components/dialogs/ShareDialog";
 
 interface EditorToolbarProps {
@@ -24,14 +28,47 @@ interface EditorToolbarProps {
   circuits: boolean;
   layout: "horizontal" | "vertical";
   onToggleLayout: () => void;
+  /** Nome do arquivo dos exports (título do diagrama salvo, se houver). */
+  exportName?: string;
+  /** Botão Salvar: presente quando o usuário pode salvar. */
+  onSave?: () => void;
+  saveDirty?: boolean;
+  /** Diagrama salvo (habilita link curto no ShareDialog). */
+  diagramId?: string;
+  shareSlug?: string | null;
 }
 
-/** Ações da topbar na página do editor: exportar, layout e compartilhar. */
-export function EditorToolbar({ source, svg, circuits, layout, onToggleLayout }: EditorToolbarProps) {
+/** Ações da topbar na página do editor: salvar, exportar, layout, compartilhar. */
+export function EditorToolbar({
+  source,
+  svg,
+  circuits,
+  layout,
+  onToggleLayout,
+  exportName = "diagrama",
+  onSave,
+  saveDirty,
+  diagramId,
+  shareSlug,
+}: EditorToolbarProps) {
   const toast = useToast();
 
   return (
     <>
+      {onSave && (
+        <Tip label="Salvar (⌘S)">
+          <Button
+            variant={saveDirty ? "primary" : "ghost"}
+            size="sm"
+            onClick={onSave}
+            data-testid="save-button"
+          >
+            <Save size={14} />
+            Salvar
+          </Button>
+        </Tip>
+      )}
+
       <DropdownMenu>
         <Tip label="Exportar e copiar">
           <DropdownTrigger asChild>
@@ -43,15 +80,17 @@ export function EditorToolbar({ source, svg, circuits, layout, onToggleLayout }:
         </Tip>
         <DropdownContent>
           <DropdownLabel>Baixar</DropdownLabel>
-          <DropdownItem onSelect={() => downloadPic(source)} data-testid="export-pic">
+          <DropdownItem onSelect={() => downloadPic(source, exportName)} data-testid="export-pic">
             <FileText size={15} /> Código (.pic)
           </DropdownItem>
-          <DropdownItem onSelect={() => downloadSvg(svg)} data-testid="export-svg">
+          <DropdownItem onSelect={() => downloadSvg(svg, exportName)} data-testid="export-svg">
             <FileCode2 size={15} /> Vetor (.svg)
           </DropdownItem>
           <DropdownItem
             onSelect={() =>
-              downloadPng(svg).catch(() => toast("Não foi possível gerar o PNG", "error"))
+              downloadPng(svg, exportName).catch(() =>
+                toast("Não foi possível gerar o PNG", "error"),
+              )
             }
           >
             <FileImage size={15} /> Imagem (.png, 2x)
@@ -85,7 +124,12 @@ export function EditorToolbar({ source, svg, circuits, layout, onToggleLayout }:
         </Button>
       </Tip>
 
-      <ShareDialog source={source} circuits={circuits} />
+      <ShareDialog
+        source={source}
+        circuits={circuits}
+        diagramId={diagramId}
+        shareSlug={shareSlug}
+      />
     </>
   );
 }

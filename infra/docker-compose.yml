@@ -1,0 +1,58 @@
+name: rpic
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rpic}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rpic}
+      POSTGRES_DB: ${POSTGRES_DB:-rpic}
+      PGDATA: /var/lib/postgresql/data
+    ports:
+      # 5435 no host para não colidir com outros Postgres locais
+      - "${POSTGRES_HOST_PORT:-5435}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Migrations (.sql) aplicadas em ordem alfabética na primeira subida —
+      # o entrypoint oficial do Postgres executa .sql nativamente.
+      - ../db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rpic} -d ${POSTGRES_DB:-rpic}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-rpic}:${POSTGRES_PASSWORD:-rpic}@postgres:5432/${POSTGRES_DB:-rpic}
+      API_HOST: 0.0.0.0
+      API_PORT: 8080
+      APP_ENV: ${APP_ENV:-development}
+      RUST_LOG: ${RUST_LOG:-info}
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:5173}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+    ports:
+      - "8080:8080"
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        BASE_PATH: ${BASE_PATH:-/}
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+
+volumes:
+  pgdata:
