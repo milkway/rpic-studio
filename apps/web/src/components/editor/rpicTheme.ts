@@ -1,5 +1,5 @@
-// Tema "nanquim" do editor — tinta escura quente, sintaxe em tons de
-// terra/salvia/âmbar, acento vermelhão. Alinhado aos tokens do design system.
+// Tema "rpic-forest-dark" do editor — porte fiel do tema Shiki/VS Code
+// oficial do rpic (rpic/tools/highlight/themes/rpic-forest-dark.json).
 import { EditorView } from "@codemirror/view";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
@@ -7,14 +7,14 @@ import type { Extension } from "@codemirror/state";
 import { rpicTags } from "./rpicLanguage";
 
 const ink = {
-  bg: "#211e1a",
-  raised: "#2b2721",
-  border: "#3a352d",
-  text: "#ece5d8",
-  muted: "#8d8471",
-  faint: "#6f675a",
-  accent: "#e0764f",
-  selection: "rgba(209, 70, 31, 0.22)",
+  bg: "#1e2823",
+  raised: "#273229",
+  border: "#37453b",
+  text: "#d3e0d5",
+  muted: "#6f8274",
+  faint: "#556258",
+  accent: "#81c784",
+  selection: "rgba(129, 199, 132, 0.22)",
 };
 
 const editorTheme = EditorView.theme(
@@ -48,13 +48,13 @@ const editorTheme = EditorView.theme(
     ".cm-activeLineGutter": { backgroundColor: "transparent", color: ink.muted },
     ".cm-lineNumbers .cm-gutterElement": { padding: "0 12px 0 16px" },
     ".cm-matchingBracket": {
-      backgroundColor: "rgba(224, 118, 79, 0.25)",
+      backgroundColor: "rgba(129, 199, 132, 0.25)",
       outline: "none",
     },
     ".cm-lint-marker": { width: "0.9em" },
     ".cm-diagnostic": {
       fontFamily: "var(--font-sans)",
-      borderLeft: `3px solid ${ink.accent}`,
+      borderLeft: `3px solid #e57373`,
     },
     ".cm-tooltip": {
       backgroundColor: ink.raised,
@@ -67,23 +67,24 @@ const editorTheme = EditorView.theme(
   { dark: true },
 );
 
+// Cores 1:1 com rpic-forest-dark.json (scope → tag equivalente).
 const highlight = HighlightStyle.define([
-  { tag: t.lineComment, color: ink.muted, fontStyle: "italic" },
-  { tag: t.string, color: "#dcb567" },
-  { tag: rpicTags.directive, color: "#a09683", fontWeight: "600" },
-  { tag: t.labelName, color: "#f0c96a", fontWeight: "600" },
-  { tag: rpicTags.ordinal, color: "#d8927a" },
-  { tag: t.controlKeyword, color: "#e0764f", fontWeight: "500" },
-  { tag: rpicTags.extension, color: "#c795c1" },
-  { tag: rpicTags.primitive, color: "#9dc08b", fontWeight: "500" },
-  { tag: rpicTags.attribute, color: "#c9b998" },
-  { tag: rpicTags.envvar, color: "#a3c0d0" },
-  { tag: t.function(t.variableName), color: "#d9a05b" },
-  { tag: t.macroName, color: "#aec9e5" },
-  { tag: rpicTags.corner, color: "#96bfc9" },
-  { tag: t.number, color: "#e2b184" },
-  { tag: rpicTags.arrowop, color: "#e0764f", fontWeight: "600" },
-  { tag: t.operator, color: "#b7ab93" },
+  { tag: t.lineComment, color: "#6f8274", fontStyle: "italic" },
+  { tag: rpicTags.directive, color: "#81c784", fontWeight: "bold" },
+  { tag: t.controlKeyword, color: "#81c784", fontWeight: "bold" },
+  { tag: rpicTags.primitive, color: "#a5d6a7", fontWeight: "bold" },
+  { tag: rpicTags.extension, color: "#4db6ac", fontWeight: "bold", fontStyle: "italic" },
+  { tag: rpicTags.attribute, color: "#9ccc65" },
+  { tag: rpicTags.envvar, color: "#b3c98f" },
+  { tag: t.function(t.variableName), color: "#8bc98f" },
+  { tag: t.macroName, color: "#8bc98f", fontWeight: "bold" },
+  { tag: t.labelName, color: "#c8e6c9", fontWeight: "bold" },
+  { tag: t.string, color: "#d7c49e" },
+  { tag: t.number, color: "#dce775" },
+  { tag: rpicTags.ordinal, color: "#aed581", fontStyle: "italic" },
+  { tag: rpicTags.corner, color: "#80cbc4" },
+  { tag: rpicTags.arrowop, color: "#a5d6a7", fontWeight: "bold" },
+  { tag: t.operator, color: "#90a99a" },
 ]);
 
 export function rpicEditorTheme(): Extension {

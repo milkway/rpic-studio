@@ -1,7 +1,8 @@
 /* =====================================================================
-   rpic studio — Design Tokens · direção "nanquim & papel"
-   Um ateliê de desenho técnico: papel quente com grade de pontos,
-   tinta nanquim escura no editor, acento vermelhão de caneta técnica.
+   rpic studio — Design Tokens · tema "rpic forest"
+   Mesma paleta do site rpic.dev: neutros slate sobre branco, acento
+   verde-floresta (#1b5e20 / #2e7d32), teal para extensões, e o painel
+   de código no verde-tinta do tema rpic-forest-dark (#1e2823).
    Tipos: Bricolage Grotesque (marca/títulos), Instrument Sans (UI),
    IBM Plex Mono (código e rótulos técnicos).
    ===================================================================== */
@@ -11,40 +12,61 @@
   --font-display: "Bricolage Grotesque Variable", "Bricolage Grotesque", var(--font-sans);
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* Papel — superfícies claras */
-  --color-paper: #f6f3ec;
-  --color-surface: #fffdf8;
-  --color-surface-muted: #efebe1;
-  --color-text: #26221c;
-  --color-text-body: #57503f;
-  --color-text-muted: #8d8471;
-  --color-border: #e5dfd1;
-  --color-border-strong: #d5cdba;
+  /* Papel — superfícies claras (branco/slate com leve tinta verde no papel) */
+  --color-paper: #f7faf7;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f1f5f2;
+  --color-text: #0f172a;
+  --color-text-body: #475569;
+  --color-text-muted: #94a3b8;
+  --color-border: #e2e8f0;
+  --color-border-strong: #cbd5e1;
 
-  /* Tinta — o painel do editor e elementos escuros */
-  --color-ink: #211e1a;
-  --color-ink-raised: #2b2721;
-  --color-ink-border: #3a352d;
-  --color-ink-text: #ece5d8;
-  --color-ink-muted: #948b7a;
+  /* Tinta — o painel do editor (rpic-forest-dark) */
+  --color-ink: #1e2823;
+  --color-ink-raised: #273229;
+  --color-ink-border: #37453b;
+  --color-ink-text: #d3e0d5;
+  --color-ink-muted: #6f8274;
 
-  /* Vermelhão — o acento único (caneta técnica) */
-  --color-accent: #d1461f;
-  --color-accent-strong: #b23917;
-  --color-accent-soft: #f7ded3;
-  --color-accent-contrast: #fffdf8;
+  /* Verde-floresta — o acento da marca rpic */
+  --color-accent: #1b5e20;
+  --color-accent-strong: #144a19;
+  --color-accent-soft: #e2efe3;
+  --color-accent-contrast: #ffffff;
 
   /* Semântica */
-  --color-success: #4a7c59;
+  --color-success: #2e7d32;
   --color-warning: #b07d20;
-  --color-danger: #b3341d;
-  --color-danger-soft: #f6ded8;
+  --color-danger: #c62828;
+  --color-danger-soft: #fbe4e2;
 
-  /* Raios e sombras (suaves, quentes) */
+  /* Raios e sombras */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
-  --shadow-sm: 0 1px 3px rgba(43, 35, 22, 0.07);
-  --shadow-card: 0 2px 14px rgba(43, 35, 22, 0.08);
-  --shadow-pop: 0 8px 32px rgba(43, 35, 22, 0.16);
+  --shadow-sm: 0 1px 3px rgba(15, 40, 25, 0.07);
+  --shadow-card: 0 2px 14px rgba(15, 40, 25, 0.08);
+  --shadow-pop: 0 8px 32px rgba(15, 40, 25, 0.16);
+}
+
+/* Fonte do wordmark da marca rpic (o "R" do site rpic.dev). */
+@font-face {
+  font-family: "Alfa Slab One";
+  src: url("./fonts/alfa-slab-one.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Wordmark oficial: R em Alfa Slab, PIC em sans mais pesada (site rpic.dev). */
+.brand-r {
+  font-family: "Alfa Slab One", serif;
+  font-weight: 300;
+  letter-spacing: 1px;
+}
+.brand-pic {
+  font-weight: 600;
+  font-size: 1.045em;
+  letter-spacing: 0.04em;
 }

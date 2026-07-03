@@ -33,9 +33,13 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   extractor `CurrentUser`. Migrações são `.sql` puros em `db/migrations/`, aplicados pelo
   entrypoint do Postgres (recriar o volume para reaplicar).
 
-## Direção visual ("nanquim & papel")
+## Direção visual (tema "rpic forest" — o mesmo do site rpic.dev)
 
-Editor escuro cor de tinta (`--color-ink*`), preview papel com grade de pontos (`.paper-grid`),
-acento vermelhão único (`--color-accent`). Fontes: Bricolage Grotesque (display), Instrument
-Sans (UI), IBM Plex Mono (código). Motion GSAP discreto via `@rpic/design-system` `motion.*`
-(sempre respeitando `prefers-reduced-motion`).
+Paleta portada de `../rpic/site` e `../rpic/tools/highlight/themes/`: neutros slate sobre
+branco, acento verde-floresta (`--color-accent` #1b5e20), painel do editor no verde-tinta do
+tema oficial `rpic-forest-dark` (#1e2823) com as cores de sintaxe portadas 1:1 em
+`rpicTheme.ts`. Logo/favicon oficiais copiados do site (`public/brand/logo.svg` — um "r"
+desenhado no próprio rpic); wordmark `.brand-r`/`.brand-pic` (Alfa Slab One no design-system).
+Fontes de UI: Bricolage Grotesque (display), Instrument Sans (UI), IBM Plex Mono (código).
+Motion GSAP discreto via `@rpic/design-system` `motion.*` (respeita `prefers-reduced-motion`).
+Ao mudar o tema, manter fidelidade ao site do rpic — é a mesma marca.

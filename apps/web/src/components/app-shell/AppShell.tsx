@@ -1,26 +1,7 @@
 import type { ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { cn } from "@rpic/design-system";
+import { asset, cn } from "@rpic/design-system";
 import { UserMenu } from "./UserMenu";
-
-function BrandMark() {
-  return (
-    <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true">
-      <rect
-        x="3"
-        y="10.5"
-        width="11"
-        height="11"
-        rx="1.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-      />
-      <line x1="14" y1="16" x2="23" y2="16" stroke="#d1461f" strokeWidth="2" />
-      <path d="M28.5 16l-5.8-2.8v5.6z" fill="#d1461f" />
-    </svg>
-  );
-}
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   cn(
@@ -43,13 +24,17 @@ export function AppShell({ actions, children }: AppShellProps) {
       <header className="flex h-13 shrink-0 items-center gap-5 border-b border-(--color-border) bg-(--color-surface) px-4">
         <Link
           to="/"
-          className="flex items-center gap-2 text-(--color-text)"
+          className="flex items-center gap-2.5 text-(--color-text)"
           aria-label="rpic studio — início"
         >
-          <BrandMark />
-          <span className="font-display text-[17px] leading-none font-semibold tracking-tight">
-            rpic&thinsp;
-            <span className="text-(--color-accent)">studio</span>
+          {/* Logo oficial do rpic — um "r" desenhado no próprio rpic (blueprint). */}
+          <img src={asset("brand/logo.svg")} alt="" width="27" height="27" />
+          <span className="text-[17px] leading-none">
+            <span className="brand-r text-[#022c22]">R</span>
+            <span className="brand-pic text-[#0f766e]">PIC</span>
+            <span className="font-display ml-1.5 font-medium text-(--color-text-muted)">
+              studio
+            </span>
           </span>
         </Link>
         <nav className="flex items-center gap-1">

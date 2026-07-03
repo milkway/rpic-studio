@@ -10,23 +10,24 @@ export function asset(path: string): string {
   return base.replace(/\/$/, "") + "/" + path.replace(/^\//, "");
 }
 
-/** Tokens de cor expostos em JS (para canvas, exports, temas de editor). */
+/** Tokens de cor expostos em JS (para canvas, exports, temas de editor).
+ *  Tema "rpic forest" — mesma paleta do site rpic.dev. */
 export const colors = {
-  paper: "#f6f3ec",
-  surface: "#fffdf8",
-  surfaceMuted: "#efebe1",
-  text: "#26221c",
-  textBody: "#57503f",
-  textMuted: "#8d8471",
-  border: "#e5dfd1",
-  ink: "#211e1a",
-  inkRaised: "#2b2721",
-  inkBorder: "#3a352d",
-  inkText: "#ece5d8",
-  inkMuted: "#948b7a",
-  accent: "#d1461f",
-  accentStrong: "#b23917",
-  success: "#4a7c59",
+  paper: "#f7faf7",
+  surface: "#ffffff",
+  surfaceMuted: "#f1f5f2",
+  text: "#0f172a",
+  textBody: "#475569",
+  textMuted: "#94a3b8",
+  border: "#e2e8f0",
+  ink: "#1e2823",
+  inkRaised: "#273229",
+  inkBorder: "#37453b",
+  inkText: "#d3e0d5",
+  inkMuted: "#6f8274",
+  accent: "#1b5e20",
+  accentStrong: "#144a19",
+  success: "#2e7d32",
   warning: "#b07d20",
-  danger: "#b3341d",
+  danger: "#c62828",
 } as const;
