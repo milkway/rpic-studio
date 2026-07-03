@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { Moon, Sun } from "lucide-react";
 import { asset, cn } from "@rpic/design-system";
 import { useI18n, type Locale } from "@/lib/i18n";
@@ -79,6 +79,9 @@ interface AppShellProps {
 /** Casca do app: topbar fina + conteúdo em altura total. */
 export function AppShell({ actions, children }: AppShellProps) {
   const { t } = useI18n();
+  const { pathname } = useLocation();
+  // "Editor" cobre o rascunho (/) e diagramas salvos (/e/:id)
+  const editorActive = pathname === "/" || pathname.startsWith("/e/");
   return (
     <div className="flex h-full flex-col">
       <header className="flex h-13 shrink-0 items-center gap-5 border-b border-(--color-border) bg-(--color-surface) px-4">
@@ -94,6 +97,9 @@ export function AppShell({ actions, children }: AppShellProps) {
           </span>
         </Link>
         <nav className="flex items-center gap-1">
+          <NavLink to="/" className={() => navLinkClass({ isActive: editorActive })}>
+            {t("nav.editor")}
+          </NavLink>
           <NavLink to="/exemplos" className={navLinkClass}>
             {t("nav.examples")}
           </NavLink>

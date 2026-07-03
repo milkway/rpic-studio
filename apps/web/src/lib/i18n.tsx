@@ -9,6 +9,7 @@ const LOCALE_KEY = "rpic:locale.v1";
 
 const en = {
   // navegação
+  "nav.editor": "Editor",
   "nav.examples": "Examples",
   "nav.help": "Help",
   "nav.home": "rpic studio — home",
@@ -160,6 +161,7 @@ const en = {
 export type MessageKey = keyof typeof en;
 
 const pt: Record<MessageKey, string> = {
+  "nav.editor": "Editor",
   "nav.examples": "Exemplos",
   "nav.help": "Ajuda",
   "nav.home": "rpic studio — início",
