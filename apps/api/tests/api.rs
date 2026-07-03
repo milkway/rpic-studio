@@ -121,7 +121,11 @@ async fn crud_de_diagramas_completo() {
         .await
         .unwrap();
     let list = body_json(res).await;
-    assert!(list.as_array().unwrap().iter().any(|d| d["id"] == id.as_str()));
+    assert!(list
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|d| d["id"] == id.as_str()));
     // a lista não expõe o código
     assert!(list[0].get("source").is_none());
 
@@ -219,7 +223,10 @@ async fn compartilhar_gera_slug_publico_e_revogavel() {
         .await
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
-    let slug = body_json(res).await["share_slug"].as_str().unwrap().to_string();
+    let slug = body_json(res).await["share_slug"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     // acesso público sem cookie
     let res = app

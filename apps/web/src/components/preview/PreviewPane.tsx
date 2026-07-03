@@ -64,6 +64,19 @@ export function PreviewPane({
     }
   }, [animations]);
 
+  // Atalho ⌘⏎ / Ctrl+Enter: repetir a animação.
+  useEffect(() => {
+    if (animations.length === 0) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault();
+        replay();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [animations.length, replay]);
+
   const fit = useCallback(() => {
     const canvas = canvasRef.current;
     const svgEl = stageRef.current?.querySelector("svg");
