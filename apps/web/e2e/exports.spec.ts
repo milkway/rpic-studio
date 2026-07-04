@@ -17,12 +17,24 @@ test("baixa o código .pic e o vetor .svg", async ({ page }) => {
 
 test("galeria de exemplos abre um exemplo no editor", async ({ page }) => {
   await page.goto("/exemplos");
-  // idioma padrão: inglês
-  await page.getByRole("button", { name: /RLC circuit/ }).click();
+  await page.getByTestId("example-open-rlc").click();
   await page.waitForURL("**/");
   await expect(page.locator('[data-testid="code-pane"] .cm-content')).toContainText("resistor", {
     timeout: 20_000,
   });
   // a flag de circuitos veio junto
   await expect(page.locator("#circuits-switch")).toHaveAttribute("data-state", "checked");
+});
+
+test("galeria: filtro por badge e código visível no cartão", async ({ page }) => {
+  await page.goto("/exemplos");
+  // o código aparece no cartão (con highlight)
+  await expect(
+    page.getByTestId("example-pipeline").locator(".cm-content"),
+  ).toContainText("TROFF", { timeout: 20_000 });
+
+  // filtra por Circuits: só exemplos de circuito ficam visíveis
+  await page.getByTestId("tag-filter").getByRole("button", { name: /Circuits/ }).click();
+  await expect(page.getByTestId("example-rlc")).toBeVisible();
+  await expect(page.getByTestId("example-pipeline")).toHaveCount(0);
 });

@@ -137,8 +137,12 @@ const en = {
   // galeria de exemplos
   "examplesPage.title": "Examples",
   "examplesPage.subtitle":
-    "From Kernighan's classic pipeline to full circuits — click any card to open it in the editor and build from there.",
+    "From Kernighan's classic pipeline to health-care flows adapted from pikup — copy the code, share a link or open any of them in the editor.",
   "examplesPage.open": "Open in editor",
+  "examplesPage.copyCode": "Copy code",
+  "examplesPage.copyLink": "Copy link",
+  "examplesPage.codeCopied": "Code copied",
+  "examplesPage.all": "All",
 
   // diagnósticos
   "diag.line": "line {n}",
@@ -285,8 +289,12 @@ const pt: Record<MessageKey, string> = {
 
   "examplesPage.title": "Exemplos",
   "examplesPage.subtitle":
-    "Do pipeline clássico do Kernighan a circuitos completos — clique para abrir qualquer um no editor e partir dele.",
+    "Do pipeline clássico do Kernighan aos fluxos de saúde adaptados do pikup — copie o código, compartilhe o link ou abra qualquer um no editor.",
   "examplesPage.open": "Abrir no editor",
+  "examplesPage.copyCode": "Copiar código",
+  "examplesPage.copyLink": "Copiar link",
+  "examplesPage.codeCopied": "Código copiado",
+  "examplesPage.all": "Todos",
 
   "diag.line": "linha {n}",
 

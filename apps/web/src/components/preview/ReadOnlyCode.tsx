@@ -7,14 +7,16 @@ import { python } from "@codemirror/lang-python";
 import { StreamLanguage } from "@codemirror/language";
 import { r } from "@codemirror/legacy-modes/mode/r";
 import { rpicEditorTheme } from "@/components/editor/rpicTheme";
+import { rpicLanguage } from "@/components/editor/rpicLanguage";
 
-export type CodeLanguage = "xml" | "markdown" | "python" | "r";
+export type CodeLanguage = "xml" | "markdown" | "python" | "r" | "rpic";
 
 const LANGUAGES = {
   xml: () => xml(),
   markdown: () => markdown(),
   python: () => python(),
   r: () => StreamLanguage.define(r),
+  rpic: () => rpicLanguage(),
 };
 
 interface ReadOnlyCodeProps {
