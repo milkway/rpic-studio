@@ -111,6 +111,9 @@ test("padrões: inserir variáveis pic escreve um bloco no código", async ({ pa
   await expect(page.locator('[data-testid="code-pane"] .cm-content')).toContainText("boxwid =");
   await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok");
 
+  // "Restaurar padrões" só aparece após ajuste (agora deve estar visível)
+  await expect(page.getByTestId("defaults-restore")).toBeVisible();
+
   // fechar recolhe a barra (o bloco permanece no código)
   await page.getByTestId("defaults-close").click();
   await expect(page.getByTestId("defaults-bar")).toHaveCount(0);
