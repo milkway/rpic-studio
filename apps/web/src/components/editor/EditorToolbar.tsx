@@ -35,6 +35,8 @@ interface EditorToolbarProps {
   svg: string;
   circuits: boolean;
   texlabels: boolean;
+  /** Google Font escolhida no studio (casa no PNG/PDF), se houver. */
+  googleFont?: string;
   layout: "horizontal" | "vertical";
   onToggleLayout: () => void;
   /** Nome do arquivo dos exports (título do diagrama salvo, se houver). */
@@ -53,6 +55,7 @@ export function EditorToolbar({
   svg,
   circuits,
   texlabels,
+  googleFont,
   layout,
   onToggleLayout,
   exportName = "diagrama",
@@ -63,7 +66,7 @@ export function EditorToolbar({
 }: EditorToolbarProps) {
   const toast = useToast();
   const { t } = useI18n();
-  const renderOpts = { circuits, texlabels };
+  const renderOpts = { circuits, texlabels, googleFont };
 
   return (
     <>

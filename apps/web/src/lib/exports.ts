@@ -24,6 +24,8 @@ export interface RenderOpts {
   scale?: number;
   circuits?: boolean;
   texlabels?: boolean;
+  /** Google Font a casar no PNG/PDF (nome da família). */
+  googleFont?: string;
 }
 
 /** Render server-side: POST do código pic → Blob (svg/png/pdf). Lança em erro. */
@@ -36,6 +38,7 @@ export async function renderViaApi(
   if (opts.scale) params.set("scale", String(opts.scale));
   if (opts.circuits) params.set("circuits", "true");
   if (opts.texlabels) params.set("texlabels", "true");
+  if (opts.googleFont) params.set("google_font", opts.googleFont);
   const res = await fetch(apiUrl(`/api/render?${params}`), {
     method: "POST",
     headers: { "Content-Type": "text/plain;charset=utf-8" },

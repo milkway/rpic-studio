@@ -33,7 +33,7 @@ import {
   saveSettings,
   type CanvasSettings,
 } from "@/lib/storage";
-import { bakeAppearance } from "@/lib/appearance";
+import { bakeAppearance, googleFamilyOf } from "@/lib/appearance";
 import { useEnsureFont } from "@/hooks/useEnsureFont";
 import { examples, WELCOME_SOURCES } from "@/lib/examples";
 import { useDiagram, useMe, useUpdateDiagram } from "@/lib/queries";
@@ -269,6 +269,7 @@ export function EditorPage() {
           svg={bakedSvg}
           circuits={circuits}
           texlabels={texlabels}
+          googleFont={googleFamilyOf(canvas.fontFamily) ?? undefined}
           layout={layout}
           onToggleLayout={toggleLayout}
           exportName={diagram.data?.title ?? (locale === "pt" ? "diagrama" : "diagram")}

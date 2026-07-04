@@ -131,11 +131,11 @@ curl -X POST "https://studio.rpic.dev/api/render?format=png&scale=3&circuits=tru
   --data-binary 'A:(0,0); B:(2,0)
 resistor(A,B)' -o diagrama.png
 
-# PDF, com math TeX ($...$)
-curl -X POST "https://studio.rpic.dev/api/render?format=pdf&texlabels=true" \\
+# PDF, com math TeX ($...$) e uma Google Font
+curl -X POST "https://studio.rpic.dev/api/render?format=pdf&texlabels=true&google_font=Merriweather" \\
   --data-binary 'box "$E = mc^2$" fit' -o diagrama.pdf
 
-# parametros: format=svg|png|pdf  scale=0.5..4  circuits=bool  texlabels=bool`,
+# parametros: format=svg|png|pdf  scale=0.5..4  circuits=bool  texlabels=bool  google_font=<familia>`,
     usageLang: "python",
     docs: { label: "studio.rpic.dev", href: "https://studio.rpic.dev" },
   },

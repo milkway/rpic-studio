@@ -355,6 +355,23 @@ async fn render_svg_png_pdf_e_erro() {
         .unwrap();
     assert_eq!(res.status(), StatusCode::OK);
 
+    // Google Font: 200 mesmo se o fetch falhar (cai na fonte embutida)
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/render?format=svg&google_font=Roboto")
+                .body(Body::from("box \"gf\""))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    // no SVG, a font-family do root é reescrita para a família pedida
+    let svg = res.into_body().collect().await.unwrap().to_bytes();
+    assert!(String::from_utf8_lossy(&svg).contains("'Roboto'"));
+
     // erro de compilação → 400
     let res = app
         .oneshot(
