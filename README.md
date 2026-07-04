@@ -48,6 +48,19 @@ infra/                    docker-compose (Postgres 18)
 
 ## Deploy
 
+Produção em **studio.rpic.dev** (Docker Compose isolado atrás do nginx do host).
+Publicar o HEAD com um comando:
+
+```sh
+./deploy.sh              # roda os gates (build+lint+test), envia e rebuilda
+./deploy.sh --no-gates   # deploy rápido, sem os gates
+```
+
+O script envia só o versionado (`git archive`), sobe a stack `rpic-studio`
+(web em `127.0.0.1:8091`; postgres/api internos), faz smoke e confere que os
+outros serviços do servidor seguem no ar. Config de nginx/TLS: `infra/` e o
+script `~/config-studio-rpic/setup-nginx.sh` no servidor.
+
 Imagem web com base path configurável (raiz ou subcaminho):
 
 ```sh
