@@ -182,8 +182,8 @@ arrow from B4.s down d/2
 B6: box "Receptor" "FSK"
 arrow from B5.s down d/2
 B7: box "Receptor" "FM"
-L7: line from B6.s down d/2 then right 1.4*d
-L8: line from B7.s down d/4 then right 1.4*d
+L7: line from B6.s down d/2 then right 3.9*d
+L8: line from B7.s down d/4 then right 0.9*d
 B8: box "Rede" "Neural" shaded "#83CAFF" with .w at 0.5 between L7.end and L8.end
 arrow from B8.e right d
 B9: box "Controle" "de Acesso"
@@ -204,6 +204,7 @@ B11: box "Anúncio"
     circuits: false,
     source: `.PS
 # Receptor AM com realimentação (adaptado do pikup)
+margin = 0.18
 d = 0.75
 L1: arrow right d/2
 "RF " rjust at L1.w - (0.05,0)
@@ -247,11 +248,12 @@ define cell {
 }
 j = d*sqrt(3)/2
 i = d/2
-cell("colmeia", 0, 0)
+cell("", 0, 0)
 d = d * 0.5
 cell("", 0, 0)
 cell("", 3*i/2, j/2)
 cell("", 3*i/2, -j/2)
+"colmeia" at (2*i, -j - 0.22)
 .PE`,
   },
   {
@@ -284,11 +286,12 @@ P3: circle "C₃'" at C6 + (0.55, 0.55)
 arrow from P3.e right
 P5: circle "C₅'"
 arrow from C6 to P3 chop
-box ht 0.55 wid (P5.e.x - C0.w.x) + 0.3 with .w at C0.w - (0.15, 0) fill 0.96 behind C0
-"trunk" ljust at last box.se + (0.1, 0.12)
-box dashed ht 0.55 wid (C5.e.x - C3.w.x) + 0.3 with .w at C3.w - (0.15, 0)
-"branch" ljust at last box.ne + (0.1, -0.12)
-box dashed ht 0.55 wid (P5.e.x - P3.w.x) + 0.3 with .w at P3.w - (0.15, 0)
+T: box ht 0.55 wid (P5.e.x - C0.w.x) + 0.3 with .w at C0.w - (0.15, 0) fill 0.96 behind C0
+"trunk" ljust at T.sw + (0.08, -0.14)
+X1: box dashed ht 0.55 wid (C5.e.x - C3.w.x) + 0.3 with .w at C3.w - (0.15, 0)
+"branch" at X1.n + (0, 0.14)
+X2: box dashed ht 0.55 wid (P5.e.x - P3.w.x) + 0.3 with .w at P3.w - (0.15, 0)
+"branch" at X2.n + (0, 0.14)
 .PE`,
   },
   {
@@ -323,6 +326,28 @@ B: box "eval" at (1.35,0)
 C: box "svg" at (2.7,0)
 brace from A.nw + (0,gap) to C.ne + (0,gap) up "front end" wid .18 thick 1.8
 brace from A.sw - (0,gap) to C.se - (0,gap) down "regression tests" wid .18 thick 1.8 bracepos .6
+.PE`,
+  },
+  {
+    id: "classes",
+    title: { en: "CSS classes", pt: "Classes CSS" },
+    description: {
+      en: "The class extension hooks shapes to host CSS — the studio ships storage, critical, dataflow and pulse (hover “web” and “db”!).",
+      pt: "A extensão class liga formas ao CSS do host — o studio traz storage, critical, dataflow e pulse (passe o mouse em “web” e “db”!).",
+    },
+    tags: ["extensions"],
+    circuits: false,
+    source: `.PS
+# A extensão class marca os grupos SVG para o CSS do host estilizar.
+# O studio já estiliza: storage, critical, dataflow e pulse.
+W: box "web" wid 0.6 ht 0.45
+D: circle "db" rad 0.28 at W + (1.25, 0)
+A: box "ALERT" wid 0.7 ht 0.45 at D + (1.35, 0)
+arrow from W.e to D.w class "dataflow"
+arrow from D.e to A.w class "dataflow"
+class W "storage"
+class D "storage"
+class A "critical pulse"
 .PE`,
   },
   {

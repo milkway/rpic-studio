@@ -38,3 +38,22 @@ test("galeria: filtro por badge e código visível no cartão", async ({ page })
   await expect(page.getByTestId("example-rlc")).toBeVisible();
   await expect(page.getByTestId("example-pipeline")).toHaveCount(0);
 });
+
+test("galeria: exemplo animado tem botão de replay que toca a animação", async ({ page }) => {
+  await page.goto("/exemplos");
+  const welcome = page.getByTestId("example-welcome");
+  await expect(welcome.locator(".rpic-stage svg")).toBeVisible({ timeout: 20_000 });
+
+  const replay = welcome.getByTestId("thumb-replay");
+  await expect(replay).toBeVisible();
+  // sem replay, o SVG estático não tem estilos inline
+  expect(await welcome.locator(".rpic-stage svg [style]").count()).toBe(0);
+  await replay.click();
+  // a timeline GSAP aplica estilos inline (transform/opacity) nos grupos
+  await expect
+    .poll(async () => welcome.locator(".rpic-stage svg [style]").count(), { timeout: 3_000 })
+    .toBeGreaterThan(0);
+
+  // exemplo sem animação não mostra o botão
+  await expect(page.getByTestId("example-pipeline").getByTestId("thumb-replay")).toHaveCount(0);
+});

@@ -179,7 +179,7 @@ export function PreviewPane({
             <div
               ref={stageRef}
               data-testid="preview-stage"
-              className="transition-opacity duration-200 [&_svg]:block"
+              className="rpic-stage transition-opacity duration-200 [&_svg]:block"
               style={{
                 transform: `scale(${zoom})`,
                 transformOrigin: "center center",

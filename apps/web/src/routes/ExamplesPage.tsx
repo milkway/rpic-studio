@@ -77,10 +77,11 @@ function ExampleCard({ example }: { example: Example }) {
       </header>
 
       <div className="grid md:grid-cols-2">
-        <div className="paper-grid flex max-h-80 min-h-52 items-center justify-center overflow-auto border-b border-(--color-border) p-6 md:border-r md:border-b-0">
+        <div className="paper-grid relative flex max-h-80 min-h-52 items-center justify-center overflow-auto border-b border-(--color-border) p-6 md:border-r md:border-b-0">
           <RpicThumb
             source={example.source}
             circuits={example.circuits}
+            replayable
             className="flex items-center justify-center [&_svg]:h-auto [&_svg]:max-h-64 [&_svg]:w-auto [&_svg]:max-w-full"
           />
         </div>

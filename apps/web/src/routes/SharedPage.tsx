@@ -53,10 +53,11 @@ export function SharedPage() {
                 </Button>
               </div>
 
-              <div className="paper-grid mt-6 flex min-h-64 items-center justify-center rounded-(--radius-lg) border border-(--color-border) p-8">
+              <div className="paper-grid relative mt-6 flex min-h-64 items-center justify-center rounded-(--radius-lg) border border-(--color-border) p-8">
                 <RpicThumb
                   source={data.source}
                   circuits={data.circuits}
+                  replayable
                   className="[&_svg]:h-auto [&_svg]:max-w-full"
                 />
               </div>

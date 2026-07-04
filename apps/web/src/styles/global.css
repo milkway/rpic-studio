@@ -37,8 +37,55 @@ body {
   scrollbar-color: var(--color-border-strong) transparent;
 }
 
-/* Seleção com o vermelhão da marca. */
+/* Seleção com o verde da marca. */
 ::selection {
   background: var(--color-accent-soft);
   color: var(--color-text);
+}
+
+/* Classes de demonstração da extensão `class` do rpic (mesmo vocabulário da
+   documentação em rpic.dev) — ativas em qualquer palco de diagrama do studio. */
+.rpic-stage .storage rect,
+.rpic-stage .storage circle {
+  fill: #f0fdf4;
+  stroke: #166534;
+  transition: fill 0.15s ease;
+}
+.rpic-stage .storage:hover rect,
+.rpic-stage .storage:hover circle {
+  fill: #166534;
+}
+.rpic-stage .storage:hover text {
+  fill: #f0fdf4;
+}
+.rpic-stage .dataflow polyline,
+.rpic-stage .dataflow line {
+  stroke: #0f766e;
+  stroke-width: 1.6px;
+  stroke-dasharray: 6 3;
+}
+.rpic-stage .dataflow polygon {
+  fill: #0f766e;
+  stroke: #0f766e;
+}
+.rpic-stage .critical rect {
+  fill: #fef2f2;
+  stroke: #b91c1c;
+  stroke-width: 2px;
+}
+.rpic-stage .critical text {
+  fill: #b91c1c;
+  font-weight: 600;
+}
+@keyframes rpic-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+.rpic-stage .pulse rect {
+  animation: rpic-pulse 1.2s infinite;
 }
