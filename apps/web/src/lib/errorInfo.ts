@@ -112,6 +112,12 @@ const M = {
     en: (w: string, ok: string) => `Unknown animation effect “${w}”. Available: ${ok}.`,
     pt: (w: string, ok: string) => `Efeito de animação desconhecido: “${w}”. Disponíveis: ${ok}.`,
   },
+  inFile: {
+    en: (f: string, n: number | null) =>
+      `Inside “${f}”${n !== null ? ` (line ${n})` : ""}: `,
+    pt: (f: string, n: number | null) =>
+      `Dentro de “${f}”${n !== null ? ` (linha ${n})` : ""}: `,
+  },
 };
 
 /** Frases do compilador → linguagem do usuário (campos expected/found). */
@@ -144,6 +150,27 @@ export function explainDiagnostic(
   source: string,
   locale: Locale,
   severity: "error" | "warning" = "error",
+): ErrorInfo {
+  const info = classifyDiagnostic(d, source, locale, severity);
+  // Erro dentro de um arquivo incluído (`copy`, biblioteca de circuitos):
+  // a posição é DO INCLUÍDO — não aponte no editor do usuário; contextualize.
+  if (d.file !== null && d.file !== undefined) {
+    return {
+      ...info,
+      line: null,
+      col: null,
+      tokenLength: null,
+      friendly: M.inFile[locale](d.file, d.line) + info.friendly,
+    };
+  }
+  return info;
+}
+
+function classifyDiagnostic(
+  d: RpicDiagnostic,
+  source: string,
+  locale: Locale,
+  severity: "error" | "warning",
 ): ErrorInfo {
   const tokenLength = d.col !== null && d.end_col !== null ? Math.max(d.end_col - d.col, 1) : null;
   const base: ErrorInfo = {

@@ -169,6 +169,28 @@ describe("explainDiagnostic (estruturado, rpic-lang#178)", () => {
     expect(info.friendly).toContain("aspa");
   });
 
+  it("erro dentro de arquivo incluído (copy/circuits) não aponta no editor", () => {
+    const info = explainDiagnostic(
+      diag({
+        message: "expected an expression, found DotX",
+        file: "circuits",
+        line: 20,
+        col: 29,
+        end_col: 33,
+        kind: "expected_token",
+        expected: "an expression",
+        found: "DotX",
+      }),
+      "A:(0,0)\nresistor(A)",
+      "pt",
+    );
+    // posição é da biblioteca, não do código do usuário — sem sublinhado
+    expect(info.line).toBeNull();
+    expect(info.col).toBeNull();
+    expect(info.tokenLength).toBeNull();
+    expect(info.friendly).toContain("Dentro de “circuits” (linha 20)");
+  });
+
   it("mensagens em inglês quando locale = en", () => {
     const info = explainDiagnostic(
       diag({
