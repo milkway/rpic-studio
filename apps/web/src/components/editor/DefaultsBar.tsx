@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { ChevronDown, RotateCcw, SlidersHorizontal, Type, X } from "lucide-react";
+import { ChevronDown, Cpu, RotateCcw, Sigma, SlidersHorizontal, Type, X } from "lucide-react";
 import { useI18n, type MessageKey } from "@/lib/i18n";
 import { applyDefaults, PIC_VARS, readDefaults, type PicVar } from "@/lib/picDefaults";
 import { fontLabel, resolveFontStack } from "@/lib/appearance";
+import { mathActive } from "@/lib/rpic";
 import { TypefacePicker } from "./TypefacePicker";
 
 interface DefaultsBarProps {
@@ -15,6 +16,9 @@ interface DefaultsBarProps {
   /** Fonte do diagrama (aparência de render, não vai no código). */
   fontFamily: string;
   onFontChange: (fontFamily: string) => void;
+  /** Recursos detectados no código (somente leitura). */
+  circuits: boolean;
+  texlabels: boolean;
 }
 
 const GROUPS: PicVar["group"][] = ["global", "dims", "stroke", "arrows"];
@@ -83,6 +87,44 @@ function Slider({
 
 /** Barra que expande no rodapé do editor: sliders das variáveis pic com
  *  aplicação AO VIVO no código, redimensionável pela alça superior. */
+/** Status somente-leitura de um recurso auto-detectado (circuitos, TeX). */
+function FeatureStatus({
+  icon,
+  label,
+  active,
+  hint,
+  testid,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  active: boolean;
+  hint?: string;
+  testid: string;
+}) {
+  const { t } = useI18n();
+  return (
+    <div className="flex items-center justify-between gap-2" data-testid={testid}>
+      <span className="flex items-center gap-1.5 text-[13px] text-(--color-ink-text)">
+        <span className={active ? "text-(--color-accent)" : "text-(--color-ink-muted)"}>
+          {icon}
+        </span>
+        {label}
+      </span>
+      <span
+        className={
+          active
+            ? "rounded-full bg-(--color-accent) px-2 py-px text-[10px] font-semibold text-white"
+            : "rounded-full bg-(--color-ink-raised) px-2 py-px text-[10px] font-medium text-(--color-ink-muted)"
+        }
+        data-active={active}
+      >
+        {active ? t("features.on") : t("features.off")}
+      </span>
+      {hint && active && <span className="sr-only">{hint}</span>}
+    </div>
+  );
+}
+
 export function DefaultsBar({
   open,
   source,
@@ -90,6 +132,8 @@ export function DefaultsBar({
   onClose,
   fontFamily,
   onFontChange,
+  circuits,
+  texlabels,
 }: DefaultsBarProps) {
   const { t } = useI18n();
   const [values, setValues] = useState<Record<string, number>>({});
@@ -252,6 +296,32 @@ export function DefaultsBar({
                 </Popover.Content>
               </Popover.Portal>
             </Popover.Root>
+          </section>
+
+          {/* Recursos auto-detectados (sem interruptor): ligam sozinhos com o
+              código; aqui o usuário vê o estado atual. */}
+          <section className="mb-5 inline-block w-full break-inside-avoid align-top">
+            <p className="mb-2 font-mono text-[9px] tracking-[0.15em] text-(--color-ink-muted) uppercase">
+              {t("features.title")}
+            </p>
+            <div className="space-y-2.5">
+              <FeatureStatus
+                icon={<Cpu size={13} />}
+                label={t("features.circuits")}
+                active={circuits}
+                testid="feature-circuits"
+              />
+              <FeatureStatus
+                icon={<Sigma size={13} />}
+                label={t("features.texlabels")}
+                active={texlabels}
+                hint={texlabels && !mathActive() ? t("math.reloadHint") : undefined}
+                testid="feature-texlabels"
+              />
+              {texlabels && !mathActive() && (
+                <p className="text-[10px] text-(--color-warning)">{t("features.texReload")}</p>
+              )}
+            </div>
           </section>
 
           {GROUPS.map((group) => (

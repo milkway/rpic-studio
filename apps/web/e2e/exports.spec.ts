@@ -22,8 +22,8 @@ test("galeria de exemplos abre um exemplo no editor", async ({ page }) => {
   await expect(page.locator('[data-testid="code-pane"] .cm-content')).toContainText("resistor", {
     timeout: 20_000,
   });
-  // a flag de circuitos veio junto
-  await expect(page.locator("#circuits-switch")).toHaveAttribute("data-state", "checked");
+  // o circuito compila (biblioteca auto-detectada)
+  await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok");
 });
 
 test("galeria: filtro por badge e código visível no cartão", async ({ page }) => {

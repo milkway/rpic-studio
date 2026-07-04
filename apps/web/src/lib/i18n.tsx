@@ -189,6 +189,14 @@ const en = {
   "defaults.var.arrowwid": "Arrowhead width",
   "defaults.var.arrowht": "Arrowhead length",
 
+  // recursos auto-detectados
+  "features.title": "Detected features",
+  "features.circuits": "Circuit library",
+  "features.texlabels": "TeX formulas ($…$)",
+  "features.on": "on",
+  "features.off": "off",
+  "features.texReload": "Reload the page to typeset the formulas.",
+
   // idioma
   "locale.label": "Language",
   "locale.en": "English",
@@ -363,6 +371,13 @@ const pt: Record<MessageKey, string> = {
   "defaults.var.fillval": "Preenchimento padrão (0–1)",
   "defaults.var.arrowwid": "Largura da ponta",
   "defaults.var.arrowht": "Comprimento da ponta",
+
+  "features.title": "Recursos detectados",
+  "features.circuits": "Biblioteca de circuitos",
+  "features.texlabels": "Fórmulas TeX ($…$)",
+  "features.on": "ativo",
+  "features.off": "inativo",
+  "features.texReload": "Recarregue a página para tipografar as fórmulas.",
 
   "locale.label": "Idioma",
   "locale.en": "English",

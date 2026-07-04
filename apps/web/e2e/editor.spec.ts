@@ -74,11 +74,16 @@ test("circuitos ligam automaticamente quando o código usa a biblioteca", async 
   await page.keyboard.type("A:(0,0); B:(2,0)");
   await page.keyboard.press("Enter");
   await page.keyboard.type("resistor(A,B)");
-  // o interruptor liga sozinho e o circuito compila
-  await expect(page.locator("#circuits-switch")).toHaveAttribute("data-state", "checked");
+  // o circuito compila (biblioteca auto-carregada, sem interruptor)
   await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok", {
     timeout: 5_000,
   });
+  // o status "ativo" aparece na barra de Padrões
+  await page.getByTestId("defaults-button").click();
+  await expect(page.getByTestId("feature-circuits").locator("[data-active]")).toHaveAttribute(
+    "data-active",
+    "true",
+  );
 });
 
 test("digitar $…$ com build lean mostra aviso e fixa a preferência math", async ({ page }) => {

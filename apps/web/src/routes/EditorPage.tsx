@@ -18,7 +18,6 @@ import {
   DropdownItem,
   DropdownLabel,
 } from "@/components/ui/DropdownMenu";
-import { Switch } from "@/components/ui/Switch";
 import { Tip } from "@/components/ui/Tooltip";
 import { useToast } from "@/components/ui/Toast";
 import { useRpic } from "@/lib/useRpic";
@@ -46,22 +45,15 @@ import { mathActive, rememberMathPreference } from "@/lib/rpic";
 
 interface DocState {
   source: string;
-  circuits: boolean;
 }
 
 function initialDoc(locale: Locale): DocState & { fromHash: boolean } {
   const shared = decodeShareHash(window.location.hash);
-  const doc = shared
-    ? { ...shared, fromHash: true }
-    : (() => {
-        const draft = loadDraft();
-        return draft
-          ? { source: draft.source, circuits: draft.circuits, fromHash: false }
-          : { source: WELCOME_SOURCES[locale], circuits: false, fromHash: false };
-      })();
+  const draft = loadDraft();
+  const source = shared?.source ?? draft?.source ?? WELCOME_SOURCES[locale];
   // Documento inicial já usa $…$? Fixa o build math ANTES do primeiro ready().
-  if (detectTexLabels(doc.source)) rememberMathPreference();
-  return doc;
+  if (detectTexLabels(source)) rememberMathPreference();
+  return { source, fromHash: !!shared };
 }
 
 /** Página principal: editor nanquim à esquerda, papel técnico à direita.
@@ -75,7 +67,7 @@ export function EditorPage() {
   const { dark } = useTheme();
 
   const [initial] = useState(() => initialDoc(locale));
-  const [doc, setDoc] = useState<DocState>({ source: initial.source, circuits: initial.circuits });
+  const [doc, setDoc] = useState<DocState>({ source: initial.source });
   const [layout, setLayout] = useState(() => loadSettings().layout);
   const [split, setSplit] = useState(0.42);
   const [saveOpen, setSaveOpen] = useState(false);
@@ -89,11 +81,11 @@ export function EditorPage() {
   const diagram = useDiagram(id);
   const update = useUpdateDiagram();
 
-  // Circuitos e texlabels ligam sozinhos quando o código os usa; o
-  // interruptor continua servindo de override manual quando nada é detectado.
-  const autoCircuits = useMemo(() => detectCircuits(doc.source), [doc.source]);
+  // Circuitos e texlabels são 100% automáticos: ligam sozinhos quando o
+  // código os usa (macros da biblioteca / rótulos $…$). Sem interruptor —
+  // o status aparece na barra de Padrões.
+  const circuits = useMemo(() => detectCircuits(doc.source), [doc.source]);
   const texlabels = useMemo(() => detectTexLabels(doc.source), [doc.source]);
-  const circuits = doc.circuits || autoCircuits;
 
   const rpic = useRpic(doc.source, { circuits, texlabels });
   const codeRef = useRef<CodePaneHandle>(null);
@@ -153,7 +145,7 @@ export function EditorPage() {
   useEffect(() => {
     if (savedMode && diagram.data && loadedIdRef.current !== diagram.data.id) {
       loadedIdRef.current = diagram.data.id;
-      setDoc({ source: diagram.data.source, circuits: diagram.data.circuits });
+      setDoc({ source: diagram.data.source });
     }
     if (!savedMode) loadedIdRef.current = null;
   }, [savedMode, diagram.data]);
@@ -167,9 +159,7 @@ export function EditorPage() {
   }, [savedMode, diagram.isError, navigate, toast, t]);
 
   const dirty =
-    savedMode && diagram.data
-      ? doc.source !== diagram.data.source || circuits !== diagram.data.circuits
-      : true;
+    savedMode && diagram.data ? doc.source !== diagram.data.source : true;
 
   // Link importado: limpa o fragment para a URL voltar a ser "do usuário".
   useEffect(() => {
@@ -183,7 +173,7 @@ export function EditorPage() {
     const onHashChange = () => {
       const shared = decodeShareHash(window.location.hash);
       if (shared) {
-        setDoc(shared);
+        setDoc({ source: shared.source });
         history.replaceState(null, "", window.location.pathname + window.location.search);
         if (savedMode) navigate("/", { replace: true });
       }
@@ -196,7 +186,7 @@ export function EditorPage() {
   // conteúdo de diagramas salvos).
   const debouncedDoc = useDebouncedValue(doc, 500);
   useEffect(() => {
-    if (!savedMode) saveDraft(debouncedDoc.source, debouncedDoc.circuits);
+    if (!savedMode) saveDraft(debouncedDoc.source, detectCircuits(debouncedDoc.source));
   }, [debouncedDoc, savedMode]);
 
   const save = useCallback(() => {
@@ -326,7 +316,7 @@ export function EditorPage() {
                 {examples.map((ex) => (
                   <DropdownItem
                     key={ex.id}
-                    onSelect={() => setDoc({ source: ex.source, circuits: ex.circuits })}
+                    onSelect={() => setDoc({ source: ex.source })}
                   >
                     {ex.title[locale]}
                   </DropdownItem>
@@ -346,18 +336,6 @@ export function EditorPage() {
               </Button>
             </Tip>
             <div className="ml-auto flex items-center gap-3">
-              <Tip label={autoCircuits ? t("editor.circuitsAuto") : t("editor.circuitsTip")}>
-                <span>
-                  <Switch
-                    ink
-                    id="circuits-switch"
-                    checked={circuits}
-                    disabled={autoCircuits}
-                    onCheckedChange={(on) => setDoc((d) => ({ ...d, circuits: on }))}
-                    label={autoCircuits ? `${t("editor.circuits")} ✦` : t("editor.circuits")}
-                  />
-                </span>
-              </Tip>
               <Tip label={t("editor.clear")}>
                 <Button
                   variant="ink-ghost"
@@ -387,6 +365,8 @@ export function EditorPage() {
             onClose={() => setDefaultsOpen(false)}
             fontFamily={canvas.fontFamily}
             onFontChange={(fontFamily) => changeCanvas({ ...canvas, fontFamily })}
+            circuits={circuits}
+            texlabels={texlabels}
           />
           <DiagnosticsPanel
             error={errorInfo}
