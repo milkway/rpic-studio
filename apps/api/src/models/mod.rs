@@ -28,11 +28,12 @@ pub struct Diagram {
     pub updated_at: DateTime<Utc>,
 }
 
-/// Item da listagem (sem `source`, para a lista ficar leve).
+/// Item da listagem (inclui `source` para renderizar a miniatura).
 #[derive(Debug, Clone, Serialize, sqlx::FromRow, ToSchema)]
 pub struct DiagramSummary {
     pub id: Uuid,
     pub title: String,
+    pub source: String,
     pub circuits: bool,
     pub share_slug: Option<String>,
     pub updated_at: DateTime<Utc>,

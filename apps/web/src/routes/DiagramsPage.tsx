@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FilePlus2, Link2, LogIn, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { FilePlus2, Link2, Lock, LogIn, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/app-shell/AppShell";
+import { RpicThumb } from "@/components/preview/RpicThumb";
 import { Button } from "@/components/ui/Button";
 import {
   DropdownMenu,
@@ -23,11 +24,11 @@ import {
   useUnshareDiagram,
   useUpdateDiagram,
 } from "@/lib/queries";
-import { api } from "@/lib/api";
-import type { Diagram, DiagramSummary } from "@/lib/types";
+import type { DiagramSummary } from "@/lib/types";
+import { detectCircuits } from "@/lib/detect";
 import { copyText } from "@/lib/exports";
 
-function DiagramRow({ diagram }: { diagram: DiagramSummary }) {
+function DiagramCard({ diagram }: { diagram: DiagramSummary }) {
   const navigate = useNavigate();
   const toast = useToast();
   const { t, locale } = useI18n();
@@ -40,92 +41,112 @@ function DiagramRow({ diagram }: { diagram: DiagramSummary }) {
   const [newTitle, setNewTitle] = useState(diagram.title);
 
   const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+  const isPublic = !!diagram.share_slug;
 
-  const rename = async () => {
-    // A atualização precisa do source atual — busca o diagrama completo.
-    try {
-      const full = await api<Diagram>(`/api/diagrams/${diagram.id}`);
-      update.mutate(
-        {
-          id: diagram.id,
-          title: newTitle.trim() || diagram.title,
-          source: full.source,
-          circuits: full.circuits,
-        },
-        { onSuccess: () => setRenameOpen(false) },
-      );
-    } catch {
-      toast(t("diagrams.renameError"), "error");
-    }
+  const rename = () => {
+    // O source vem na listagem — não precisa de outra requisição.
+    update.mutate(
+      {
+        id: diagram.id,
+        title: newTitle.trim() || diagram.title,
+        source: diagram.source,
+        circuits: diagram.circuits,
+      },
+      { onSuccess: () => setRenameOpen(false), onError: () => toast(t("diagrams.renameError"), "error") },
+    );
   };
 
   return (
-    <div
-      data-testid="diagram-row"
-      className="flex items-center gap-4 border-b border-(--color-border) bg-(--color-surface) px-5 py-3.5 transition-colors last:border-b-0 hover:bg-(--color-surface-muted)"
+    <article
+      data-testid="diagram-card"
+      className="group flex flex-col overflow-hidden rounded-(--radius-lg) border border-(--color-border) bg-(--color-surface) shadow-(--shadow-sm) transition-all duration-200 hover:-translate-y-0.5 hover:shadow-(--shadow-card)"
     >
-      <Link to={`/e/${diagram.id}`} className="min-w-0 flex-1">
-        <p className="truncate font-medium text-(--color-text)">{diagram.title}</p>
-        <p className="mt-0.5 font-mono text-[11px] text-(--color-text-muted)">
-          {formatDate(diagram.updated_at, locale)}
-          {diagram.circuits && ` · ${t("diagrams.circuitsTag")}`}
-        </p>
-      </Link>
-      {diagram.share_slug && (
-        <button
-          className="flex cursor-pointer items-center gap-1 rounded-full bg-(--color-accent-soft) px-2.5 py-1 text-[11px] font-medium text-(--color-accent)"
-          title={t("diagrams.copyPublic")}
-          onClick={async () => {
-            await copyText(`${window.location.origin}${base}/d/${diagram.share_slug}`);
-            toast(t("diagrams.publicCopied"));
-          }}
-        >
-          <Link2 size={11} /> {t("diagrams.public")}
-        </button>
-      )}
-      <DropdownMenu>
-        <DropdownTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t("diagrams.actionsFor", { title: diagram.title })}
+      <button
+        onClick={() => navigate(`/e/${diagram.id}`)}
+        className="paper-grid flex h-40 cursor-pointer items-center justify-center overflow-hidden border-b border-(--color-border) p-4"
+        aria-label={t("diagrams.open")}
+      >
+        <RpicThumb
+          source={diagram.source}
+          circuits={detectCircuits(diagram.source)}
+          className="flex items-center justify-center [&_svg]:h-auto [&_svg]:max-h-32 [&_svg]:w-auto [&_svg]:max-w-full"
+        />
+      </button>
+
+      <div className="flex items-start gap-2 p-3.5">
+        <Link to={`/e/${diagram.id}`} className="min-w-0 flex-1">
+          <p className="truncate font-medium text-(--color-text)">{diagram.title}</p>
+          <p className="mt-1 flex items-center gap-2 font-mono text-[11px] text-(--color-text-muted)">
+            {formatDate(diagram.updated_at, locale)}
+          </p>
+        </Link>
+
+        {/* Selo de privacidade — clicável quando público (copia o link). */}
+        {isPublic ? (
+          <button
+            className="flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-(--color-accent-soft) px-2 py-0.5 text-[10px] font-medium text-(--color-accent)"
+            title={t("diagrams.copyPublic")}
+            data-testid="badge-public"
+            onClick={async () => {
+              await copyText(`${window.location.origin}${base}/d/${diagram.share_slug}`);
+              toast(t("diagrams.publicCopied"));
+            }}
           >
-            <MoreHorizontal size={16} />
-          </Button>
-        </DropdownTrigger>
-        <DropdownContent>
-          <DropdownItem onSelect={() => navigate(`/e/${diagram.id}`)}>
-            <Pencil size={15} /> {t("diagrams.open")}
-          </DropdownItem>
-          <DropdownItem onSelect={() => setRenameOpen(true)}>
-            <Pencil size={15} /> {t("diagrams.rename")}
-          </DropdownItem>
-          {diagram.share_slug ? (
-            <DropdownItem
-              onSelect={() =>
-                unshare.mutate(diagram.id, { onSuccess: () => toast(t("diagrams.revoked")) })
-              }
-            >
-              <Link2 size={15} /> {t("diagrams.revokeLink")}
-            </DropdownItem>
-          ) : (
-            <DropdownItem
-              onSelect={() =>
-                share.mutate(diagram.id, { onSuccess: () => toast(t("diagrams.created")) })
-              }
-            >
-              <Link2 size={15} /> {t("diagrams.makePublic")}
-            </DropdownItem>
-          )}
-          <DropdownSeparator />
-          <DropdownItem
-            className="text-(--color-danger) data-highlighted:text-(--color-danger)"
-            onSelect={() => setConfirmDelete(true)}
+            <Link2 size={10} /> {t("diagrams.public")}
+          </button>
+        ) : (
+          <span
+            className="flex shrink-0 items-center gap-1 rounded-full bg-(--color-surface-muted) px-2 py-0.5 text-[10px] font-medium text-(--color-text-muted)"
+            data-testid="badge-private"
           >
-            <Trash2 size={15} /> {t("diagrams.delete")}
-          </DropdownItem>
-        </DropdownContent>
-      </DropdownMenu>
+            <Lock size={10} /> {t("diagrams.private")}
+          </span>
+        )}
+
+        <DropdownMenu>
+          <DropdownTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("diagrams.actionsFor", { title: diagram.title })}
+            >
+              <MoreHorizontal size={16} />
+            </Button>
+          </DropdownTrigger>
+          <DropdownContent>
+            <DropdownItem onSelect={() => navigate(`/e/${diagram.id}`)}>
+              <Pencil size={15} /> {t("diagrams.open")}
+            </DropdownItem>
+            <DropdownItem onSelect={() => setRenameOpen(true)}>
+              <Pencil size={15} /> {t("diagrams.rename")}
+            </DropdownItem>
+            {isPublic ? (
+              <DropdownItem
+                onSelect={() =>
+                  unshare.mutate(diagram.id, { onSuccess: () => toast(t("diagrams.revoked")) })
+                }
+              >
+                <Lock size={15} /> {t("diagrams.revokeLink")}
+              </DropdownItem>
+            ) : (
+              <DropdownItem
+                onSelect={() =>
+                  share.mutate(diagram.id, { onSuccess: () => toast(t("diagrams.created")) })
+                }
+              >
+                <Link2 size={15} /> {t("diagrams.makePublic")}
+              </DropdownItem>
+            )}
+            <DropdownSeparator />
+            <DropdownItem
+              className="text-(--color-danger) data-highlighted:text-(--color-danger)"
+              onSelect={() => setConfirmDelete(true)}
+            >
+              <Trash2 size={15} /> {t("diagrams.delete")}
+            </DropdownItem>
+          </DropdownContent>
+        </DropdownMenu>
+      </div>
 
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
         <DialogContent title={t("diagrams.renameTitle")}>
@@ -174,11 +195,11 @@ function DiagramRow({ diagram }: { diagram: DiagramSummary }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </article>
   );
 }
 
-/** Lista dos diagramas salvos do usuário. */
+/** Galeria dos diagramas salvos do usuário (privados por padrão). */
 export function DiagramsPage() {
   const { data: me, isLoading: meLoading } = useMe();
   const { data: authConfig } = useAuthConfig();
@@ -188,13 +209,13 @@ export function DiagramsPage() {
   return (
     <AppShell>
       <div className="h-full overflow-auto">
-        <div className="mx-auto max-w-3xl px-6 py-10">
-          <div className="flex items-end justify-between">
+        <div className="mx-auto max-w-5xl px-6 py-10">
+          <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <h1 className="font-display text-3xl font-semibold tracking-tight text-(--color-text)">
                 {t("diagrams.title")}
               </h1>
-              <p className="mt-2 text-(--color-text-body)">{t("diagrams.subtitle")}</p>
+              <p className="mt-2 max-w-xl text-(--color-text-body)">{t("diagrams.subtitle")}</p>
             </div>
             <Link to="/">
               <Button variant="primary" size="md">
@@ -202,6 +223,12 @@ export function DiagramsPage() {
               </Button>
             </Link>
           </div>
+
+          {me && diagrams.data?.length ? (
+            <p className="mt-4 flex items-center gap-1.5 text-xs text-(--color-text-muted)">
+              <Lock size={12} /> {t("diagrams.privacyNote")}
+            </p>
+          ) : null}
 
           <div className="mt-8">
             {meLoading ? null : !me ? (
@@ -226,9 +253,9 @@ export function DiagramsPage() {
             ) : diagrams.isLoading ? (
               <p className="p-6 text-sm text-(--color-text-muted)">{t("diagrams.loading")}</p>
             ) : diagrams.data?.length ? (
-              <div className="overflow-hidden rounded-(--radius-lg) border border-(--color-border) shadow-(--shadow-sm)">
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                 {diagrams.data.map((d) => (
-                  <DiagramRow key={d.id} diagram={d} />
+                  <DiagramCard key={d.id} diagram={d} />
                 ))}
               </div>
             ) : (

@@ -126,8 +126,8 @@ async fn crud_de_diagramas_completo() {
         .unwrap()
         .iter()
         .any(|d| d["id"] == id.as_str()));
-    // a lista não expõe o código
-    assert!(list[0].get("source").is_none());
+    // a lista inclui o código (para renderizar a miniatura)
+    assert!(list[0]["source"].is_string());
 
     // update
     let res = app

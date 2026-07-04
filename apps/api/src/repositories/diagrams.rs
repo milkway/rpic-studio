@@ -7,7 +7,7 @@ use uuid::Uuid;
 pub async fn list(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Vec<DiagramSummary>> {
     sqlx::query_as::<_, DiagramSummary>(
         r#"
-        SELECT id, title, circuits, share_slug, updated_at
+        SELECT id, title, source, circuits, share_slug, updated_at
         FROM diagrams WHERE user_id = $1
         ORDER BY updated_at DESC
         "#,

@@ -12,6 +12,7 @@ export interface User {
 export interface DiagramSummary {
   id: string;
   title: string;
+  source: string;
   circuits: boolean;
   share_slug: string | null;
   updated_at: string;

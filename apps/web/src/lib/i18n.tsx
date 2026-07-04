@@ -110,6 +110,9 @@ const en = {
   "diagrams.loading": "loading…",
   "diagrams.empty": "No diagrams saved yet — go back to the editor and hit “Save”.",
   "diagrams.public": "public",
+  "diagrams.private": "private",
+  "diagrams.privacyNote":
+    "Only you can see your diagrams. Sharing creates a public, read-only link — revoke it anytime to make it private again.",
   "diagrams.copyPublic": "Copy public link",
   "diagrams.publicCopied": "Public link copied",
   "diagrams.open": "Open in editor",
@@ -299,6 +302,9 @@ const pt: Record<MessageKey, string> = {
   "diagrams.loading": "carregando…",
   "diagrams.empty": "Nenhum diagrama salvo ainda — volte ao editor e use “Salvar”.",
   "diagrams.public": "público",
+  "diagrams.private": "privado",
+  "diagrams.privacyNote":
+    "Só você vê seus diagramas. Compartilhar cria um link público só de leitura — revogue quando quiser para voltar a privado.",
   "diagrams.copyPublic": "Copiar link público",
   "diagrams.publicCopied": "Link público copiado",
   "diagrams.open": "Abrir no editor",
