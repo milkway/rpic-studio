@@ -11,12 +11,14 @@ export interface Settings {
   layout: "horizontal" | "vertical";
 }
 
-/** Aparência do papel do diagrama (fundo do preview). */
+/** Aparência do papel e da fonte do diagrama (não altera a geometria). */
 export interface CanvasSettings {
   pattern: "dots" | "lines" | "plain";
   bg: string;
   gridColor: string;
   gridSize: number;
+  /** Stack de font-family assado no SVG (""=padrão sans-serif do rpic). */
+  fontFamily: string;
 }
 
 export const DEFAULT_CANVAS: CanvasSettings = {
@@ -24,6 +26,7 @@ export const DEFAULT_CANVAS: CanvasSettings = {
   bg: "#ffffff",
   gridColor: "#cbd5e1",
   gridSize: 22,
+  fontFamily: "",
 };
 
 const DRAFT_KEY = "rpic:draft.v1";

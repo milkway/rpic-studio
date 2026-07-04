@@ -3,6 +3,7 @@ import { Grid2x2, RotateCcw } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import { useI18n, type MessageKey } from "@/lib/i18n";
 import { DEFAULT_CANVAS, type CanvasSettings } from "@/lib/storage";
+import { FONT_OPTIONS, fontStack } from "@/lib/appearance";
 import { Button } from "@/components/ui/Button";
 import { Tip } from "@/components/ui/Tooltip";
 import { canvasBackground } from "./canvasStyle";
@@ -97,6 +98,28 @@ export function CanvasSettingsPopover({ value, onChange }: CanvasSettingsPopover
           className="z-50 w-64 rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) p-4 shadow-(--shadow-pop)"
         >
           <div className="space-y-4">
+            <div>
+              <GroupLabel>{t("canvas.typeface")}</GroupLabel>
+              <div className="flex flex-wrap gap-1.5">
+                {FONT_OPTIONS.map((font) => (
+                  <button
+                    key={font.id}
+                    onClick={() => onChange({ ...value, fontFamily: font.id })}
+                    data-testid={`canvas-font-${font.id || "default"}`}
+                    style={{ fontFamily: fontStack(font.id) || undefined }}
+                    className={cn(
+                      "cursor-pointer rounded-(--radius-sm) border px-2 py-1 text-xs transition-colors",
+                      value.fontFamily === font.id
+                        ? "border-(--color-accent) text-(--color-accent)"
+                        : "border-(--color-border) text-(--color-text-body) hover:border-(--color-border-strong)",
+                    )}
+                  >
+                    {font.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div>
               <GroupLabel>{t("canvas.pattern")}</GroupLabel>
               <div className="grid grid-cols-3 gap-1.5">

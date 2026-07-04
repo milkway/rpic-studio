@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { BookOpen, ChevronDown, Eraser } from "lucide-react";
+import { BookOpen, ChevronDown, Eraser, SlidersHorizontal } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import { AppShell } from "@/components/app-shell/AppShell";
 import { CodePane, type CodePaneHandle } from "@/components/editor/CodePane";
@@ -9,6 +9,7 @@ import { EditorToolbar } from "@/components/editor/EditorToolbar";
 import { DiagnosticsPanel } from "@/components/preview/DiagnosticsPanel";
 import { PreviewTabs } from "@/components/preview/PreviewTabs";
 import { SaveDialog } from "@/components/dialogs/SaveDialog";
+import { DefaultsDialog } from "@/components/dialogs/DefaultsDialog";
 import { Button } from "@/components/ui/Button";
 import {
   DropdownMenu,
@@ -24,7 +25,16 @@ import { useRpic } from "@/lib/useRpic";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { decodeShareHash } from "@/lib/share";
-import { loadDraft, loadSettings, saveDraft, saveSettings } from "@/lib/storage";
+import {
+  loadCanvasSettings,
+  loadDraft,
+  loadSettings,
+  saveCanvasSettings,
+  saveDraft,
+  saveSettings,
+  type CanvasSettings,
+} from "@/lib/storage";
+import { bakeAppearance } from "@/lib/appearance";
 import { examples, WELCOME_SOURCES } from "@/lib/examples";
 import { useDiagram, useMe, useUpdateDiagram } from "@/lib/queries";
 import { useI18n, type Locale } from "@/lib/i18n";
@@ -68,6 +78,8 @@ export function EditorPage() {
   const [layout, setLayout] = useState(() => loadSettings().layout);
   const [split, setSplit] = useState(0.42);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [defaultsOpen, setDefaultsOpen] = useState(false);
+  const [canvas, setCanvas] = useState<CanvasSettings>(loadCanvasSettings);
   const containerRef = useRef<HTMLDivElement>(null);
   const narrow = useMediaQuery("(max-width: 1023px)");
   const vertical = narrow || layout === "vertical";
@@ -84,6 +96,25 @@ export function EditorPage() {
 
   const rpic = useRpic(doc.source, { circuits, texlabels });
   const codeRef = useRef<CodePaneHandle>(null);
+
+  // SVG "assado" com a fonte escolhida — preview, abas e exports usam o mesmo.
+  const bakedSvg = useMemo(
+    () => bakeAppearance(rpic.svg, canvas.fontFamily),
+    [rpic.svg, canvas.fontFamily],
+  );
+
+  const changeCanvas = useCallback((next: CanvasSettings) => {
+    setCanvas(next);
+    saveCanvasSettings(next);
+    pushPrefsSoon();
+  }, []);
+
+  // Prefs da conta aplicadas ao storage → relê a aparência.
+  useEffect(() => {
+    const onPrefs = () => setCanvas(loadCanvasSettings());
+    window.addEventListener(PREFS_EVENT, onPrefs);
+    return () => window.removeEventListener(PREFS_EVENT, onPrefs);
+  }, []);
 
   // Diagnósticos interpretados: posição precisa, texto humano e sugestões.
   const errorInfo = useMemo(
@@ -243,7 +274,7 @@ export function EditorPage() {
       actions={
         <EditorToolbar
           source={doc.source}
-          svg={rpic.svg}
+          svg={bakedSvg}
           circuits={circuits}
           layout={layout}
           onToggleLayout={toggleLayout}
@@ -260,6 +291,12 @@ export function EditorPage() {
         circuits={circuits}
         open={saveOpen}
         onOpenChange={setSaveOpen}
+      />
+      <DefaultsDialog
+        source={doc.source}
+        open={defaultsOpen}
+        onOpenChange={setDefaultsOpen}
+        onApply={setSource}
       />
       <div
         ref={containerRef}
@@ -300,6 +337,17 @@ export function EditorPage() {
                 ))}
               </DropdownContent>
             </DropdownMenu>
+            <Tip label={t("defaults.tip")}>
+              <Button
+                variant="ink-ghost"
+                size="sm"
+                data-testid="defaults-button"
+                onClick={() => setDefaultsOpen(true)}
+              >
+                <SlidersHorizontal size={13} />
+                {t("defaults.button")}
+              </Button>
+            </Tip>
             <div className="ml-auto flex items-center gap-3">
               <Tip label={autoCircuits ? t("editor.circuitsAuto") : t("editor.circuitsTip")}>
                 <span>
@@ -364,7 +412,7 @@ export function EditorPage() {
         {/* Papel técnico: o diagrama */}
         <section className="min-h-0 min-w-0 bg-(--color-paper)">
           <PreviewTabs
-            svg={rpic.svg}
+            svg={bakedSvg}
             source={doc.source}
             circuits={circuits}
             animations={rpic.animations}
@@ -372,6 +420,8 @@ export function EditorPage() {
             error={rpic.error}
             loading={rpic.loading}
             compileMs={rpic.compileMs}
+            canvas={canvas}
+            onCanvasChange={changeCanvas}
           />
         </section>
       </div>

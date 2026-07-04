@@ -5,14 +5,14 @@ import { motion } from "@rpic/design-system";
 import { useI18n } from "@/lib/i18n";
 import { animate, type Anim } from "@/lib/rpic";
 import { sanitizeSvg } from "@/lib/sanitize";
-import { loadCanvasSettings, saveCanvasSettings, type CanvasSettings } from "@/lib/storage";
-import { PREFS_EVENT, pushPrefsSoon } from "@/lib/prefs";
+import { type CanvasSettings } from "@/lib/storage";
 import { CanvasSettingsPopover } from "./CanvasSettingsPopover";
 import { canvasBackground } from "./canvasStyle";
 import { Button } from "@/components/ui/Button";
 import { Tip } from "@/components/ui/Tooltip";
 
 interface PreviewPaneProps {
+  /** SVG já "assado" com a fonte escolhida. */
   svg: string;
   animations: Anim[];
   /** Incrementa a cada compilação boa — dispara reinjeção/replay. */
@@ -20,6 +20,9 @@ interface PreviewPaneProps {
   error: string | null;
   loading: boolean;
   compileMs: number | null;
+  /** Aparência (papel + fonte), controlada pelo EditorPage. */
+  canvas: CanvasSettings;
+  onCanvasChange: (next: CanvasSettings) => void;
   /** Slot para as abas (Imagem/SVG/Markdown) no cabeçalho. */
   tabs?: ReactNode;
 }
@@ -32,27 +35,15 @@ export function PreviewPane({
   error,
   loading,
   compileMs,
+  canvas,
+  onCanvasChange,
   tabs,
 }: PreviewPaneProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   const [zoom, setZoom] = useState(1);
-  const [canvas, setCanvas] = useState<CanvasSettings>(loadCanvasSettings);
   const { t } = useI18n();
-
-  const changeCanvas = useCallback((next: CanvasSettings) => {
-    setCanvas(next);
-    saveCanvasSettings(next);
-    pushPrefsSoon();
-  }, []);
-
-  // Prefs da conta aplicadas ao storage → relê o papel.
-  useEffect(() => {
-    const onPrefs = () => setCanvas(loadCanvasSettings());
-    window.addEventListener(PREFS_EVENT, onPrefs);
-    return () => window.removeEventListener(PREFS_EVENT, onPrefs);
-  }, []);
 
   // Injeta o SVG e (re)monta a timeline GSAP a cada compilação boa.
   useEffect(() => {
@@ -159,7 +150,7 @@ export function PreviewPane({
               <Scan size={14} />
             </Button>
           </Tip>
-          <CanvasSettingsPopover value={canvas} onChange={changeCanvas} />
+          <CanvasSettingsPopover value={canvas} onChange={onCanvasChange} />
         </div>
       </div>
 

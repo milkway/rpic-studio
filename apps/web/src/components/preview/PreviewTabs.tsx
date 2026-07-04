@@ -3,6 +3,7 @@ import * as Tabs from "@radix-ui/react-tabs";
 import { Copy } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import type { Anim } from "@/lib/rpic";
+import type { CanvasSettings } from "@/lib/storage";
 import { copyText, formatXml, toMarkdownSnippet } from "@/lib/exports";
 import { toPythonSnippet, toRSnippet } from "@/lib/bindings";
 import { useI18n } from "@/lib/i18n";
@@ -22,6 +23,7 @@ const TAB_LANGUAGE: Record<Exclude<TabValue, "imagem">, CodeLanguage> = {
 };
 
 interface PreviewTabsProps {
+  /** SVG já "assado" com a fonte escolhida. */
   svg: string;
   /** Código pic atual — vai nos snippets Markdown/Python/R. */
   source: string;
@@ -32,6 +34,8 @@ interface PreviewTabsProps {
   error: string | null;
   loading: boolean;
   compileMs: number | null;
+  canvas: CanvasSettings;
+  onCanvasChange: (next: CanvasSettings) => void;
 }
 
 const MD_LABELS = {
@@ -63,7 +67,7 @@ function TabButton({ value, children }: { value: TabValue; children: string }) {
 }
 
 /** Painel direito: imagem ao vivo ou código pronto (SVG, Markdown, Python, R). */
-export function PreviewTabs({ source, circuits, ...props }: PreviewTabsProps) {
+export function PreviewTabs({ source, circuits, canvas, onCanvasChange, ...props }: PreviewTabsProps) {
   const [tab, setTab] = useState<TabValue>("imagem");
   const toast = useToast();
   const { t, locale } = useI18n();
@@ -104,7 +108,12 @@ export function PreviewTabs({ source, circuits, ...props }: PreviewTabsProps) {
     >
       <div>
         {tab === "imagem" ? (
-          <PreviewPane {...props} tabs={tabsList} />
+          <PreviewPane
+            {...props}
+            canvas={canvas}
+            onCanvasChange={onCanvasChange}
+            tabs={tabsList}
+          />
         ) : (
           <div className="flex h-full min-h-0 flex-col">
             <div className="flex h-10 shrink-0 items-center gap-1.5 border-b border-(--color-border) bg-(--color-surface) px-3">

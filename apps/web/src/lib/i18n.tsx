@@ -152,8 +152,9 @@ const en = {
   // math
   "math.reloadHint": "Math $…$ detected — reload the page to typeset it",
 
-  // papel do diagrama
-  "canvas.button": "Diagram paper",
+  // aparência (papel + fonte)
+  "canvas.button": "Appearance",
+  "canvas.paper": "Paper",
   "canvas.pattern": "Pattern",
   "canvas.plain": "Plain",
   "canvas.dots": "Dots",
@@ -162,7 +163,30 @@ const en = {
   "canvas.gridColor": "Grid color",
   "canvas.gridSize": "Grid size",
   "canvas.custom": "Custom color",
+  "canvas.typeface": "Typeface",
   "canvas.reset": "Reset to default",
+
+  // padrões do diagrama (variáveis pic)
+  "defaults.button": "Defaults",
+  "defaults.tip": "Diagram defaults (scale, sizes, thickness…)",
+  "defaults.title": "Diagram defaults",
+  "defaults.desc":
+    "These are pic variables — they change the geometry, so they're written into your code as an editable, shareable block.",
+  "defaults.global": "Global",
+  "defaults.dims": "Sizes",
+  "defaults.stroke": "Stroke & fill",
+  "defaults.arrows": "Arrowheads",
+  "defaults.apply": "Insert into code",
+  "defaults.clear": "Remove block",
+  "defaults.var.scale": "Scale (whole drawing)",
+  "defaults.var.boxwid": "Box width",
+  "defaults.var.boxht": "Box height",
+  "defaults.var.circlerad": "Circle radius",
+  "defaults.var.linewid": "Line length",
+  "defaults.var.linethick": "Line thickness",
+  "defaults.var.fillval": "Default fill (0–1)",
+  "defaults.var.arrowwid": "Arrowhead width",
+  "defaults.var.arrowht": "Arrowhead length",
 
   // idioma
   "locale.label": "Language",
@@ -304,7 +328,8 @@ const pt: Record<MessageKey, string> = {
 
   "math.reloadHint": "Fórmulas $…$ detectadas — recarregue a página para tipografá-las",
 
-  "canvas.button": "Papel do diagrama",
+  "canvas.button": "Aparência",
+  "canvas.paper": "Papel",
   "canvas.pattern": "Padrão",
   "canvas.plain": "Liso",
   "canvas.dots": "Pontos",
@@ -313,7 +338,29 @@ const pt: Record<MessageKey, string> = {
   "canvas.gridColor": "Cor da grade",
   "canvas.gridSize": "Tamanho da grade",
   "canvas.custom": "Cor personalizada",
+  "canvas.typeface": "Fonte",
   "canvas.reset": "Restaurar padrão",
+
+  "defaults.button": "Padrões",
+  "defaults.tip": "Padrões do diagrama (escala, tamanhos, espessura…)",
+  "defaults.title": "Padrões do diagrama",
+  "defaults.desc":
+    "São variáveis pic — mudam a geometria, então são escritas no seu código como um bloco editável e compartilhável.",
+  "defaults.global": "Global",
+  "defaults.dims": "Tamanhos",
+  "defaults.stroke": "Traço e preenchimento",
+  "defaults.arrows": "Pontas de seta",
+  "defaults.apply": "Inserir no código",
+  "defaults.clear": "Remover bloco",
+  "defaults.var.scale": "Escala (desenho todo)",
+  "defaults.var.boxwid": "Largura da caixa",
+  "defaults.var.boxht": "Altura da caixa",
+  "defaults.var.circlerad": "Raio do círculo",
+  "defaults.var.linewid": "Comprimento da linha",
+  "defaults.var.linethick": "Espessura da linha",
+  "defaults.var.fillval": "Preenchimento padrão (0–1)",
+  "defaults.var.arrowwid": "Largura da ponta",
+  "defaults.var.arrowht": "Comprimento da ponta",
 
   "locale.label": "Idioma",
   "locale.en": "English",

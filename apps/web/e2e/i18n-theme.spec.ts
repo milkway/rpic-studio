@@ -68,3 +68,38 @@ test("papel do diagrama é configurável (padrão, fundo) e persiste", async ({ 
   await page.waitForSelector('[data-testid="preview-stage"] svg', { timeout: 20_000 });
   expect(await canvas.evaluate((el) => getComputedStyle(el).backgroundImage)).toBe("none");
 });
+
+test("aparência: trocar a fonte é assado no SVG (preview e export)", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForSelector('[data-testid="preview-stage"] svg', { timeout: 20_000 });
+
+  const rootFont = () =>
+    page.locator('[data-testid="preview-stage"] > svg').getAttribute("font-family");
+  expect(await rootFont()).toBe("sans-serif");
+
+  await page.getByTestId("canvas-settings").click();
+  await page.getByTestId("canvas-font-serif").click();
+  await expect.poll(rootFont, { timeout: 3_000 }).toContain("Georgia");
+});
+
+test("padrões: inserir variáveis pic escreve um bloco no código", async ({ page }) => {
+  await page.goto("/");
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForSelector('[data-testid="preview-stage"] svg', { timeout: 20_000 });
+
+  await page.getByTestId("defaults-button").click();
+  // move o slider de boxwid e aplica
+  const slider = page.getByTestId("defaults-boxwid");
+  await slider.focus();
+  await page.keyboard.press("ArrowRight");
+  await page.getByTestId("defaults-apply").click();
+
+  await expect(page.locator('[data-testid="code-pane"] .cm-content')).toContainText(
+    "padrões (rpic studio)",
+  );
+  await expect(page.locator('[data-testid="code-pane"] .cm-content')).toContainText("boxwid =");
+  await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok");
+});
