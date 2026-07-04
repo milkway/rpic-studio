@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { Check, Grid2x2, RotateCcw, Search } from "lucide-react";
 import { cn } from "@rpic/design-system";
@@ -34,6 +34,58 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Linha do resultado: carrega a fonte ao entrar na viewport e exibe o nome
+ *  NELA MESMA, para identificação visual imediata. */
+function FontRow({
+  family,
+  selected,
+  rootRef,
+  onPick,
+}: {
+  family: string;
+  selected: boolean;
+  rootRef: React.RefObject<HTMLDivElement | null>;
+  onPick: (family: string) => void;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || visible) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisible(true);
+          ensureGoogleFont(family);
+          io.disconnect();
+        }
+      },
+      { root: rootRef.current, rootMargin: "80px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [family, rootRef, visible]);
+
+  return (
+    <button
+      ref={ref}
+      onClick={() => onPick(family)}
+      data-testid={`font-google-${family}`}
+      style={visible ? { fontFamily: resolveFontStack(googleValue(family)) } : undefined}
+      className={cn(
+        "flex w-full cursor-pointer items-center justify-between gap-2 px-2.5 py-1.5 text-left text-[13px]",
+        selected
+          ? "bg-(--color-accent-soft) text-(--color-accent)"
+          : "text-(--color-text-body) hover:bg-(--color-surface-muted)",
+      )}
+    >
+      {family}
+      {selected && <Check size={13} />}
+    </button>
+  );
+}
+
 /** Seletor de fonte: chips builtin + busca no catálogo Google (sob demanda). */
 function TypefacePicker({
   value,
@@ -45,6 +97,7 @@ function TypefacePicker({
   const { t } = useI18n();
   const [query, setQuery] = useState("");
   const currentGoogle = googleFamilyOf(value);
+  const resultsRef = useRef<HTMLDivElement>(null);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -93,24 +146,18 @@ function TypefacePicker({
           />
         </div>
         <div
-          className="mt-1 max-h-40 overflow-auto rounded-(--radius-sm) border border-(--color-border)"
+          ref={resultsRef}
+          className="mt-1 max-h-44 overflow-auto rounded-(--radius-sm) border border-(--color-border)"
           data-testid="font-results"
         >
           {results.map((f) => (
-            <button
+            <FontRow
               key={f.family}
-              onClick={() => pickGoogle(f.family)}
-              data-testid={`font-google-${f.family}`}
-              className={cn(
-                "flex w-full cursor-pointer items-center justify-between gap-2 px-2.5 py-1.5 text-left text-xs",
-                currentGoogle === f.family
-                  ? "bg-(--color-accent-soft) text-(--color-accent)"
-                  : "text-(--color-text-body) hover:bg-(--color-surface-muted)",
-              )}
-            >
-              {f.family}
-              {currentGoogle === f.family && <Check size={13} />}
-            </button>
+              family={f.family}
+              selected={currentGoogle === f.family}
+              rootRef={resultsRef}
+              onPick={pickGoogle}
+            />
           ))}
           {results.length === 0 && (
             <p className="px-2.5 py-2 text-xs text-(--color-text-muted)">—</p>

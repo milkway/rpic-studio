@@ -9,7 +9,7 @@ import { EditorToolbar } from "@/components/editor/EditorToolbar";
 import { DiagnosticsPanel } from "@/components/preview/DiagnosticsPanel";
 import { PreviewTabs } from "@/components/preview/PreviewTabs";
 import { SaveDialog } from "@/components/dialogs/SaveDialog";
-import { DefaultsDialog } from "@/components/dialogs/DefaultsDialog";
+import { DefaultsBar } from "@/components/editor/DefaultsBar";
 import { Button } from "@/components/ui/Button";
 import {
   DropdownMenu,
@@ -294,12 +294,6 @@ export function EditorPage() {
         open={saveOpen}
         onOpenChange={setSaveOpen}
       />
-      <DefaultsDialog
-        source={doc.source}
-        open={defaultsOpen}
-        onOpenChange={setDefaultsOpen}
-        onApply={setSource}
-      />
       <div
         ref={containerRef}
         className="grid h-full min-h-0"
@@ -344,7 +338,8 @@ export function EditorPage() {
                 variant="ink-ghost"
                 size="sm"
                 data-testid="defaults-button"
-                onClick={() => setDefaultsOpen(true)}
+                onClick={() => setDefaultsOpen((v) => !v)}
+                className={cn(defaultsOpen && "bg-(--color-ink-raised) text-(--color-ink-text)")}
               >
                 <SlidersHorizontal size={13} />
                 {t("defaults.button")}
@@ -385,6 +380,12 @@ export function EditorPage() {
               autoFocus
             />
           </div>
+          <DefaultsBar
+            open={defaultsOpen}
+            source={doc.source}
+            onApply={setSource}
+            onClose={() => setDefaultsOpen(false)}
+          />
           <DiagnosticsPanel
             error={errorInfo}
             warnings={warningInfos}

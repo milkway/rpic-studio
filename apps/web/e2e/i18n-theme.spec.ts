@@ -97,16 +97,22 @@ test("padrões: inserir variáveis pic escreve um bloco no código", async ({ pa
   await page.reload();
   await page.waitForSelector('[data-testid="preview-stage"] svg', { timeout: 20_000 });
 
+  // a barra expande no rodapé do editor; arrastar o slider escreve AO VIVO
   await page.getByTestId("defaults-button").click();
-  // move o slider de boxwid e aplica
+  await expect(page.getByTestId("defaults-bar")).toBeVisible();
   const slider = page.getByTestId("defaults-boxwid");
   await slider.focus();
   await page.keyboard.press("ArrowRight");
-  await page.getByTestId("defaults-apply").click();
 
   await expect(page.locator('[data-testid="code-pane"] .cm-content')).toContainText(
     "padrões (rpic studio)",
+    { timeout: 5_000 },
   );
   await expect(page.locator('[data-testid="code-pane"] .cm-content')).toContainText("boxwid =");
   await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok");
+
+  // fechar recolhe a barra (o bloco permanece no código)
+  await page.getByTestId("defaults-close").click();
+  await expect(page.getByTestId("defaults-bar")).toHaveCount(0);
+  await expect(page.locator('[data-testid="code-pane"] .cm-content')).toContainText("boxwid =");
 });
