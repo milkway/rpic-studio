@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { RotateCcw, SlidersHorizontal, X } from "lucide-react";
 import { useI18n, type MessageKey } from "@/lib/i18n";
 import { applyDefaults, PIC_VARS, readDefaults, type PicVar } from "@/lib/picDefaults";
@@ -12,6 +12,19 @@ interface DefaultsBarProps {
 }
 
 const GROUPS: PicVar["group"][] = ["global", "dims", "stroke", "arrows"];
+
+const HEIGHT_KEY = "rpic:defaultsH.v1";
+const DEFAULT_H = 220;
+const MIN_H = 130;
+
+function loadHeight(): number {
+  try {
+    const v = Number(window.localStorage.getItem(HEIGHT_KEY));
+    return v >= MIN_H ? v : DEFAULT_H;
+  } catch {
+    return DEFAULT_H;
+  }
+}
 
 function num(n: number): string {
   return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)));
@@ -63,17 +76,17 @@ function Slider({
 }
 
 /** Barra que expande no rodapé do editor: sliders das variáveis pic com
- *  aplicação AO VIVO no código (o preview reflete enquanto você arrasta). */
+ *  aplicação AO VIVO no código, redimensionável pela alça superior. */
 export function DefaultsBar({ open, source, onApply, onClose }: DefaultsBarProps) {
   const { t } = useI18n();
   const [values, setValues] = useState<Record<string, number>>({});
+  const [height, setHeight] = useState(loadHeight);
   const sourceRef = useRef(source);
   sourceRef.current = source;
   const onApplyRef = useRef(onApply);
   onApplyRef.current = onApply;
   const timerRef = useRef<number | null>(null);
 
-  // Ao abrir, lê os valores do bloco existente (ou os defaults do rpic).
   useEffect(() => {
     if (!open) return;
     const current = readDefaults(sourceRef.current);
@@ -106,17 +119,53 @@ export function DefaultsBar({ open, source, onApply, onClose }: DefaultsBarProps
     const next: Record<string, number> = {};
     for (const v of PIC_VARS) next[v.key] = v.default;
     setValues(next);
-    onApply(applyDefaults(sourceRef.current, next)); // remove o bloco na hora
+    onApply(applyDefaults(sourceRef.current, next));
   };
+
+  // Alça de arrasto: puxar para cima cresce a barra (encolhe o editor).
+  const onResizeStart = useCallback((down: React.PointerEvent) => {
+    down.preventDefault();
+    const startY = down.clientY;
+    const startH = height;
+    const maxH = Math.round(window.innerHeight * 0.6);
+    const move = (e: PointerEvent) => {
+      setHeight(Math.min(Math.max(startH + (startY - e.clientY), MIN_H), maxH));
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setHeight((h) => {
+        try {
+          window.localStorage.setItem(HEIGHT_KEY, String(h));
+        } catch {
+          // sem persistência — a altura vale para a sessão
+        }
+        return h;
+      });
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }, [height]);
 
   if (!open) return null;
 
   return (
     <div
       data-testid="defaults-bar"
-      className="shrink-0 border-t border-(--color-ink-border) bg-(--color-ink)"
+      className="flex shrink-0 flex-col border-t border-(--color-ink-border) bg-(--color-ink)"
     >
-      <div className="flex items-center justify-between border-b border-(--color-ink-border) px-3.5 py-2">
+      {/* alça de redimensionamento */}
+      <div
+        role="separator"
+        aria-orientation="horizontal"
+        onPointerDown={onResizeStart}
+        data-testid="defaults-resize"
+        className="group flex h-2 cursor-row-resize items-center justify-center"
+      >
+        <div className="h-0.5 w-9 rounded-full bg-(--color-ink-border) transition-colors group-hover:bg-(--color-accent)" />
+      </div>
+
+      <div className="flex items-center justify-between px-3.5 pb-2">
         <div className="flex items-center gap-2 text-(--color-ink-text)">
           <SlidersHorizontal size={13} className="text-(--color-accent)" />
           <span className="text-xs font-medium">{t("defaults.title")}</span>
@@ -147,24 +196,32 @@ export function DefaultsBar({ open, source, onApply, onClose }: DefaultsBarProps
         </div>
       </div>
 
-      <div className="flex max-h-44 gap-6 overflow-auto px-3.5 py-3">
-        {GROUPS.map((group) => (
-          <section key={group} className="min-w-[9.5rem] flex-1">
-            <p className="mb-2 font-mono text-[9px] tracking-[0.15em] text-(--color-ink-muted) uppercase">
-              {t(`defaults.${group}` as MessageKey)}
-            </p>
-            <div className="space-y-3">
-              {PIC_VARS.filter((v) => v.group === group).map((v) => (
-                <Slider
-                  key={v.key}
-                  v={v}
-                  value={values[v.key] ?? v.default}
-                  onChange={(n) => set(v.key, n)}
-                />
-              ))}
-            </div>
-          </section>
-        ))}
+      {/* Wrapper com a altura escolhida + scroll; dentro, um fluxo multi-coluna
+          de altura automática que BALANCEIA os grupos (largura de coluna
+          adaptativa à largura real da barra). */}
+      <div
+        className="overflow-auto border-t border-(--color-ink-border) px-3.5 py-3"
+        style={{ height }}
+      >
+        <div className="gap-x-7 [column-width:14rem]">
+          {GROUPS.map((group) => (
+            <section key={group} className="mb-5 inline-block w-full break-inside-avoid align-top">
+              <p className="mb-2 font-mono text-[9px] tracking-[0.15em] text-(--color-ink-muted) uppercase">
+                {t(`defaults.${group}` as MessageKey)}
+              </p>
+              <div className="space-y-3.5">
+                {PIC_VARS.filter((v) => v.group === group).map((v) => (
+                  <Slider
+                    key={v.key}
+                    v={v}
+                    value={values[v.key] ?? v.default}
+                    onChange={(n) => set(v.key, n)}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
       </div>
     </div>
   );
