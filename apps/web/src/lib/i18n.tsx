@@ -143,6 +143,8 @@ const en = {
   "examplesPage.copyLink": "Copy link",
   "examplesPage.codeCopied": "Code copied",
   "examplesPage.all": "All",
+  "examplesPage.expand": "Show all the code",
+  "examplesPage.collapse": "Collapse the code",
 
   // diagnósticos
   "diag.line": "line {n}",
@@ -295,6 +297,8 @@ const pt: Record<MessageKey, string> = {
   "examplesPage.copyLink": "Copiar link",
   "examplesPage.codeCopied": "Código copiado",
   "examplesPage.all": "Todos",
+  "examplesPage.expand": "Ver o código completo",
+  "examplesPage.collapse": "Recolher o código",
 
   "diag.line": "linha {n}",
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Copy, Link2, PencilLine } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, Copy, Link2, PencilLine } from "lucide-react";
 import { cn, motion } from "@rpic/design-system";
 import { AppShell } from "@/components/app-shell/AppShell";
 import { RpicThumb } from "@/components/preview/RpicThumb";
@@ -41,6 +41,8 @@ function ExampleCard({ example }: { example: Example }) {
   const toast = useToast();
   const { t, locale } = useI18n();
   const { dark } = useTheme();
+  const [expanded, setExpanded] = useState(false);
+  const isLong = example.source.split("\n").length > 14;
 
   const open = () => {
     saveDraft(example.source, example.circuits);
@@ -77,7 +79,12 @@ function ExampleCard({ example }: { example: Example }) {
       </header>
 
       <div className="grid md:grid-cols-2">
-        <div className="paper-grid relative flex max-h-80 min-h-52 items-center justify-center overflow-auto border-b border-(--color-border) p-6 md:border-r md:border-b-0">
+        <div
+          className={cn(
+            "paper-grid relative flex min-h-52 items-center justify-center overflow-auto border-b border-(--color-border) p-6 md:border-r md:border-b-0",
+            !expanded && "max-h-80",
+          )}
+        >
           <RpicThumb
             source={example.source}
             circuits={example.circuits}
@@ -85,8 +92,26 @@ function ExampleCard({ example }: { example: Example }) {
             className="flex items-center justify-center [&_svg]:h-auto [&_svg]:max-h-64 [&_svg]:w-auto [&_svg]:max-w-full"
           />
         </div>
-        <div className="max-h-80 min-h-52 overflow-hidden bg-(--color-ink) [&_.cm-editor]:h-full">
-          <ReadOnlyCode content={example.source} language="rpic" dark={dark} />
+        {/* Recolhido: altura fixa com scroll interno do CodeMirror.
+            Expandido: o código inteiro fica visível. */}
+        <div
+          className={cn(
+            "relative bg-(--color-ink) [&_.cm-editor]:h-full",
+            expanded ? "min-h-52" : "h-80 overflow-hidden",
+          )}
+        >
+          <ReadOnlyCode content={example.source} language="rpic" dark={dark} className="h-full" />
+          {isLong && (
+            <button
+              onClick={() => setExpanded((e) => !e)}
+              data-testid={`example-expand-${example.id}`}
+              title={expanded ? t("examplesPage.collapse") : t("examplesPage.expand")}
+              aria-label={expanded ? t("examplesPage.collapse") : t("examplesPage.expand")}
+              className="absolute right-2.5 bottom-2.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-(--color-ink-border) bg-(--color-ink-raised) text-(--color-ink-muted) transition-colors hover:text-(--color-ink-text)"
+            >
+              {expanded ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
+            </button>
+          )}
         </div>
       </div>
 

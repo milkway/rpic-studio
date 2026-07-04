@@ -6,6 +6,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { python } from "@codemirror/lang-python";
 import { StreamLanguage } from "@codemirror/language";
 import { r } from "@codemirror/legacy-modes/mode/r";
+import { cn } from "@rpic/design-system";
 import { rpicEditorTheme } from "@/components/editor/rpicTheme";
 import { rpicLanguage } from "@/components/editor/rpicLanguage";
 
@@ -24,10 +25,11 @@ interface ReadOnlyCodeProps {
   language: CodeLanguage;
   dark: boolean;
   testid?: string;
+  className?: string;
 }
 
 /** Código somente leitura com o highlight rpic-forest (abas SVG/Markdown). */
-export function ReadOnlyCode({ content, language, dark, testid }: ReadOnlyCodeProps) {
+export function ReadOnlyCode({ content, language, dark, testid, className }: ReadOnlyCodeProps) {
   const hostRef = useRef<HTMLDivElement>(null);
 
   // Recria a view quando o conteúdo/tema muda — barato, só existe na aba ativa.
@@ -54,7 +56,10 @@ export function ReadOnlyCode({ content, language, dark, testid }: ReadOnlyCodePr
     <div
       ref={hostRef}
       data-testid={testid}
-      className="min-h-0 flex-1 overflow-hidden bg-(--color-ink) [&_.cm-editor]:h-full"
+      className={cn(
+        "min-h-0 flex-1 overflow-hidden bg-(--color-ink) [&_.cm-editor]:h-full",
+        className,
+      )}
     />
   );
 }

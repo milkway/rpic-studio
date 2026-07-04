@@ -115,22 +115,22 @@ ellipse "typesetter"
 # Fluxo de acolhimento com classificação de risco (adaptado do pikup)
 boxht = 0.32
 B1: box "Chegada" rad 0.16 wid 1.8 shaded "#e2efe3"
-arrow down 0.3 from B1.s - (0.5,0)
-B2: box "Espontânea" rad 0.05 wid 1.1
-arrow down 0.3 from B1.s + (0.5,0)
-B3: box "Regulação" rad 0.05 wid 1.1
-line from B2.s down 0.3 then right 0.5
-line from B3.s down 0.3 then left 0.5
+arrow down 0.3 from B1.s - (0.62,0)
+B2: box "Espontânea" rad 0.05 wid 1.05
+arrow down 0.3 from B1.s + (0.62,0)
+B3: box "Regulação" rad 0.05 wid 1.05
+line from B2.s down 0.3 then right 0.62
+line from B3.s down 0.3 then left 0.62
 A: box "Acolhimento" rad 0.05 wid 1.3 with .n at (B1.x, B2.s.y - 0.3)
 arrow down 0.25 from A.s
 S: box "Sinais Vitais" "Téc. de Enfermagem" rad 0.1 ht 0.5 wid 1.6
 arrow down 0.25 from S.s
 C: box "Classificação de Risco" "Enfermeiro" rad 0.1 ht 0.5 wid 1.9
-arrow down 0.3 from C.s - (1.05,0)
+line -> from C.s down 0.15 then left 1.1 then down 0.2
 box "até 10 min" wid 0.95 shaded "#f16913" outlined "none"
-arrow down 0.3 from C.s
+arrow from C.s down 0.35
 box "até 60 min" wid 0.95 shaded "#ffd320" outlined "none"
-arrow down 0.3 from C.s + (1.05,0)
+line -> from C.s down 0.15 then right 1.1 then down 0.2
 box "até 120 min" wid 0.95 shaded "#74c476" outlined "none"
 .PE`,
   },
