@@ -52,6 +52,7 @@ const en = {
   "toolbar.sourcePic": "Source (.pic)",
   "toolbar.vectorSvg": "Vector (.svg)",
   "toolbar.imagePng": "Image (.png, 2x)",
+  "toolbar.filePdf": "Document (.pdf)",
   "toolbar.copySection": "Copy",
   "toolbar.copyImage": "Image to clipboard",
   "toolbar.layoutStack": "Stack panels",
@@ -121,6 +122,7 @@ const en = {
   "toast.svgCopiedText": "SVG copied as text",
   "toast.copyError": "Could not copy",
   "toast.pngError": "Could not generate the PNG",
+  "toast.pdfError": "Could not generate the PDF (the render service is unavailable)",
 
   // meus diagramas
   "diagrams.title": "My diagrams",
@@ -272,6 +274,7 @@ const pt: Record<MessageKey, string> = {
   "toolbar.sourcePic": "Código (.pic)",
   "toolbar.vectorSvg": "Vetor (.svg)",
   "toolbar.imagePng": "Imagem (.png, 2x)",
+  "toolbar.filePdf": "Documento (.pdf)",
   "toolbar.copySection": "Copiar",
   "toolbar.copyImage": "Imagem para a área de transferência",
   "toolbar.layoutStack": "Empilhar painéis",
@@ -336,6 +339,7 @@ const pt: Record<MessageKey, string> = {
   "toast.svgCopiedText": "SVG copiado como texto",
   "toast.copyError": "Não foi possível copiar",
   "toast.pngError": "Não foi possível gerar o PNG",
+  "toast.pdfError": "Não foi possível gerar o PDF (o serviço de render está indisponível)",
 
   "diagrams.title": "Meus diagramas",
   "diagrams.subtitle": "Salvos na sua conta — abra, renomeie ou gere um link público.",

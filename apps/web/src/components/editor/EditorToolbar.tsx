@@ -4,6 +4,7 @@ import {
   FileCode2,
   FileImage,
   FileText,
+  FileType2,
   ImageDown,
   Rows2,
   Save,
@@ -20,13 +21,20 @@ import {
 } from "@/components/ui/DropdownMenu";
 import { useToast } from "@/components/ui/Toast";
 import { useI18n } from "@/lib/i18n";
-import { copyDiagramToClipboard, downloadPic, downloadPng, downloadSvg } from "@/lib/exports";
+import {
+  copyDiagramToClipboard,
+  downloadPdf,
+  downloadPic,
+  downloadPng,
+  downloadSvg,
+} from "@/lib/exports";
 import { ShareDialog } from "@/components/dialogs/ShareDialog";
 
 interface EditorToolbarProps {
   source: string;
   svg: string;
   circuits: boolean;
+  texlabels: boolean;
   layout: "horizontal" | "vertical";
   onToggleLayout: () => void;
   /** Nome do arquivo dos exports (título do diagrama salvo, se houver). */
@@ -44,6 +52,7 @@ export function EditorToolbar({
   source,
   svg,
   circuits,
+  texlabels,
   layout,
   onToggleLayout,
   exportName = "diagrama",
@@ -54,6 +63,7 @@ export function EditorToolbar({
 }: EditorToolbarProps) {
   const toast = useToast();
   const { t } = useI18n();
+  const renderOpts = { circuits, texlabels };
 
   return (
     <>
@@ -90,10 +100,22 @@ export function EditorToolbar({
           </DropdownItem>
           <DropdownItem
             onSelect={() =>
-              downloadPng(svg, exportName).catch(() => toast(t("toast.pngError"), "error"))
+              downloadPng(source, svg, exportName, renderOpts).catch(() =>
+                toast(t("toast.pngError"), "error"),
+              )
             }
           >
             <FileImage size={15} /> {t("toolbar.imagePng")}
+          </DropdownItem>
+          <DropdownItem
+            data-testid="export-pdf"
+            onSelect={() =>
+              downloadPdf(source, exportName, renderOpts).catch(() =>
+                toast(t("toast.pdfError"), "error"),
+              )
+            }
+          >
+            <FileType2 size={15} /> {t("toolbar.filePdf")}
           </DropdownItem>
           <DropdownSeparator />
           <DropdownLabel>{t("toolbar.copySection")}</DropdownLabel>

@@ -1,5 +1,7 @@
-// Exports do diagrama: arquivos .pic/.svg/.png e área de transferência.
-// O PNG é rasterizado no cliente (SVG → <img> → canvas 2x) — sem servidor.
+// Exports do diagrama: arquivos .pic/.svg/.png/.pdf e área de transferência.
+// PNG/PDF preferem o render server-side (/api/render — TeX de verdade, igual ao
+// CLI); PNG cai para a rasterização no cliente se a API não responder.
+import { apiUrl } from "./api";
 
 function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
@@ -16,6 +18,60 @@ export function downloadPic(source: string, name = "diagrama"): void {
 
 export function downloadSvg(svg: string, name = "diagrama"): void {
   downloadBlob(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }), `${name}.svg`);
+}
+
+export interface RenderOpts {
+  scale?: number;
+  circuits?: boolean;
+  texlabels?: boolean;
+}
+
+/** Render server-side: POST do código pic → Blob (svg/png/pdf). Lança em erro. */
+export async function renderViaApi(
+  source: string,
+  format: "svg" | "png" | "pdf",
+  opts: RenderOpts = {},
+): Promise<Blob> {
+  const params = new URLSearchParams({ format });
+  if (opts.scale) params.set("scale", String(opts.scale));
+  if (opts.circuits) params.set("circuits", "true");
+  if (opts.texlabels) params.set("texlabels", "true");
+  const res = await fetch(apiUrl(`/api/render?${params}`), {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: source,
+  });
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const body = await res.json();
+      if (body?.error) message = body.error;
+    } catch {
+      // corpo não-JSON
+    }
+    throw new Error(message);
+  }
+  return res.blob();
+}
+
+/** PNG: tenta o servidor (TeX real); cai para a rasterização no cliente. */
+export async function downloadPng(
+  source: string,
+  clientSvg: string,
+  name = "diagrama",
+  opts: RenderOpts = {},
+): Promise<void> {
+  try {
+    downloadBlob(await renderViaApi(source, "png", { scale: 2, ...opts }), `${name}.png`);
+  } catch {
+    // API indisponível (app anônimo/sem backend) → rasteriza o SVG no cliente
+    downloadBlob(await svgToPngBlob(clientSvg), `${name}.png`);
+  }
+}
+
+/** PDF: só server-side (não há PDF no cliente). */
+export async function downloadPdf(source: string, name = "diagrama", opts: RenderOpts = {}): Promise<void> {
+  downloadBlob(await renderViaApi(source, "pdf", opts), `${name}.pdf`);
 }
 
 /** Rasteriza o SVG num canvas com `scale`x de densidade. */
@@ -58,10 +114,6 @@ export async function svgToPngBlob(svg: string, scale = 2): Promise<Blob> {
   } finally {
     URL.revokeObjectURL(url);
   }
-}
-
-export async function downloadPng(svg: string, name = "diagrama"): Promise<void> {
-  downloadBlob(await svgToPngBlob(svg), `${name}.png`);
 }
 
 /** Copia o diagrama como imagem PNG; cai para o texto do SVG se o browser não suportar. */

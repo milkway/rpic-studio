@@ -268,6 +268,7 @@ export function EditorPage() {
           source={doc.source}
           svg={bakedSvg}
           circuits={circuits}
+          texlabels={texlabels}
           layout={layout}
           onToggleLayout={toggleLayout}
           exportName={diagram.data?.title ?? (locale === "pt" ? "diagrama" : "diagram")}
