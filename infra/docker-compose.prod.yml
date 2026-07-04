@@ -1,0 +1,58 @@
+# Produção — studio.rpic.dev. Stack isolada: só o web é publicado (no
+# loopback, atrás do nginx do host); postgres e api ficam na rede interna.
+# Uso no servidor:
+#   docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod up -d --build
+name: rpic-studio
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: /var/lib/postgresql/data
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      API_HOST: 0.0.0.0
+      API_PORT: 8080
+      APP_ENV: production
+      RUST_LOG: info
+      APP_BASE_URL: https://studio.rpic.dev
+      CORS_ALLOWED_ORIGINS: https://studio.rpic.dev
+      COOKIE_SECURE: "true"
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        BASE_PATH: /
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:8091:80"
+
+volumes:
+  pgdata:
