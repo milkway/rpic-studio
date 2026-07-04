@@ -264,6 +264,7 @@ export function BindingsPage() {
           <div className="mt-8 space-y-2.5">
             <Note>{t("bindings.note.circuits")}</Note>
             <Note>{t("bindings.note.tex")}</Note>
+            {binding.id === "rest" && <Note>{t("bindings.note.fonts")}</Note>}
           </div>
         </div>
       </div>

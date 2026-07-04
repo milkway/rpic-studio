@@ -36,6 +36,8 @@ const en = {
     "Every binding takes a circuits flag (or write copy \"circuits\" in the source) to load the electrical-element library.",
   "bindings.note.tex":
     "TeX $…$ labels typeset with the math-enabled build (CLI/R/Python by default; JS via the opt-in math wasm).",
+  "bindings.note.fonts":
+    "The REST render takes a google_font (from the studio's curated catalog) and matches it in the PNG/PDF, with true weight fidelity — bold and italic use the real glyphs, not synthesized ones.",
 
   // usuário
   "user.signIn": "Sign in",
@@ -260,6 +262,8 @@ const pt: Record<MessageKey, string> = {
     "Todo binding aceita um flag de circuitos (ou escreva copy \"circuits\" no código) para carregar a biblioteca de elementos elétricos.",
   "bindings.note.tex":
     "Rótulos TeX $…$ são tipografados com o build de math (CLI/R/Python por padrão; JS via o wasm de math opcional).",
+  "bindings.note.fonts":
+    "O render REST aceita um google_font (do catálogo curado do studio) e casa a fonte no PNG/PDF, com fidelidade de peso — negrito e itálico usam o glifo real, não sintetizado.",
 
   "user.signIn": "Entrar",
   "user.myDiagrams": "Meus diagramas",
