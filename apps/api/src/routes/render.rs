@@ -103,20 +103,21 @@ fn allowed_font(name: &str) -> Option<&'static str> {
         .find(|f| f.eq_ignore_ascii_case(name))
 }
 
-static FONT_CACHE: LazyLock<Mutex<HashMap<String, Vec<u8>>>> =
+static FONT_CACHE: LazyLock<Mutex<HashMap<String, Vec<Vec<u8>>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// Busca (e cacheia) os bytes TTF de uma Google Font. Com um UA de Android
-/// antigo o Google serve o TTF ESTÁTICO completo (`/s/…ttf`) — o fontdb não
-/// lê woff2 nem o subset otimizado (`/l/font?kit=`) servido a outros UAs.
-async fn font_bytes(family: &str) -> Result<Vec<u8>, String> {
-    if let Some(bytes) = FONT_CACHE.lock().unwrap().get(family) {
-        return Ok(bytes.clone());
+/// Busca (e cacheia) TODOS os pesos/estilos (400/700 × normal/italic) de uma
+/// Google Font, para fidelidade de peso — negrito usa o glyph bold real, não
+/// sintetizado. Com um UA de Android antigo o Google serve o TTF ESTÁTICO
+/// completo (`/s/…ttf`); o fontdb não lê woff2 nem o subset `/l/font?kit=`.
+async fn font_faces(family: &str) -> Result<Vec<Vec<u8>>, String> {
+    if let Some(faces) = FONT_CACHE.lock().unwrap().get(family) {
+        return Ok(faces.clone());
     }
     let client = reqwest::Client::new();
     let css = client
         .get(format!(
-            "https://fonts.googleapis.com/css?family={}",
+            "https://fonts.googleapis.com/css?family={}:400,700,400italic,700italic",
             family.replace(' ', "+")
         ))
         .header("user-agent", "Mozilla/5.0 (Linux; U; Android 2.2)")
@@ -128,39 +129,57 @@ async fn font_bytes(family: &str) -> Result<Vec<u8>, String> {
         .text()
         .await
         .map_err(|e| e.to_string())?;
-    let url = css
+    // TODAS as url(...) do CSS (uma por @font-face). Pesos ausentes são omitidos
+    // pelo Google — carregamos o que houver (mínimo: regular).
+    let urls: Vec<String> = css
         .split("url(")
-        .nth(1)
-        .and_then(|s| s.split(')').next())
+        .skip(1)
+        .filter_map(|s| s.split(')').next())
         .map(|s| s.trim_matches(|c| c == '\'' || c == '"').to_string())
-        .ok_or("URL da fonte não encontrada no CSS do Google")?;
-    let bytes = client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?
-        .error_for_status()
-        .map_err(|e| e.to_string())?
-        .bytes()
-        .await
-        .map_err(|e| e.to_string())?
-        .to_vec();
+        .collect();
+    if urls.is_empty() {
+        return Err("URL da fonte não encontrada no CSS do Google".into());
+    }
+    let mut faces = Vec::with_capacity(urls.len());
+    for url in urls {
+        let bytes = client
+            .get(&url)
+            .send()
+            .await
+            .map_err(|e| e.to_string())?
+            .error_for_status()
+            .map_err(|e| e.to_string())?
+            .bytes()
+            .await
+            .map_err(|e| e.to_string())?
+            .to_vec();
+        faces.push(bytes);
+    }
     FONT_CACHE
         .lock()
         .unwrap()
-        .insert(family.to_string(), bytes.clone());
-    Ok(bytes)
+        .insert(family.to_string(), faces.clone());
+    Ok(faces)
 }
 
-fn png_with_font(svg: &str, scale: f32, family: &str, font: &[u8]) -> Result<Vec<u8>, String> {
+fn png_with_font(svg: &str, scale: f32, faces: &[Vec<u8>]) -> Result<Vec<u8>, String> {
     use resvg::{tiny_skia, usvg};
     let mut opt = usvg::Options::default();
     {
         let db = opt.fontdb_mut();
-        db.load_font_data(font.to_vec());
-        db.set_sans_serif_family(family.to_string());
-        db.set_serif_family(family.to_string());
-        db.set_monospace_family(family.to_string());
+        for face in faces {
+            db.load_font_data(face.clone());
+        }
+        // Usa o nome de família REAL da fonte carregada (evita mismatch como o
+        // do Merriweather, cujo nameID difere do nome pedido).
+        let resolved = db
+            .faces()
+            .next()
+            .and_then(|f| f.families.first().map(|(n, _)| n.clone()))
+            .unwrap_or_default();
+        db.set_sans_serif_family(resolved.clone());
+        db.set_serif_family(resolved.clone());
+        db.set_monospace_family(resolved);
     }
     let tree = usvg::Tree::from_str(svg, &opt).map_err(|e| e.to_string())?;
     let size = tree.size();
@@ -175,15 +194,22 @@ fn png_with_font(svg: &str, scale: f32, family: &str, font: &[u8]) -> Result<Vec
     pixmap.encode_png().map_err(|e| e.to_string())
 }
 
-fn pdf_with_font(svg: &str, family: &str, font: &[u8]) -> Result<Vec<u8>, String> {
+fn pdf_with_font(svg: &str, faces: &[Vec<u8>]) -> Result<Vec<u8>, String> {
     use svg2pdf::usvg;
     let mut opt = usvg::Options::default();
     {
         let db = opt.fontdb_mut();
-        db.load_font_data(font.to_vec());
-        db.set_sans_serif_family(family.to_string());
-        db.set_serif_family(family.to_string());
-        db.set_monospace_family(family.to_string());
+        for face in faces {
+            db.load_font_data(face.clone());
+        }
+        let resolved = db
+            .faces()
+            .next()
+            .and_then(|f| f.families.first().map(|(n, _)| n.clone()))
+            .unwrap_or_default();
+        db.set_sans_serif_family(resolved.clone());
+        db.set_serif_family(resolved.clone());
+        db.set_monospace_family(resolved);
     }
     let tree = usvg::Tree::from_str(svg, &opt).map_err(|e| e.to_string())?;
     svg2pdf::to_pdf(
@@ -240,7 +266,7 @@ pub async fn render(Query(q): Query<RenderQuery>, src: String) -> ApiResult<Resp
     // Fonte Google opcional (allowlist), buscada antes do trabalho CPU-bound.
     // Falha no fetch → cai para a fonte embutida (não quebra o render).
     let font = match q.google_font.as_deref().and_then(allowed_font) {
-        Some(fam) => font_bytes(fam).await.ok().map(|b| (fam.to_string(), b)),
+        Some(fam) => font_faces(fam).await.ok().map(|f| (fam.to_string(), f)),
         None => None,
     };
 
@@ -254,14 +280,12 @@ pub async fn render(Query(q): Query<RenderQuery>, src: String) -> ApiResult<Resp
         };
         let svg = rpic_core::render_svg_with_options(&src, &opts)?;
         match (format.as_str(), &font) {
-            ("png", Some((fam, b))) => Ok(Rendered::Bytes(
-                png_with_font(&svg, scale, fam, b)?,
-                "image/png",
-            )),
-            ("pdf", Some((fam, b))) => Ok(Rendered::Bytes(
-                pdf_with_font(&svg, fam, b)?,
-                "application/pdf",
-            )),
+            ("png", Some((_, b))) => {
+                Ok(Rendered::Bytes(png_with_font(&svg, scale, b)?, "image/png"))
+            }
+            ("pdf", Some((_, b))) => {
+                Ok(Rendered::Bytes(pdf_with_font(&svg, b)?, "application/pdf"))
+            }
             ("svg", Some((fam, _))) => Ok(Rendered::Text(
                 svg_with_font(&svg, fam),
                 "image/svg+xml; charset=utf-8",
