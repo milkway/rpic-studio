@@ -1,6 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { ChevronDown, Cpu, RotateCcw, Sigma, SlidersHorizontal, Type, X } from "lucide-react";
+import { cn } from "@rpic/design-system";
 import { useI18n, type MessageKey } from "@/lib/i18n";
 import { applyDefaults, PIC_VARS, readDefaults, type PicVar } from "@/lib/picDefaults";
 import { fontLabel, resolveFontStack } from "@/lib/appearance";
@@ -38,6 +48,25 @@ function loadHeight(): number {
 
 function num(n: number): string {
   return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)));
+}
+
+/** Cabeçalho de grupo no fluxo multi-coluna (nunca fica órfão no fim da coluna). */
+function Header({ children, first }: { children: ReactNode; first?: boolean }) {
+  return (
+    <p
+      className={cn(
+        "mb-2 font-mono text-[9px] tracking-[0.15em] break-after-avoid text-(--color-ink-muted) uppercase",
+        !first && "mt-4",
+      )}
+    >
+      {children}
+    </p>
+  );
+}
+
+/** Controle individual — unidade de balanceamento das colunas. */
+function Field({ children }: { children: ReactNode }) {
+  return <div className="mb-3.5 break-inside-avoid">{children}</div>;
 }
 
 function Slider({
@@ -254,19 +283,16 @@ export function DefaultsBar({
       </div>
 
       {/* Wrapper com a altura escolhida + scroll; dentro, um fluxo multi-coluna
-          de altura automática que BALANCEIA os grupos (largura de coluna
-          adaptativa à largura real da barra). */}
+          balanceado NO NÍVEL DO CONTROLE (grupos podem fluir entre colunas),
+          preenchendo bem o espaço em qualquer largura — sem colunas ociosas.
+          O cabeçalho de grupo nunca fica órfão (break-after-avoid). */}
       <div
         className="overflow-auto border-t border-(--color-ink-border) px-3.5 py-3"
         style={{ height }}
       >
-        <div className="gap-x-7 [column-width:14rem]">
-          {/* Fonte: aparência de render (não escrita no código) — mas mora
-              aqui porque, para o usuário, é uma propriedade do diagrama. */}
-          <section className="mb-5 inline-block w-full break-inside-avoid align-top">
-            <p className="mb-2 font-mono text-[9px] tracking-[0.15em] text-(--color-ink-muted) uppercase">
-              {t("canvas.typeface")}
-            </p>
+        <div className="[column-gap:1.75rem] [column-width:11.5rem]">
+          <Header first>{t("canvas.typeface")}</Header>
+          <Field>
             <Popover.Root>
               <Popover.Trigger asChild>
                 <button
@@ -296,50 +322,39 @@ export function DefaultsBar({
                 </Popover.Content>
               </Popover.Portal>
             </Popover.Root>
-          </section>
+          </Field>
 
-          {/* Recursos auto-detectados (sem interruptor): ligam sozinhos com o
-              código; aqui o usuário vê o estado atual. */}
-          <section className="mb-5 inline-block w-full break-inside-avoid align-top">
-            <p className="mb-2 font-mono text-[9px] tracking-[0.15em] text-(--color-ink-muted) uppercase">
-              {t("features.title")}
-            </p>
-            <div className="space-y-2.5">
-              <FeatureStatus
-                icon={<Cpu size={13} />}
-                label={t("features.circuits")}
-                active={circuits}
-                testid="feature-circuits"
-              />
-              <FeatureStatus
-                icon={<Sigma size={13} />}
-                label={t("features.texlabels")}
-                active={texlabels}
-                hint={texlabels && !mathActive() ? t("math.reloadHint") : undefined}
-                testid="feature-texlabels"
-              />
-              {texlabels && !mathActive() && (
-                <p className="text-[10px] text-(--color-warning)">{t("features.texReload")}</p>
-              )}
-            </div>
-          </section>
+          <Header>{t("features.title")}</Header>
+          <Field>
+            <FeatureStatus
+              icon={<Cpu size={13} />}
+              label={t("features.circuits")}
+              active={circuits}
+              testid="feature-circuits"
+            />
+          </Field>
+          <Field>
+            <FeatureStatus
+              icon={<Sigma size={13} />}
+              label={t("features.texlabels")}
+              active={texlabels}
+              hint={texlabels && !mathActive() ? t("math.reloadHint") : undefined}
+              testid="feature-texlabels"
+            />
+            {texlabels && !mathActive() && (
+              <p className="mt-1.5 text-[10px] text-(--color-warning)">{t("features.texReload")}</p>
+            )}
+          </Field>
 
           {GROUPS.map((group) => (
-            <section key={group} className="mb-5 inline-block w-full break-inside-avoid align-top">
-              <p className="mb-2 font-mono text-[9px] tracking-[0.15em] text-(--color-ink-muted) uppercase">
-                {t(`defaults.${group}` as MessageKey)}
-              </p>
-              <div className="space-y-3.5">
-                {PIC_VARS.filter((v) => v.group === group).map((v) => (
-                  <Slider
-                    key={v.key}
-                    v={v}
-                    value={values[v.key] ?? v.default}
-                    onChange={(n) => set(v.key, n)}
-                  />
-                ))}
-              </div>
-            </section>
+            <Fragment key={group}>
+              <Header>{t(`defaults.${group}` as MessageKey)}</Header>
+              {PIC_VARS.filter((v) => v.group === group).map((v) => (
+                <Field key={v.key}>
+                  <Slider v={v} value={values[v.key] ?? v.default} onChange={(n) => set(v.key, n)} />
+                </Field>
+              ))}
+            </Fragment>
           ))}
         </div>
       </div>
