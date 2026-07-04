@@ -7,8 +7,6 @@ ARG BASE_PATH=/
 COPY package.json package-lock.json* ./
 COPY packages/design-system/package.json packages/design-system/package.json
 COPY apps/web/package.json apps/web/package.json
-# binding rpic vendorizado (até a próxima release npm com o build math)
-COPY vendor ./vendor
 RUN npm install
 COPY packages ./packages
 COPY apps/web ./apps/web

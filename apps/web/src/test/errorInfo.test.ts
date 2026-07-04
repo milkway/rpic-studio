@@ -4,6 +4,7 @@ import type { Diagnostic } from "@strategicprojects/rpic";
 function diag(partial: Partial<Diagnostic>): Diagnostic {
   return {
     message: "",
+    file: null,
     line: 1,
     col: 1,
     end_col: null,

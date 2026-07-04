@@ -1,0 +1,82 @@
+name: rpic release watch
+
+# Vigia releases do rpic-lang e abre uma issue de investigação quando sai
+# versão nova: o que precisa de correção e o que dá para aproveitar no studio.
+
+on:
+  schedule:
+    - cron: "0 8 * * *" # diariamente às 08:00 UTC
+  workflow_dispatch: {} # disparo manual para testar
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Descobrir última versão do rpic e a versão em uso
+        id: versions
+        run: |
+          # Última tag v* do rpic-lang (ordenada por semver)
+          LATEST=$(gh api repos/milkway/rpic-lang/tags --paginate -q '.[].name' \
+            | grep -E '^v[0-9]' | sort -V | tail -1)
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+
+          # Versão em uso: tarball vendorizado (enquanto existir) ou lockfile
+          if ls vendor/strategicprojects-rpic-*.tgz >/dev/null 2>&1; then
+            CURRENT=$(tar -xOf vendor/strategicprojects-rpic-*.tgz package/package.json | jq -r .version)
+          else
+            CURRENT=$(jq -r '.packages["node_modules/@strategicprojects/rpic"].version // empty' package-lock.json)
+          fi
+          echo "current=v$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "rpic-lang: $LATEST · studio usa: v$CURRENT"
+
+      - name: Abrir issue de investigação (se versão nova e sem issue)
+        if: steps.versions.outputs.latest != steps.versions.outputs.current
+        env:
+          LATEST: ${{ steps.versions.outputs.latest }}
+          CURRENT: ${{ steps.versions.outputs.current }}
+        run: |
+          TITLE="rpic $LATEST lançado — investigar impacto no studio"
+
+          # dedupe: já existe issue (aberta ou fechada) para esta versão?
+          EXISTS=$(gh issue list --state all --search "\"rpic $LATEST lançado\" in:title" \
+            --json number -q 'length')
+          if [ "$EXISTS" != "0" ]; then
+            echo "Issue para $LATEST já existe — nada a fazer."
+            exit 0
+          fi
+
+          gh label create rpic-release \
+            --description "Nova versão do rpic-lang para investigar" \
+            --color 1B5E20 --force
+
+          BODY=$(cat <<EOF
+          O **rpic $LATEST** foi lançado (o studio usa **$CURRENT**).
+
+          Release: https://github.com/milkway/rpic-lang/releases/tag/$LATEST
+
+          ## Checklist de investigação
+
+          ### Correções necessárias?
+          - [ ] Ler as notas da release / changelog
+          - [ ] Atualizar \`@strategicprojects/rpic\` (se \`vendor/\` ainda existir, trocar pelo pacote do npm e apagar o tarball — ver CLAUDE.md)
+          - [ ] Rodar a suíte completa: \`npm run build && npm run lint && npm test && npm run e2e\` (o \`compile.test.ts\` valida todos os exemplos no WASM real)
+          - [ ] Conferir formatos de erro/warning (\`errorInfo.ts\` e o catálogo de kinds)
+          - [ ] Conferir os dois builds wasm (lean e math) e o lazy-load
+
+          ### Melhorias para aproveitar?
+          - [ ] Novas keywords/extensões da linguagem → \`rpicLanguage.ts\` (highlight), \`detect.ts\`, HelpPage e exemplos
+          - [ ] Novos efeitos de \`animate\` → PreviewPane e exemplos
+          - [ ] Novas macros de circuito → lista em \`detect.ts\` e sugestões em \`errorInfo.ts\`
+          - [ ] Novos campos de diagnóstico → \`errorInfo.ts\`
+          - [ ] Mudanças na API JS (\`ready\`/\`compile\`) → \`lib/rpic.ts\`
+          EOF
+          )
+          gh issue create --title "$TITLE" --body "$BODY" --label rpic-release

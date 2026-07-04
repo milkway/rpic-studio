@@ -25,9 +25,10 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   escolha é FIXADA no primeiro `ready()` (wasm-bindgen) — flag `rpic:math.v1` decide na carga;
   `$…$` digitado com lean ativo só mostra o aviso de reload. Em Node/Vitest, passar bytes:
   `ready(readFileSync(...), { math? })` — teste math em ARQUIVO separado (isolamento do Vitest).
-- **Dependência vendorizada (temporária)**: `@strategicprojects/rpic` instala de
-  `vendor/strategicprojects-rpic-0.5.0.tgz` (build math ainda não publicado no npm). Quando o
-  próximo tag `v*` do rpic-lang publicar, trocar para a versão do registro e apagar `vendor/`.
+- **Releases do rpic**: o workflow `.github/workflows/rpic-release-watch.yml` abre uma issue
+  com checklist de investigação quando o rpic-lang taggeia versão nova (compara com a versão
+  do lockfile). Ao atualizar a dependência, rodar a suíte completa — `compile.test.ts` valida
+  todos os exemplos no WASM real e pega drift de comportamento.
 - **Erros do compilador**: formato `"linha:coluna: mensagem"` — parse em `errorPosition()`.
 - **SVG no DOM**: sempre via `sanitizeSvg()` (DOMPurify) — o código pode ter vindo de link de
   terceiros (`#pic=`).
