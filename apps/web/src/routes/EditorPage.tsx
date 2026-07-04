@@ -35,6 +35,7 @@ import {
   type CanvasSettings,
 } from "@/lib/storage";
 import { bakeAppearance } from "@/lib/appearance";
+import { useEnsureFont } from "@/hooks/useEnsureFont";
 import { examples, WELCOME_SOURCES } from "@/lib/examples";
 import { useDiagram, useMe, useUpdateDiagram } from "@/lib/queries";
 import { useI18n, type Locale } from "@/lib/i18n";
@@ -97,7 +98,8 @@ export function EditorPage() {
   const rpic = useRpic(doc.source, { circuits, texlabels });
   const codeRef = useRef<CodePaneHandle>(null);
 
-  // SVG "assado" com a fonte escolhida — preview, abas e exports usam o mesmo.
+  // Carrega a Google Font escolhida (no-op para builtin) e assa no SVG.
+  useEnsureFont(canvas.fontFamily);
   const bakedSvg = useMemo(
     () => bakeAppearance(rpic.svg, canvas.fontFamily),
     [rpic.svg, canvas.fontFamily],

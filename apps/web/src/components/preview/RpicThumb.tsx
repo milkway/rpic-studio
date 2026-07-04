@@ -4,7 +4,7 @@ import { RotateCcw } from "lucide-react";
 import { cn, motion } from "@rpic/design-system";
 import { animate, compile, ensureRpic, type Anim } from "@/lib/rpic";
 import { sanitizeSvg } from "@/lib/sanitize";
-import { bakeAppearance } from "@/lib/appearance";
+import { bakeAppearance, ensureFontLoaded } from "@/lib/appearance";
 import { loadCanvasSettings } from "@/lib/storage";
 import { detectTexLabels } from "@/lib/detect";
 import { useI18n } from "@/lib/i18n";
@@ -33,6 +33,7 @@ export function RpicThumb({ source, circuits, className, replayable }: RpicThumb
         try {
           const out = compile(source, { circuits, texlabels: detectTexLabels(source) });
           const font = loadCanvasSettings().fontFamily;
+          void ensureFontLoaded(font);
           setBundle({
             svg: sanitizeSvg(bakeAppearance(out.svg, font)),
             animations: out.animations,

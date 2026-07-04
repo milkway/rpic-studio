@@ -164,6 +164,7 @@ const en = {
   "canvas.gridSize": "Grid size",
   "canvas.custom": "Custom color",
   "canvas.typeface": "Typeface",
+  "canvas.searchFonts": "Search Google Fonts…",
   "canvas.reset": "Reset to default",
 
   // padrões do diagrama (variáveis pic)
@@ -339,6 +340,7 @@ const pt: Record<MessageKey, string> = {
   "canvas.gridSize": "Tamanho da grade",
   "canvas.custom": "Cor personalizada",
   "canvas.typeface": "Fonte",
+  "canvas.searchFonts": "Buscar Google Fonts…",
   "canvas.reset": "Restaurar padrão",
 
   "defaults.button": "Padrões",

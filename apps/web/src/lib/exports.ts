@@ -20,6 +20,14 @@ export function downloadSvg(svg: string, name = "diagrama"): void {
 
 /** Rasteriza o SVG num canvas com `scale`x de densidade. */
 export async function svgToPngBlob(svg: string, scale = 2): Promise<Blob> {
+  // Espera fontes pendentes (Google/empacotadas) antes de rasterizar.
+  if (document.fonts?.ready) {
+    try {
+      await document.fonts.ready;
+    } catch {
+      // segue mesmo assim — cai na fonte genérica
+    }
+  }
   const svgBlob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
   const url = URL.createObjectURL(svgBlob);
   try {

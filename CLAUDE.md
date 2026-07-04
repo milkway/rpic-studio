@@ -47,6 +47,20 @@ de paridade forçada pelo TS (`t("chave")`, placeholders `{nome}`). Seletor de b
 topbar; escolha em `rpic:locale.v1`. Conteúdo estruturado (exemplos, ajuda) carrega
 `{en, pt}` nos próprios dados. Novos textos de UI SEMPRE via `t()` nos dois idiomas.
 
+## Aparência e fontes
+
+- **Papel + fonte** vivem em `CanvasSettings` (`storage.ts`), aplicados ao SVG por `bakeAppearance`
+  (reescreve `font-family` do `<svg>` raiz) — preview, thumbnails, abas SVG/Markdown e exports
+  ficam idênticos. Persistido e sincronizado na conta (prefs). O EditorPage é o dono do estado;
+  PreviewPane é controlado.
+- **Google Fonts** (`appearance.ts`): catálogo curado, valor guardado como `g:Família`, carregado
+  sob demanda pelo endpoint CSS keyless (`fonts.googleapis.com/css2`) via `ensureGoogleFont`. Em
+  produção com CSP, liberar `fonts.googleapis.com` (style-src) e `fonts.gstatic.com` (font-src).
+- **PNG export**: fontes web em SVG-dentro-de-`<img>` são best-effort (o browser pode cair na
+  genérica); preview, .svg e clipboard-SVG carregam a fonte com fidelidade.
+- **Variáveis pic** (`scale`, `boxwid`, `linethick`…) NÃO são aparência — mudam geometria. Vão no
+  código via `DefaultsDialog` (`picDefaults.ts`, bloco idempotente por marcadores após `.PS`).
+
 ## Direção visual (tema "rpic forest" — o mesmo do site rpic.dev)
 
 Paleta portada de `../rpic/site` e `../rpic/tools/highlight/themes/`: light = slate sobre

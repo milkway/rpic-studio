@@ -1,11 +1,17 @@
-import { bakeAppearance, fontStack } from "@/lib/appearance";
+import {
+  bakeAppearance,
+  googleFamilyOf,
+  googleValue,
+  resolveFontStack,
+} from "@/lib/appearance";
 
-const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" font-family="sans-serif" font-size="14"><text>oi</text></svg>';
+const SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" font-family="sans-serif" font-size="14"><text>oi</text></svg>';
 
-describe("bakeAppearance", () => {
+describe("bakeAppearance (builtin)", () => {
   it("reescreve a font-family do <svg> raiz", () => {
     const out = bakeAppearance(SVG, "serif");
-    expect(out).toContain(`font-family="${fontStack("serif")}"`);
+    expect(out).toContain(`font-family="${resolveFontStack("serif")}"`);
     expect(out).not.toContain('font-family="sans-serif"');
   });
 
@@ -21,5 +27,29 @@ describe("bakeAppearance", () => {
 
   it("id desconhecido não altera nada", () => {
     expect(bakeAppearance(SVG, "inexistente")).toBe(SVG);
+  });
+});
+
+describe("Google Fonts", () => {
+  it("googleValue / googleFamilyOf fazem roundtrip", () => {
+    expect(googleFamilyOf(googleValue("Roboto Mono"))).toBe("Roboto Mono");
+    expect(googleFamilyOf("serif")).toBeNull();
+    expect(googleFamilyOf("")).toBeNull();
+  });
+
+  it("resolve a stack com a família e o genérico da categoria", () => {
+    expect(resolveFontStack(googleValue("Roboto"))).toBe("'Roboto', sans-serif");
+    expect(resolveFontStack(googleValue("Merriweather"))).toBe("'Merriweather', serif");
+    expect(resolveFontStack(googleValue("JetBrains Mono"))).toBe("'JetBrains Mono', monospace");
+    expect(resolveFontStack(googleValue("Pacifico"))).toBe("'Pacifico', cursive");
+  });
+
+  it("família fora do catálogo cai em sans-serif", () => {
+    expect(resolveFontStack(googleValue("Fonte Inventada"))).toBe("'Fonte Inventada', sans-serif");
+  });
+
+  it("assa uma Google Font no SVG", () => {
+    const out = bakeAppearance(SVG, googleValue("Roboto Slab"));
+    expect(out).toContain(`font-family="'Roboto Slab', serif"`);
   });
 });

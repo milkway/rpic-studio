@@ -82,6 +82,13 @@ test("aparência: trocar a fonte é assado no SVG (preview e export)", async ({ 
   await page.getByTestId("canvas-settings").click();
   await page.getByTestId("canvas-font-serif").click();
   await expect.poll(rootFont, { timeout: 3_000 }).toContain("Georgia");
+
+  // busca uma Google Font e seleciona — a stack é assada no SVG
+  await page.getByTestId("font-search").fill("Roboto Mono");
+  await page.getByTestId("font-google-Roboto Mono").click();
+  await expect.poll(rootFont, { timeout: 3_000 }).toContain("Roboto Mono");
+  // injetou o <link> do Google Fonts
+  await expect(page.locator('link[data-gfont="Roboto Mono"]')).toHaveCount(1);
 });
 
 test("padrões: inserir variáveis pic escreve um bloco no código", async ({ page }) => {
