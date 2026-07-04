@@ -3,6 +3,7 @@
 pub mod auth;
 pub mod diagrams;
 pub mod health;
+pub mod render;
 
 use crate::AppState;
 use axum::routing::{get, post, put};
@@ -29,5 +30,6 @@ pub fn router(state: AppState) -> Router {
             post(diagrams::share).delete(diagrams::unshare),
         )
         .route("/api/shared/{slug}", get(diagrams::shared))
+        .route("/api/render", post(render::render))
         .with_state(state)
 }

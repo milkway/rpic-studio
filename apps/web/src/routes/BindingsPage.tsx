@@ -12,8 +12,8 @@ interface Binding {
   name: string;
   badge: string;
   whatKey: MessageKey;
-  install: string;
-  installLang: CodeLanguage;
+  install?: string;
+  installLang?: CodeLanguage;
   usage: string;
   usageLang: CodeLanguage;
   docs: { label: string; href: string };
@@ -117,6 +117,28 @@ rpic.renderSvg('box "$-\\\\frac{T}{2}$" fit', { texlabels: true });`,
       href: "https://www.npmjs.com/package/@strategicprojects/rpic",
     },
   },
+  {
+    id: "rest",
+    name: "REST API",
+    badge: "studio.rpic.dev/api/render",
+    whatKey: "bindings.rest.what",
+    usage: `# SVG (padrao)
+curl -X POST "https://studio.rpic.dev/api/render?format=svg" \\
+  --data-binary 'box "oi"; arrow; circle "x"'
+
+# PNG 3x, com a biblioteca de circuitos
+curl -X POST "https://studio.rpic.dev/api/render?format=png&scale=3&circuits=true" \\
+  --data-binary 'A:(0,0); B:(2,0)
+resistor(A,B)' -o diagrama.png
+
+# PDF, com math TeX ($...$)
+curl -X POST "https://studio.rpic.dev/api/render?format=pdf&texlabels=true" \\
+  --data-binary 'box "$E = mc^2$" fit' -o diagrama.pdf
+
+# parametros: format=svg|png|pdf  scale=0.5..4  circuits=bool  texlabels=bool`,
+    usageLang: "python",
+    docs: { label: "studio.rpic.dev", href: "https://studio.rpic.dev" },
+  },
 ];
 
 function CodeBlock({
@@ -213,12 +235,14 @@ export function BindingsPage() {
             </div>
             <p className="text-(--color-text-body)">{t(binding.whatKey)}</p>
 
-            <CodeBlock
-              label={t("bindings.install")}
-              content={binding.install}
-              language={binding.installLang}
-              dark={dark}
-            />
+            {binding.install && (
+              <CodeBlock
+                label={t("bindings.install")}
+                content={binding.install}
+                language={binding.installLang ?? "python"}
+                dark={dark}
+              />
+            )}
             <CodeBlock
               label={t("bindings.usage")}
               content={binding.usage}

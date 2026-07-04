@@ -286,6 +286,90 @@ async fn logout_invalida_a_sessao() {
 }
 
 #[tokio::test]
+async fn render_svg_png_pdf_e_erro() {
+    let app = build_router(test_state().await);
+
+    // SVG
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/render?format=svg")
+                .body(Body::from("box \"oi\"; arrow; circle"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(
+        res.headers().get("content-type").unwrap(),
+        "image/svg+xml; charset=utf-8"
+    );
+    let body = res.into_body().collect().await.unwrap().to_bytes();
+    assert!(body.starts_with(b"<svg"));
+
+    // PNG (magic bytes)
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/render?format=png&scale=2")
+                .body(Body::from("box \"png\""))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let png = res.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+
+    // PDF (header %PDF)
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/render?format=pdf")
+                .body(Body::from("box \"pdf\""))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let pdf = res.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(&pdf[..5], b"%PDF-");
+
+    // circuitos via flag
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/render?circuits=true")
+                .body(Body::from("A:(0,0); B:(2,0)\nresistor(A,B)"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // erro de compilação → 400
+    let res = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/render")
+                .body(Body::from("bxo \"a\""))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
 async fn prefs_persistem_na_conta() {
     let state = test_state().await;
     let (_, cookie) = login_test_user(&state).await;

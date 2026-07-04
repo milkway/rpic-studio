@@ -30,6 +30,8 @@ const en = {
     "R package via extendr — same engine, ideal for RMarkdown/Quarto reports and reproducible figures.",
   "bindings.js.what":
     "The WebAssembly engine (browser + Node) that powers this studio. Compile to SVG, play GSAP animations, opt into the TeX math build.",
+  "bindings.rest.what":
+    "This studio's hosted endpoint: POST pic source, get SVG, PNG or PDF back — high-fidelity raster and PDF (with real TeX) that the browser can't produce. No install, rate-limited.",
   "bindings.note.circuits":
     "Every binding takes a circuits flag (or write copy \"circuits\" in the source) to load the electrical-element library.",
   "bindings.note.tex":
@@ -250,6 +252,8 @@ const pt: Record<MessageKey, string> = {
     "Pacote R via extendr — o mesmo motor, ideal para relatórios RMarkdown/Quarto e figuras reprodutíveis.",
   "bindings.js.what":
     "O motor WebAssembly (browser + Node) que roda este studio. Compila para SVG, toca animações GSAP, com o build de math TeX opcional.",
+  "bindings.rest.what":
+    "O endpoint hospedado deste studio: envie o código pic por POST e receba SVG, PNG ou PDF — raster e PDF de alta fidelidade (com TeX de verdade) que o browser não produz. Sem instalar, rate-limited.",
   "bindings.note.circuits":
     "Todo binding aceita um flag de circuitos (ou escreva copy \"circuits\" no código) para carregar a biblioteca de elementos elétricos.",
   "bindings.note.tex":

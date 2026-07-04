@@ -42,6 +42,7 @@ pub struct AppState {
         routes::diagrams::update,
         routes::diagrams::delete,
         routes::diagrams::shared,
+        routes::render::render,
     ),
     components(schemas(
         models::User,

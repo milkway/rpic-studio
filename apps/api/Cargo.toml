@@ -29,6 +29,10 @@ uuid = { version = "1", features = ["v4", "serde"] }
 utoipa = { version = "5.5", features = ["axum_extras", "chrono", "uuid"] }
 utoipa-swagger-ui = { version = "9", features = ["axum"] }
 dotenvy = "0.15"
+# Render server-side (SVG/PNG/PDF + math TeX). Não publicados em crates.io —
+# dependência git fixada na tag; rpic-render embute a fonte (sem fontes do host).
+rpic-core = { git = "https://github.com/milkway/rpic-lang.git", tag = "v0.6.2" }
+rpic-render = { git = "https://github.com/milkway/rpic-lang.git", tag = "v0.6.2" }
 sha2 = "0.10"
 time = "0.3"
 hex = "0.4"
