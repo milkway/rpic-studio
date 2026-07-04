@@ -385,6 +385,8 @@ export function EditorPage() {
             source={doc.source}
             onApply={setSource}
             onClose={() => setDefaultsOpen(false)}
+            fontFamily={canvas.fontFamily}
+            onFontChange={(fontFamily) => changeCanvas({ ...canvas, fontFamily })}
           />
           <DiagnosticsPanel
             error={errorInfo}

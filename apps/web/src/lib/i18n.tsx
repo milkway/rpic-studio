@@ -152,8 +152,8 @@ const en = {
   // math
   "math.reloadHint": "Math $…$ detected — reload the page to typeset it",
 
-  // aparência (papel + fonte)
-  "canvas.button": "Appearance",
+  // papel do preview (grade/fundo — não sai no export)
+  "canvas.button": "Diagram paper",
   "canvas.paper": "Paper",
   "canvas.pattern": "Pattern",
   "canvas.plain": "Plain",
@@ -329,7 +329,7 @@ const pt: Record<MessageKey, string> = {
 
   "math.reloadHint": "Fórmulas $…$ detectadas — recarregue a página para tipografá-las",
 
-  "canvas.button": "Aparência",
+  "canvas.button": "Papel do diagrama",
   "canvas.paper": "Papel",
   "canvas.pattern": "Padrão",
   "canvas.plain": "Liso",

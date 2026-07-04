@@ -79,7 +79,9 @@ test("aparência: trocar a fonte é assado no SVG (preview e export)", async ({ 
     page.locator('[data-testid="preview-stage"] > svg').getAttribute("font-family");
   expect(await rootFont()).toBe("sans-serif");
 
-  await page.getByTestId("canvas-settings").click();
+  // a fonte agora vive na barra "Padrões do diagrama"
+  await page.getByTestId("defaults-button").click();
+  await page.getByTestId("font-trigger").click();
   await page.getByTestId("canvas-font-serif").click();
   await expect.poll(rootFont, { timeout: 3_000 }).toContain("Georgia");
 

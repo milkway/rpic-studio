@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { RotateCcw, SlidersHorizontal, X } from "lucide-react";
+import * as Popover from "@radix-ui/react-popover";
+import { ChevronDown, RotateCcw, SlidersHorizontal, Type, X } from "lucide-react";
 import { useI18n, type MessageKey } from "@/lib/i18n";
 import { applyDefaults, PIC_VARS, readDefaults, type PicVar } from "@/lib/picDefaults";
+import { fontLabel, resolveFontStack } from "@/lib/appearance";
+import { TypefacePicker } from "./TypefacePicker";
 
 interface DefaultsBarProps {
   open: boolean;
@@ -9,6 +12,9 @@ interface DefaultsBarProps {
   /** Escreve o novo código com o bloco de padrões aplicado (ao vivo). */
   onApply: (source: string) => void;
   onClose: () => void;
+  /** Fonte do diagrama (aparência de render, não vai no código). */
+  fontFamily: string;
+  onFontChange: (fontFamily: string) => void;
 }
 
 const GROUPS: PicVar["group"][] = ["global", "dims", "stroke", "arrows"];
@@ -77,7 +83,14 @@ function Slider({
 
 /** Barra que expande no rodapé do editor: sliders das variáveis pic com
  *  aplicação AO VIVO no código, redimensionável pela alça superior. */
-export function DefaultsBar({ open, source, onApply, onClose }: DefaultsBarProps) {
+export function DefaultsBar({
+  open,
+  source,
+  onApply,
+  onClose,
+  fontFamily,
+  onFontChange,
+}: DefaultsBarProps) {
   const { t } = useI18n();
   const [values, setValues] = useState<Record<string, number>>({});
   const [height, setHeight] = useState(loadHeight);
@@ -204,6 +217,43 @@ export function DefaultsBar({ open, source, onApply, onClose }: DefaultsBarProps
         style={{ height }}
       >
         <div className="gap-x-7 [column-width:14rem]">
+          {/* Fonte: aparência de render (não escrita no código) — mas mora
+              aqui porque, para o usuário, é uma propriedade do diagrama. */}
+          <section className="mb-5 inline-block w-full break-inside-avoid align-top">
+            <p className="mb-2 font-mono text-[9px] tracking-[0.15em] text-(--color-ink-muted) uppercase">
+              {t("canvas.typeface")}
+            </p>
+            <Popover.Root>
+              <Popover.Trigger asChild>
+                <button
+                  data-testid="font-trigger"
+                  className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-(--radius-sm) border border-(--color-ink-border) bg-(--color-ink-raised) px-2.5 py-1.5 text-left text-[13px] text-(--color-ink-text) transition-colors hover:border-(--color-ink-muted)"
+                >
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <Type size={13} className="shrink-0 text-(--color-ink-muted)" />
+                    <span
+                      className="truncate"
+                      style={{ fontFamily: resolveFontStack(fontFamily) || undefined }}
+                    >
+                      {fontLabel(fontFamily)}
+                    </span>
+                  </span>
+                  <ChevronDown size={13} className="shrink-0 text-(--color-ink-muted)" />
+                </button>
+              </Popover.Trigger>
+              <Popover.Portal>
+                <Popover.Content
+                  side="top"
+                  align="start"
+                  sideOffset={6}
+                  className="z-50 w-72 rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) p-3 shadow-(--shadow-pop)"
+                >
+                  <TypefacePicker value={fontFamily} onChange={onFontChange} />
+                </Popover.Content>
+              </Popover.Portal>
+            </Popover.Root>
+          </section>
+
           {GROUPS.map((group) => (
             <section key={group} className="mb-5 inline-block w-full break-inside-avoid align-top">
               <p className="mb-2 font-mono text-[9px] tracking-[0.15em] text-(--color-ink-muted) uppercase">
