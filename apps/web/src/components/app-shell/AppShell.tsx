@@ -103,6 +103,9 @@ export function AppShell({ actions, children }: AppShellProps) {
           <NavLink to="/exemplos" className={navLinkClass}>
             {t("nav.examples")}
           </NavLink>
+          <NavLink to="/bindings" className={navLinkClass}>
+            {t("nav.bindings")}
+          </NavLink>
           <NavLink to="/ajuda" className={navLinkClass}>
             {t("nav.help")}
           </NavLink>

@@ -11,8 +11,29 @@ const en = {
   // navegação
   "nav.editor": "Editor",
   "nav.examples": "Examples",
+  "nav.bindings": "Bindings",
   "nav.help": "Help",
   "nav.home": "rpic studio — home",
+
+  // bindings
+  "bindings.title": "Bindings",
+  "bindings.subtitle":
+    "The same rpic engine everywhere — from the command line, R, Python or JavaScript. Install, render to SVG/PNG/PDF, and reuse the diagrams you draw here.",
+  "bindings.install": "Install",
+  "bindings.usage": "Usage",
+  "bindings.docs": "Official docs",
+  "bindings.cli.what":
+    "The `rpic` binary compiles a .pic file to SVG (default), PNG or PDF. Great for scripts, Makefiles and CI.",
+  "bindings.py.what":
+    "PyPI package `rpiclang` (imported as `rpic`). Renders to SVG/PNG/PDF and returns the structured compile bundle.",
+  "bindings.r.what":
+    "R package via extendr — same engine, ideal for RMarkdown/Quarto reports and reproducible figures.",
+  "bindings.js.what":
+    "The WebAssembly engine (browser + Node) that powers this studio. Compile to SVG, play GSAP animations, opt into the TeX math build.",
+  "bindings.note.circuits":
+    "Every binding takes a circuits flag (or write copy \"circuits\" in the source) to load the electrical-element library.",
+  "bindings.note.tex":
+    "TeX $…$ labels typeset with the math-enabled build (CLI/R/Python by default; JS via the opt-in math wasm).",
 
   // usuário
   "user.signIn": "Sign in",
@@ -211,8 +232,28 @@ export type MessageKey = keyof typeof en;
 const pt: Record<MessageKey, string> = {
   "nav.editor": "Editor",
   "nav.examples": "Exemplos",
+  "nav.bindings": "Bindings",
   "nav.help": "Ajuda",
   "nav.home": "rpic studio — início",
+
+  "bindings.title": "Bindings",
+  "bindings.subtitle":
+    "O mesmo motor rpic em todo lugar — linha de comando, R, Python ou JavaScript. Instale, renderize para SVG/PNG/PDF e reaproveite os diagramas que você desenha aqui.",
+  "bindings.install": "Instalar",
+  "bindings.usage": "Uso",
+  "bindings.docs": "Documentação oficial",
+  "bindings.cli.what":
+    "O binário `rpic` compila um arquivo .pic para SVG (padrão), PNG ou PDF. Ótimo para scripts, Makefiles e CI.",
+  "bindings.py.what":
+    "Pacote PyPI `rpiclang` (importado como `rpic`). Renderiza SVG/PNG/PDF e devolve o bundle estruturado da compilação.",
+  "bindings.r.what":
+    "Pacote R via extendr — o mesmo motor, ideal para relatórios RMarkdown/Quarto e figuras reprodutíveis.",
+  "bindings.js.what":
+    "O motor WebAssembly (browser + Node) que roda este studio. Compila para SVG, toca animações GSAP, com o build de math TeX opcional.",
+  "bindings.note.circuits":
+    "Todo binding aceita um flag de circuitos (ou escreva copy \"circuits\" no código) para carregar a biblioteca de elementos elétricos.",
+  "bindings.note.tex":
+    "Rótulos TeX $…$ são tipografados com o build de math (CLI/R/Python por padrão; JS via o wasm de math opcional).",
 
   "user.signIn": "Entrar",
   "user.myDiagrams": "Meus diagramas",

@@ -39,6 +39,22 @@ test("galeria: filtro por badge e código visível no cartão", async ({ page })
   await expect(page.getByTestId("example-pipeline")).toHaveCount(0);
 });
 
+test("página de bindings: abas por linguagem com instalação e uso", async ({ page }) => {
+  await page.goto("/bindings");
+  // CLI é a aba inicial
+  await expect(page.getByTestId("binding-panel-cli")).toContainText("cargo install rpic-cli");
+
+  await page.getByTestId("binding-tab-python").click();
+  await expect(page.getByTestId("binding-panel-python")).toContainText("pip install rpiclang");
+  await expect(page.getByTestId("binding-panel-python")).toContainText("render_svg");
+
+  await page.getByTestId("binding-tab-r").click();
+  await expect(page.getByTestId("binding-panel-r")).toContainText("install_github");
+
+  await page.getByTestId("binding-tab-js").click();
+  await expect(page.getByTestId("binding-panel-js")).toContainText("@strategicprojects/rpic");
+});
+
 test("galeria: exemplo animado tem botão de replay que toca a animação", async ({ page }) => {
   await page.goto("/exemplos");
   const welcome = page.getByTestId("example-welcome");

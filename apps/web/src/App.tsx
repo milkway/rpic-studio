@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/lib/theme";
 import { PrefsSync } from "@/components/app-shell/PrefsSync";
 import { EditorPage } from "@/routes/EditorPage";
 import { ExamplesPage } from "@/routes/ExamplesPage";
+import { BindingsPage } from "@/routes/BindingsPage";
 import { HelpPage } from "@/routes/HelpPage";
 import { DiagramsPage } from "@/routes/DiagramsPage";
 import { SharedPage } from "@/routes/SharedPage";
@@ -32,6 +33,7 @@ export default function App() {
               <Route path="/d/:slug" element={<SharedPage />} />
               <Route path="/diagramas" element={<DiagramsPage />} />
               <Route path="/exemplos" element={<ExamplesPage />} />
+              <Route path="/bindings" element={<BindingsPage />} />
               <Route path="/ajuda" element={<HelpPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
