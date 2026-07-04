@@ -1,6 +1,10 @@
 # ---- build ----
 # docker build -f apps/api/Dockerfile -t rpic-api .
 FROM rust:1-slim AS builder
+# curl: o build.rs do utoipa-swagger-ui baixa os assets do Swagger UI.
+# pkg-config + libssl não são necessários (usamos rustls), mas curl/ca sim.
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY apps/api/Cargo.toml apps/api/Cargo.lock* ./
 # cache de dependências: compila um main vazio primeiro
