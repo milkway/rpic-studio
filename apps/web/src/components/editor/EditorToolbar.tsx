@@ -1,4 +1,5 @@
 import {
+  Code2,
   Columns2,
   Download,
   FileCode2,
@@ -8,7 +9,9 @@ import {
   ImageDown,
   Rows2,
   Save,
+  Shapes,
 } from "lucide-react";
+import { cn } from "@rpic/design-system";
 import { Button } from "@/components/ui/Button";
 import { Tip } from "@/components/ui/Tooltip";
 import {
@@ -37,6 +40,9 @@ interface EditorToolbarProps {
   texlabels: boolean;
   /** Google Font escolhida no studio (casa no PNG/PDF), se houver. */
   googleFont?: string;
+  /** Modo do editor: código ou construtor visual. */
+  mode: "code" | "visual";
+  onToggleMode: () => void;
   layout: "horizontal" | "vertical";
   onToggleLayout: () => void;
   /** Nome do arquivo dos exports (título do diagrama salvo, se houver). */
@@ -56,6 +62,8 @@ export function EditorToolbar({
   circuits,
   texlabels,
   googleFont,
+  mode,
+  onToggleMode,
   layout,
   onToggleLayout,
   exportName = "diagrama",
@@ -83,6 +91,41 @@ export function EditorToolbar({
           </Button>
         </Tip>
       )}
+
+      <Tip label={t("toolbar.modeTip")}>
+        <div
+          className="flex items-center gap-0.5 rounded-(--radius-sm) bg-(--color-surface-muted) p-0.5"
+          role="group"
+          data-testid="mode-toggle"
+        >
+          <button
+            onClick={mode === "visual" ? onToggleMode : undefined}
+            aria-pressed={mode === "code"}
+            data-testid="mode-code"
+            className={cn(
+              "inline-flex h-6 cursor-pointer items-center gap-1 rounded-(--radius-sm) px-2 text-xs font-medium transition-colors",
+              mode === "code"
+                ? "bg-(--color-surface) text-(--color-text) shadow-(--shadow-sm)"
+                : "text-(--color-text-muted) hover:text-(--color-text)",
+            )}
+          >
+            <Code2 size={13} /> {t("toolbar.modeCode")}
+          </button>
+          <button
+            onClick={mode === "code" ? onToggleMode : undefined}
+            aria-pressed={mode === "visual"}
+            data-testid="mode-visual"
+            className={cn(
+              "inline-flex h-6 cursor-pointer items-center gap-1 rounded-(--radius-sm) px-2 text-xs font-medium transition-colors",
+              mode === "visual"
+                ? "bg-(--color-surface) text-(--color-text) shadow-(--shadow-sm)"
+                : "text-(--color-text-muted) hover:text-(--color-text)",
+            )}
+          >
+            <Shapes size={13} /> {t("toolbar.modeVisual")}
+          </button>
+        </div>
+      </Tip>
 
       <DropdownMenu>
         <Tip label={t("toolbar.exportTip")}>

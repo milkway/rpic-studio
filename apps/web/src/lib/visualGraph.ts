@@ -1,0 +1,218 @@
+// Modelo do EDITOR VISUAL (grafo de nós/arestas) e sua serialização para pic.
+//
+// O rpic é um compilador de mão única (texto pic → SVG, sem source-map), então
+// o modo visual tem o PRÓPRIO modelo — este grafo — e GERA pic. Para sobreviver
+// a draft/save/share/reload sem migração de banco (a conta só guarda `source`),
+// o grafo é EMBUTIDO no próprio código como um comentário `#` (uma linha), lido
+// de volta ao reabrir. O pic gerado é o que compila/preview/exporta.
+//
+// Coordenadas do modelo: PIXELS de tela (origem no topo-esquerda, y p/ BAIXO,
+// x/y = CENTRO do nó). A conversão para polegadas pic (y p/ CIMA) acontece só na
+// geração (`graphToPic`). Assim a tela faz aritmética trivial e a inversão de y
+// fica num único lugar.
+
+export type Shape = "box" | "circle" | "ellipse" | "diamond";
+
+export interface VNode {
+  id: string;
+  shape: Shape;
+  label: string;
+  /** centro em px (tela, y p/ baixo) */
+  x: number;
+  y: number;
+  /** dimensões em px */
+  w: number;
+  h: number;
+  /** nomes de cor pic ("lightyellow", "gray"…); ausente = padrão */
+  fill?: string;
+  stroke?: string;
+}
+
+export interface VEdge {
+  id: string;
+  from: string;
+  to: string;
+  label?: string;
+  /** true = seta (arrow); false = linha simples (line) */
+  arrow: boolean;
+}
+
+export interface VGraph {
+  nodes: VNode[];
+  edges: VEdge[];
+}
+
+export const EMPTY_GRAPH: VGraph = { nodes: [], edges: [] };
+
+/** px por polegada — casa com o CSS e com os tamanhos padrão do pic. */
+export const PX_PER_INCH = 96;
+
+/** Tamanhos padrão por forma, em px (box pic = .75×.5in; circle rad .25in). */
+export const DEFAULT_SIZE: Record<Shape, { w: number; h: number }> = {
+  box: { w: 0.75 * PX_PER_INCH, h: 0.5 * PX_PER_INCH },
+  circle: { w: 0.6 * PX_PER_INCH, h: 0.6 * PX_PER_INCH },
+  ellipse: { w: 0.9 * PX_PER_INCH, h: 0.55 * PX_PER_INCH },
+  diamond: { w: 0.95 * PX_PER_INCH, h: 0.7 * PX_PER_INCH },
+};
+
+/** Cores curadas (nomes X11/CSS aceitos pelo rpic) para o painel de estilo. */
+export const FILL_COLORS = [
+  "white",
+  "lightyellow",
+  "lightblue",
+  "lightgreen",
+  "lightpink",
+  "lavender",
+  "wheat",
+  "gainsboro",
+] as const;
+export const STROKE_COLORS = [
+  "black",
+  "gray",
+  "steelblue",
+  "seagreen",
+  "firebrick",
+  "goldenrod",
+] as const;
+
+type Side = "n" | "s" | "e" | "w";
+
+// ─────────────────────────── geração de pic ───────────────────────────
+
+function num(n: number): string {
+  return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)));
+}
+
+/** Escapa aspas duplas do label (pic delimita strings com "). */
+function esc(label: string): string {
+  return label.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+/** Lado de saída/entrada de uma aresta pelo eixo dominante (coords de tela). */
+export function pickSides(from: VNode, to: VNode): [Side, Side] {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx >= 0 ? ["e", "w"] : ["w", "e"];
+  }
+  // dy > 0 = alvo mais ABAIXO na tela = sul
+  return dy >= 0 ? ["s", "n"] : ["n", "s"];
+}
+
+/** px (centro, y p/ baixo) → polegadas pic (centro, y p/ cima). */
+function toInchX(px: number): number {
+  return px / PX_PER_INCH;
+}
+function toInchY(px: number): number {
+  return -px / PX_PER_INCH;
+}
+
+function styleSuffix(n: VNode): string {
+  let s = "";
+  if (n.fill) s += ` shaded "${n.fill}"`;
+  if (n.stroke) s += ` outlined "${n.stroke}"`;
+  return s;
+}
+
+function nodePic(n: VNode, name: string): string {
+  // tudo em polegadas pic (centro cx,cy com y p/ cima; largura/altura ww,hh)
+  const cx = toInchX(n.x);
+  const cy = toInchY(n.y);
+  const ww = n.w / PX_PER_INCH;
+  const hh = n.h / PX_PER_INCH;
+  const at = `at (${num(cx)},${num(cy)})`;
+  const label = n.label ? ` "${esc(n.label)}"` : "";
+  const style = styleSuffix(n);
+  switch (n.shape) {
+    case "circle":
+      return `${name}: circle${label} diam ${num(Math.min(ww, hh))} ${at}${style}`;
+    case "ellipse":
+      return `${name}: ellipse${label} wid ${num(ww)} ht ${num(hh)} ${at}${style}`;
+    case "diamond": {
+      // Polígono fechado com pontas em (cx, cy±hh/2) e (cx±ww/2, cy): caem nos
+      // compass points (.n/.e/.s/.w) do bounding box, então as arestas se
+      // conectam neles. `close shaded/outlined` é extensão documentada do rpic
+      // (docs/extensions.md). Label vai no centro do polígono.
+      const dx = ww / 2;
+      const dy = hh / 2;
+      const p = (px: number, py: number) => `(${num(px)},${num(py)})`;
+      return (
+        `${name}: line from ${p(cx, cy + dy)} to ${p(cx + dx, cy)} ` +
+        `to ${p(cx, cy - dy)} to ${p(cx - dx, cy)} close${style}${label}`
+      );
+    }
+    case "box":
+    default:
+      return `${name}: box${label} wid ${num(ww)} ht ${num(hh)} ${at}${style}`;
+  }
+}
+
+function edgePic(e: VEdge, byId: Map<string, VNode>, name: Map<string, string>): string | null {
+  const a = byId.get(e.from);
+  const b = byId.get(e.to);
+  if (!a || !b) return null;
+  const [sa, sb] = pickSides(a, b);
+  const verb = e.arrow ? "arrow" : "line";
+  let line = `${verb} from ${name.get(a.id)}.${sa} to ${name.get(b.id)}.${sb}`;
+  if (e.label) {
+    const mx = num(toInchX((a.x + b.x) / 2));
+    const my = num(toInchY((a.y + b.y) / 2));
+    line += `\n"${esc(e.label)}" at (${mx},${my}) above`;
+  }
+  return line;
+}
+
+// ─────────────────────── embutir/ler o grafo no source ───────────────────────
+
+const GRAPH_PREFIX = "# rpic-studio:visual:v1 ";
+const GRAPH_RE = /^# rpic-studio:visual:v1 (\S+)\s*$/m;
+
+function encodeGraph(g: VGraph): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(g));
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+function decodeGraph(b64: string): VGraph | null {
+  try {
+    const bin = atob(b64);
+    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    const obj = JSON.parse(new TextDecoder().decode(bytes));
+    if (obj && Array.isArray(obj.nodes) && Array.isArray(obj.edges)) return obj as VGraph;
+  } catch {
+    /* grafo corrompido → trata como ausente */
+  }
+  return null;
+}
+
+/**
+ * Gera o código pic COMPLETO a partir do grafo: a linha-comentário com o grafo
+ * embutido, depois `.PS`/nós/arestas/`.PE`. É a saída que vai para `doc.source`.
+ */
+export function graphToPic(g: VGraph): string {
+  const name = new Map<string, string>();
+  g.nodes.forEach((n, i) => name.set(n.id, `N${i + 1}`));
+  const byId = new Map(g.nodes.map((n) => [n.id, n]));
+
+  const body: string[] = [];
+  for (const n of g.nodes) body.push(nodePic(n, name.get(n.id)!));
+  for (const e of g.edges) {
+    const line = edgePic(e, byId, name);
+    if (line) body.push(line);
+  }
+
+  const embedded = `${GRAPH_PREFIX}${encodeGraph(g)}`;
+  return `${embedded}\n.PS\n${body.join("\n")}\n.PE\n`;
+}
+
+/** Lê o grafo embutido no source (ou null se não houver / estiver corrompido). */
+export function readGraph(source: string): VGraph | null {
+  const m = GRAPH_RE.exec(source);
+  return m ? decodeGraph(m[1]) : null;
+}
+
+/** Há um grafo visual embutido neste source? (para o banner de aviso.) */
+export function hasVisualGraph(source: string): boolean {
+  return GRAPH_RE.test(source);
+}

@@ -39,6 +39,31 @@ const en = {
   "bindings.note.fonts":
     "The REST render takes a google_font (from the studio's curated catalog) and matches it in the PNG/PDF, with true weight fidelity — bold and italic use the real glyphs, not synthesized ones.",
 
+  // editor visual
+  "toolbar.modeCode": "Code",
+  "toolbar.modeVisual": "Visual",
+  "toolbar.modeTip": "Switch between the code editor and the visual builder",
+  "visual.add": "Add",
+  "visual.shape.box": "Box",
+  "visual.shape.circle": "Circle",
+  "visual.shape.ellipse": "Ellipse",
+  "visual.shape.diamond": "Diamond",
+  "visual.newNode": "Text",
+  "visual.hint.connect": "drag the top-right dot to connect · Del removes",
+  "visual.empty": "Empty canvas",
+  "visual.emptyHint": "Add a shape above to start your diagram.",
+  "visual.inspector.label": "Label",
+  "visual.inspector.fill": "Fill",
+  "visual.inspector.stroke": "Outline",
+  "visual.none": "none",
+  "visual.edge.arrow": "Arrow (click for line)",
+  "visual.edge.line": "Line (click for arrow)",
+  "visual.delete": "Delete",
+  "visual.replaceConfirm":
+    "The visual builder will replace your current pic code with a generated one. Continue?",
+  "visual.codeBanner":
+    "This diagram has a visual graph — edits here are discarded when you switch back to Visual.",
+
   // usuário
   "user.signIn": "Sign in",
   "user.myDiagrams": "My diagrams",
@@ -264,6 +289,31 @@ const pt: Record<MessageKey, string> = {
     "Rótulos TeX $…$ são tipografados com o build de math (CLI/R/Python por padrão; JS via o wasm de math opcional).",
   "bindings.note.fonts":
     "O render REST aceita um google_font (do catálogo curado do studio) e casa a fonte no PNG/PDF, com fidelidade de peso — negrito e itálico usam o glifo real, não sintetizado.",
+
+  // editor visual
+  "toolbar.modeCode": "Código",
+  "toolbar.modeVisual": "Visual",
+  "toolbar.modeTip": "Alternar entre o editor de código e o construtor visual",
+  "visual.add": "Adicionar",
+  "visual.shape.box": "Caixa",
+  "visual.shape.circle": "Círculo",
+  "visual.shape.ellipse": "Elipse",
+  "visual.shape.diamond": "Losango",
+  "visual.newNode": "Texto",
+  "visual.hint.connect": "arraste o ponto no canto p/ conectar · Del remove",
+  "visual.empty": "Tela vazia",
+  "visual.emptyHint": "Adicione uma forma acima para começar o diagrama.",
+  "visual.inspector.label": "Rótulo",
+  "visual.inspector.fill": "Preenchimento",
+  "visual.inspector.stroke": "Contorno",
+  "visual.none": "nenhum",
+  "visual.edge.arrow": "Seta (clique p/ linha)",
+  "visual.edge.line": "Linha (clique p/ seta)",
+  "visual.delete": "Excluir",
+  "visual.replaceConfirm":
+    "O construtor visual vai substituir seu código pic atual por um gerado. Continuar?",
+  "visual.codeBanner":
+    "Este diagrama tem um grafo visual — edições aqui são descartadas ao voltar ao Visual.",
 
   "user.signIn": "Entrar",
   "user.myDiagrams": "Meus diagramas",
