@@ -49,3 +49,30 @@ describe("pic gerado pelo editor visual (WASM real)", () => {
     expect(out.svg.toLowerCase()).toMatch(/fill/);
   });
 });
+
+describe("arco e spline (VLine.kind) compilam no WASM real", () => {
+  it("arco livre (cw/ccw) e ancorado→livre compilam com <path>", () => {
+    const g: VGraph = {
+      nodes: [{ id: "a", shape: "box", label: "N", x: 0, y: 0, w: 80, h: 48 }],
+      edges: [],
+      lines: [
+        { id: "L0", kind: "arc", arrow: true, a: { x: 0, y: 120 }, b: { x: 192, y: 120 } },
+        { id: "L1", kind: "arc", arrow: false, cw: true, a: { node: "a", side: "e" }, b: { x: 300, y: 200 } },
+      ],
+    };
+    const out = compile(graphToPic(g));
+    expect(out.svg).toContain("<svg");
+    expect(out.svg).toContain("<path");
+  });
+
+  it("spline com ponto intermediário compila com <path>", () => {
+    const g: VGraph = {
+      nodes: [],
+      edges: [],
+      lines: [{ id: "L0", kind: "spline", arrow: true, a: { x: 0, y: 0 }, b: { x: 192, y: 0 }, pts: [{ x: 96, y: -96 }] }],
+    };
+    const out = compile(graphToPic(g));
+    expect(out.svg).toContain("<svg");
+    expect(out.svg).toContain("<path");
+  });
+});

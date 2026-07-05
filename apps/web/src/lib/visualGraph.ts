@@ -82,12 +82,20 @@ export interface VEndpoint {
   y?: number;
 }
 
-/** Conector livre (linha/seta ponto-a-ponto), endpoints livres ou ancorados —
- *  diferente de VEdge, que liga sempre dois nós. */
+/** Conector livre (linha/seta/arco/spline ponto-a-ponto), endpoints livres ou
+ *  ancorados — diferente de VEdge, que liga sempre dois nós. */
 export interface VLine extends ConnStyle {
   id: string;
   a: VEndpoint;
   b: VEndpoint;
+  /** "arc" (curvo, 2 pontas) | "spline" (curva por pontos, `pts` no meio);
+   *  ausente = linha reta (comportamento original). */
+  kind?: "arc" | "spline";
+  /** arco: sentido horário (`cw`); ausente/false = anti-horário (padrão do rpic). */
+  cw?: boolean;
+  /** spline: pontos INTERMEDIÁRIOS entre `a` e `b` (o rpic passa por todos: `spline
+   *  from a to pts[0] … to b`); ausente/vazio = spline reta de 2 pontas. */
+  pts?: VEndpoint[];
   label?: string;
 }
 
@@ -241,6 +249,19 @@ function connStyleSuffix(c: ConnStyle): string {
   return s;
 }
 
+/** Verbo + spec de pontas p/ arco/spline — o rpic não aceita o atalho `arrow`
+ *  (primitivo à parte, sem `cw`/pontos múltiplos), então pontas usam sempre
+ *  `-> `/`<- `/`<->` após o verbo; `cw` (arco) vem em seguida. Confirmado no
+ *  WASM: `arc -> cw from … to …`, `spline <-> from … to … to …`. */
+function curveVerb(kind: "arc" | "spline", c: ConnStyle, cw?: boolean): string {
+  let s: string = kind;
+  if (c.arrow && c.back) s += " <->";
+  else if (c.back) s += " <-";
+  else if (c.arrow) s += " ->";
+  if (cw) s += " cw";
+  return s;
+}
+
 /** Atributos por-string do rótulo (fonte + rotação) — repetidos em cada linha. */
 function fontAttrs(n: VNode): string {
   let s = "";
@@ -313,7 +334,14 @@ function endpointPic(e: VEndpoint, name: Map<string, string>): string {
   return `(${num(toInchX(e.x ?? 0))},${num(toInchY(e.y ?? 0))})`;
 }
 function linePic(ln: VLine, byId: Map<string, VNode>, name: Map<string, string>): string {
-  let s = `${connVerb(ln)} from ${endpointPic(ln.a, name)} to ${endpointPic(ln.b, name)}${connStyleSuffix(ln)}`;
+  let s: string;
+  if (ln.kind === "arc" || ln.kind === "spline") {
+    // arco: só a/b; spline: a, pontos intermediários, b (todos via "to").
+    const pts = [ln.a, ...(ln.kind === "spline" ? (ln.pts ?? []) : []), ln.b];
+    s = `${curveVerb(ln.kind, ln, ln.cw)} from ${pts.map((e) => endpointPic(e, name)).join(" to ")}${connStyleSuffix(ln)}`;
+  } else {
+    s = `${connVerb(ln)} from ${endpointPic(ln.a, name)} to ${endpointPic(ln.b, name)}${connStyleSuffix(ln)}`;
+  }
   if (ln.label) {
     const a = endpointPx(ln.a, byId);
     const b = endpointPx(ln.b, byId);
@@ -448,7 +476,18 @@ const RE_DIAMOND = new RegExp(`^(\\w+):\\s*line\\s+from\\s+${P}\\s+to\\s+${P}\\s
 const RE_TEXT = new RegExp(`^(\\w+):\\s*(.+?)\\s+at\\s+${P}\\s*$`); // texto solto
 const RE_CANVAS = new RegExp(`^canvas\\s+from\\s+${P}\\s+to\\s+${P}\\s*$`);
 const RE_CONN = /^(arrow|line)(\s+<->|\s+<-)?\s+from\s+(\S+)\s+to\s+(\S+)(\s.*)?$/;
+/** arco/spline: verbo, ponta(s) opcional, `cw` opcional, "from P to P (to P…)". */
+const RE_CURVE = /^(arc|spline)(\s+<->|\s+<-|\s+->)?(\s+cw)?\s+from\s+(.+)$/;
 const RE_EDGE_LABEL = new RegExp(`^${STR}\\s+at\\s+${P}\\s*(?:above|below)?\\s*$`);
+
+/** Separa "P to P to P… resto" em pontos (tokens sem espaço) + sufixo de estilo
+ *  (o `resto` sem `to` — dashed/thick nunca contêm a palavra "to"). */
+function splitCurvePoints(rest: string): { points: string[]; trailing: string } {
+  const parts = rest.split(/\s+to\s+/);
+  const last = parts.pop() ?? "";
+  const m = /^(\S+)(.*)$/.exec(last);
+  return { points: m ? [...parts, m[1]] : [...parts, last], trailing: m ? m[2] : "" };
+}
 
 /** Ponta de conector: `(x,y)` livre ou `Nome.side` ancorada. */
 function parseEndpoint(s: string): VEndpoint | null {
@@ -568,6 +607,28 @@ export function parsePic(source: string): VGraph | null {
         // alguma ponta livre → conector livre
         const ln: VLine = { id: `L${lines.length}`, arrow, a, b, ...cs };
         if (back) ln.back = true;
+        lines.push(ln);
+        last = ln;
+      } else {
+        last = null;
+      }
+    } else if ((m = RE_CURVE.exec(line))) {
+      const [, kindRaw, headRaw, cwRaw, rest] = m;
+      const kind = kindRaw as "arc" | "spline";
+      const head = headRaw?.trim();
+      const arrow = head === "->" || head === "<->";
+      const back = head === "<-" || head === "<->";
+      const { points, trailing } = splitCurvePoints(rest);
+      const cs = parseConnStyle(trailing);
+      const eps = points.map(parseEndpoint);
+      if (eps.length >= 2 && eps.every((e): e is VEndpoint => e !== null)) {
+        const a = eps[0];
+        const b = eps[eps.length - 1];
+        const mid = eps.slice(1, -1);
+        const ln: VLine = { id: `L${lines.length}`, kind, arrow, a, b, ...cs };
+        if (back) ln.back = true;
+        if (cwRaw) ln.cw = true;
+        if (kind === "spline" && mid.length > 0) ln.pts = mid;
         lines.push(ln);
         last = ln;
       } else {

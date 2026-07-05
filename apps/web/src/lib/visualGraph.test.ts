@@ -107,6 +107,58 @@ describe("conectores livres (VLine)", () => {
   });
 });
 
+describe("conectores livres — arco e spline (VLine.kind)", () => {
+  it("arco ccw (padrão) e cw geram `arc [cw] from … to …` e round-trippam", () => {
+    const g: VGraph = {
+      nodes: [],
+      edges: [],
+      lines: [
+        { id: "L0", kind: "arc", arrow: false, a: { x: 0, y: 0 }, b: { x: 192, y: 0 } },
+        { id: "L1", kind: "arc", arrow: true, cw: true, a: { x: 0, y: 96 }, b: { x: 192, y: 96 } },
+      ],
+    };
+    const pic = graphToPic(g);
+    expect(pic).toContain("arc from (0,0) to (2,0)");
+    expect(pic).toContain("arc -> cw from (0,-1) to (2,-1)");
+    const back = parsePic(pic)!;
+    expect(back.lines).toEqual(g.lines);
+    expect(back.edges).toHaveLength(0);
+  });
+
+  it("spline com ponto intermediário gera `spline from … to … to …` e round-trippa", () => {
+    const g: VGraph = {
+      nodes: [{ id: "N1", shape: "box", label: "", x: 96, y: 96, w: 72, h: 48 }],
+      edges: [],
+      lines: [
+        { id: "L0", kind: "spline", arrow: true, a: { x: 0, y: 0 }, b: { x: 192, y: 0 }, pts: [{ x: 96, y: -96 }] },
+        // spline sem pontos intermediários (2 pontas): ainda emite `spline`, não `line`.
+        { id: "L1", kind: "spline", arrow: false, a: { node: "N1", side: "e" }, b: { x: 300, y: 200 } },
+      ],
+    };
+    const pic = graphToPic(g);
+    expect(pic).toContain("spline -> from (0,0) to (1,1) to (2,0)");
+    expect(pic).toMatch(/spline from N1\.e to \(/);
+    const back = parsePic(pic)!;
+    expect(back.lines).toEqual(g.lines);
+    expect(back.edges).toHaveLength(0);
+  });
+
+  it("arco/spline aceitam dashed/thick e rótulo, como os conectores retos", () => {
+    const g: VGraph = {
+      nodes: [],
+      edges: [],
+      lines: [
+        { id: "L0", kind: "arc", arrow: true, back: true, dash: "dotted", thick: 2, a: { x: 0, y: 0 }, b: { x: 96, y: 0 }, label: "raio" },
+      ],
+    };
+    const pic = graphToPic(g);
+    expect(pic).toMatch(/arc <-> from \(0,0\) to \(1,0\) dotted thick 2/);
+    expect(pic).toMatch(/"raio" at \([-\d.]+,[-\d.]+\) above/);
+    const back = parsePic(pic)!;
+    expect(back.lines![0]).toEqual(g.lines![0]);
+  });
+});
+
 describe("fonte por objeto (Fase 4)", () => {
   it("bold/italic/font/fontsize por string, round-trip", () => {
     const g: VGraph = {

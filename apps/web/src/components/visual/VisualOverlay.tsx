@@ -17,7 +17,7 @@ import {
   type VNode,
 } from "@/lib/visualGraph";
 
-export type Tool = "select" | "line" | "arrow";
+export type Tool = "select" | "line" | "arrow" | "arc" | "spline";
 
 interface Props {
   graph: VGraph;
@@ -410,12 +410,29 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
       window.removeEventListener("pointerup", up);
       setRubber(null);
       const p1 = rel(ev);
-      const s1 = endpointScreen(snapEndpoint(p1)) ?? p1;
+      const end = snapEndpoint(p1);
+      const s1 = endpointScreen(end) ?? p1;
       if (Math.hypot(s1.x - s0.x, s1.y - s0.y) < 6) {
         onToolDone();
         return; // clique sem arrasto → cancela
       }
-      const ln: VLine = { id: `L${lines.length}`, arrow: tool === "arrow", a: start, b: snapEndpoint(p1) };
+      const ln: VLine = { id: `L${lines.length}`, arrow: tool === "arrow", a: start, b: end };
+      if (tool === "arc") ln.kind = "arc";
+      if (tool === "spline") {
+        ln.kind = "spline";
+        // Nasce com 1 ponto de controle (offset perpendicular ao meio) p/ já ter
+        // curvatura visível; o usuário arrasta esse ponto (alça "linemid") depois.
+        const mx = (s0.x + s1.x) / 2;
+        const my = (s0.y + s1.y) / 2;
+        const dx = s1.x - s0.x;
+        const dy = s1.y - s0.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len;
+        const ny = dx / len;
+        const offset = Math.max(24, len * 0.25);
+        const mid = toModel(mx + nx * offset, my + ny * offset);
+        if (mid) ln.pts = [{ x: Math.round(mid.x), y: Math.round(mid.y) }];
+      }
       onChange({ ...graph, lines: [...lines, ln] });
       setSel({ kind: "line", id: ln.id });
       onToolDone();
@@ -440,6 +457,31 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
       setRubber(null);
       const ep = snapEndpoint(rel(ev));
       updateLine(lineId, end === "a" ? { a: ep } : { b: ep });
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
+  // ── arrastar o ponto de controle de um spline selecionado (curva) ──
+  function onLineMidDown(e: React.PointerEvent, lineId: string, idx: number) {
+    e.preventDefault();
+    e.stopPropagation();
+    const p0 = rel(e);
+    setRubber({ x1: p0.x, y1: p0.y, x2: p0.x, y2: p0.y });
+    const move = (ev: PointerEvent) => {
+      const p = rel(ev);
+      setRubber((c) => (c ? { ...c, x2: p.x, y2: p.y } : c));
+    };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setRubber(null);
+      const ep = snapEndpoint(rel(ev));
+      const ln = lines.find((l) => l.id === lineId);
+      if (!ln) return;
+      const pts = [...(ln.pts ?? [])];
+      pts[idx] = ep;
+      updateLine(lineId, { pts });
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -504,19 +546,21 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
             </g>
           );
         })}
-        {/* Conectores livres */}
+        {/* Conectores livres (linha/seta/arco/spline) — o desenho curvo real fica
+            a cargo do preview do rpic; aqui é só o traço reto p/ hit-test/seleção
+            (spline passa pelos pontos intermediários, dando uma prévia poligonal). */}
         {lines.map((ln) => {
           const p1 = endpointScreen(ln.a);
           const p2 = endpointScreen(ln.b);
           if (!p1 || !p2) return null;
+          const mids = (ln.pts ?? []).map((pt) => endpointScreen(pt)).filter((pt): pt is Pt => !!pt);
+          const pointsAttr = [p1, ...mids, p2].map((pt) => `${pt.x},${pt.y}`).join(" ");
           const selected = sel?.kind === "line" && sel.id === ln.id;
           return (
             <g key={ln.id}>
-              <line
-                x1={p1.x}
-                y1={p1.y}
-                x2={p2.x}
-                y2={p2.y}
+              <polyline
+                points={pointsAttr}
+                fill="none"
                 stroke="transparent"
                 strokeWidth={14}
                 style={{ pointerEvents: "stroke", cursor: "pointer" }}
@@ -526,7 +570,15 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
                 }}
                 data-testid="visual-line-hit"
               />
-              {selected && <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="var(--color-accent)" strokeWidth={2} />}
+              {selected && (
+                <polyline
+                  points={pointsAttr}
+                  fill="none"
+                  stroke="var(--color-accent)"
+                  strokeWidth={2}
+                  strokeDasharray={ln.kind ? "4 3" : undefined}
+                />
+              )}
             </g>
           );
         })}
@@ -600,6 +652,22 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
               style={{ left: p.x, top: p.y }}
               onPointerDown={(e) => onLineEndDown(e, selLine.id, end)}
               data-testid={`visual-lineend-${end}`}
+            />
+          );
+        })}
+
+      {/* Ponto(s) de controle do spline selecionado — arraste p/ mudar a curva */}
+      {selLine?.kind === "spline" &&
+        (selLine.pts ?? []).map((pt, idx) => {
+          const p = endpointScreen(pt);
+          if (!p) return null;
+          return (
+            <div
+              key={idx}
+              className="pointer-events-auto absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border-2 border-(--color-accent) bg-(--color-accent-soft)"
+              style={{ left: p.x, top: p.y }}
+              onPointerDown={(e) => onLineMidDown(e, selLine.id, idx)}
+              data-testid={`visual-linemid-${idx}`}
             />
           );
         })}
@@ -728,6 +796,14 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
           {selConn && (
             <>
               <Seg title={t("visual.inspector.ends")} value={headsVal} onPick={setHeads} options={[{ v: "none" as const, el: "─" }, { v: "end" as const, el: "→", testid: "visual-heads-end" }, { v: "start" as const, el: "←" }, { v: "both" as const, el: "↔" }]} />
+              {selLine?.kind === "arc" && (
+                <Seg
+                  title={t("visual.inspector.arcDir")}
+                  value={!!selLine.cw}
+                  onPick={(v) => updateLine(selLine.id, { cw: v || undefined })}
+                  options={[{ v: false, el: "↺", testid: "visual-arc-ccw" }, { v: true, el: "↻", testid: "visual-arc-cw" }]}
+                />
+              )}
               <Seg title={t("visual.inspector.line")} value={selConn.dash} onPick={(v) => updConn({ dash: v })} options={DASH_OPTS} />
               <Seg title={t("visual.inspector.thick")} value={selConn.thick} onPick={(v) => updConn({ thick: v })} options={THICK_OPTS} />
             </>

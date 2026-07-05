@@ -12,8 +12,10 @@ import {
   RotateCcw,
   Scan,
   Slash,
+  Spline,
   Square,
   Type,
+  Waypoints,
 } from "lucide-react";
 import { cn, motion } from "@rpic/design-system";
 import { useI18n } from "@/lib/i18n";
@@ -38,6 +40,8 @@ const SHAPE_TOOLS: { shape: Shape; icon: typeof Square; testid: string }[] = [
 const DRAW_TOOLS: { tool: Tool; icon: typeof Square; testid: string }[] = [
   { tool: "line", icon: Slash, testid: "visual-tool-line" },
   { tool: "arrow", icon: ArrowUpRight, testid: "visual-tool-arrow" },
+  { tool: "arc", icon: Spline, testid: "visual-tool-arc" },
+  { tool: "spline", icon: Waypoints, testid: "visual-tool-spline" },
 ];
 
 interface PreviewPaneProps {

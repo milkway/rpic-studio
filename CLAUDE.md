@@ -39,6 +39,12 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
 - **API (fase 2)**: sessão = cookie httpOnly opaco com `sha256(token)` na tabela `sessions`;
   extractor `CurrentUser`. Migrações são `.sql` puros em `db/migrations/`, aplicados pelo
   entrypoint do Postgres (recriar o volume para reaplicar).
+- **Admin / página Usuários** (`routes/UsersPage.tsx`, `/usuarios`): allowlist `ADMIN_EMAILS` (env,
+  separado por vírgula, case-insensitive) → `config.is_admin(email)`; `/api/auth/me` devolve
+  `is_admin` (campo derivado, NÃO é coluna — `#[sqlx(default)]` no `User`), o link de nav só aparece
+  p/ admin, e `GET /api/users` (`ApiError::Forbidden`=403 p/ não-admin) lista e-mail/nome/criado/
+  último-login + total + sessões ativas. **Sem `ADMIN_EMAILS` no `.env.prod`, ninguém é admin** (a
+  página fica 403). Definir `ADMIN_EMAILS=` no servidor em `~/rpic-app/infra/.env.prod`.
 - **Editor visual** (`components/visual/VisualOverlay.tsx` + `lib/visualGraph.ts`): o código pic fica
   SEMPRE ao vivo à esquerda; à direita, uma barra de ícones (no header do `PreviewPane`) adiciona
   formas e um OVERLAY sobre o render real do rpic dá alças p/ mover/conectar/estilizar clicando no
@@ -68,7 +74,13 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   conectores com pontas `arrow`(fim)/`back`(início) → gera `arrow`/`line`/`line <-`/`line <->`. O
   overlay tem um transform modelo↔tela (derivado de um nó DIMENSIONADO — texto tem w/h nominal — ou
   da moldura da página) p/ posicionar pontos livres sem `#s{i}`; a barra é modo-ferramenta
-  (select/linha/seta). Texto (Fase 3): `shape:"text"` (objeto solto `Nx: "…" at (x,y)`), rótulo
+  (select/linha/seta/arco/spline). **Arco e spline** são `VLine` com `kind:"arc"|"spline"`: arco tem
+  `cw?` (sentido; ausente = anti-horário, o default do rpic) e spline tem `pts?` (pontos
+  INTERMEDIÁRIOS entre `a`/`b`). CUIDADO: o rpic NÃO aceita o atalho `arrow` com `cw`/múltiplos `to` —
+  então pontas de arco/spline usam sempre o sufixo verbal `arc -> `/`<- `/`<->` (nunca o primitivo
+  `arrow`); ver `curveVerb`. Parse: `RE_CURVE` + `splitCurvePoints` (múltiplos `to`). No overlay o
+  arco/spline é desenhado como `<polyline>` (curva real só no render do rpic); spline tem alça de
+  ponto de controle (`visual-linemid-{i}`) e o inspetor do arco tem toggle de sentido ↺/↻. Texto (Fase 3): `shape:"text"` (objeto solto `Nx: "…" at (x,y)`), rótulo
   MULTILINHA (`\n` → strings empilhadas), e `math:true` → `"$…$"` (o `esc`/`unesc` só mexem em aspas,
   NÃO dobram `\`, p/ o backslash do TeX passar). Fonte por objeto (Fase 4, rpic 0.7.0): `bold`,
   `italic`, `font "…"`, `fontsize` — atributos POR-STRING do rpic (o gerador repete em cada linha do
