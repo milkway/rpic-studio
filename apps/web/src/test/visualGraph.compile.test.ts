@@ -50,6 +50,24 @@ describe("pic gerado pelo editor visual (WASM real)", () => {
   });
 });
 
+describe("alinhamento de rótulo (ljust/rjust/above/below) compila no WASM real", () => {
+  it("box com ljust/rjust/above/below (isolados e combinados) compila e move o texto", () => {
+    const g: VGraph = {
+      nodes: [
+        { id: "a", shape: "box", label: "Left", x: 0, y: 0, w: 80, h: 48, align: "ljust" },
+        { id: "b", shape: "box", label: "Right", x: 200, y: 0, w: 80, h: 48, align: "rjust" },
+        { id: "c", shape: "box", label: "Combo", x: 0, y: 150, w: 80, h: 48, align: "ljust", vpos: "above" },
+      ],
+      edges: [],
+    };
+    const out = compile(graphToPic(g));
+    expect(out.svg).toContain("<svg");
+    expect(out.svg).toMatch(/text-anchor="start"[^>]*>Left</);
+    expect(out.svg).toMatch(/text-anchor="end"[^>]*>Right</);
+    expect(out.svg).toMatch(/text-anchor="start"[^>]*>Combo</);
+  });
+});
+
 describe("arco e spline (VLine.kind) compilam no WASM real", () => {
   it("arco livre (cw/ccw) e ancorado→livre compilam com <path>", () => {
     const g: VGraph = {

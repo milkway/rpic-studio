@@ -238,6 +238,34 @@ test("mover um objeto NÃO desloca os outros (página fixa)", async ({ page }) =
   expect(Math.abs(after.t - before.t)).toBeLessThan(4);
 });
 
+test("alinhamento de rótulo: ljust no inspetor gera `ljust` no código", async ({ page }) => {
+  await page.getByTestId("visual-add-box").click();
+  await expect(page.getByTestId("visual-inspector")).toBeVisible({ timeout: 5_000 });
+  await page.getByTestId("visual-label-input").fill("alinhado");
+  await page.getByTestId("visual-align-ljust").click();
+  await expect(page.getByTestId("code-pane")).toContainText('"alinhado" ljust', { timeout: 5_000 });
+  // volta ao centro remove o atributo
+  await page.getByTestId("visual-align-center").click();
+  await expect(page.getByTestId("code-pane")).not.toContainText("ljust");
+});
+
+test("duplicar objeto: botão do inspetor e ⌘D/Ctrl+D criam uma cópia deslocada", async ({ page }) => {
+  await page.getByTestId("visual-add-box").click();
+  await expect(page.getByTestId("visual-handle")).toHaveCount(1, { timeout: 5_000 });
+  await page.getByTestId("visual-handle").first().click();
+  await expect(page.getByTestId("visual-duplicate")).toBeVisible({ timeout: 5_000 });
+  await page.getByTestId("visual-duplicate").click();
+  await expect(page.getByTestId("visual-handle")).toHaveCount(2, { timeout: 5_000 });
+  await expect(page.getByTestId("code-pane")).toContainText("N2: box", { timeout: 5_000 });
+
+  // atalho de teclado com uma seleção ativa duplica de novo. Clica na CÓPIA
+  // (`.last()`, por cima) — a original fica parcialmente coberta pela cópia
+  // deslocada +16px, então seu centro não recebe o clique.
+  await page.getByTestId("visual-handle").last().click();
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+d" : "Control+d");
+  await expect(page.getByTestId("visual-handle")).toHaveCount(3, { timeout: 5_000 });
+});
+
 test("o grafo sobrevive a reload (reconstruído do código do rascunho)", async ({ page }) => {
   await page.getByTestId("visual-add-ellipse").click();
   const handle = page.getByTestId("visual-handle").first();

@@ -194,6 +194,39 @@ describe("fonte por objeto (Fase 4)", () => {
     expect(n.rotate).toBe(90);
   });
 
+  it("ljust/rjust e above/below round-trippam (independentes e combinados)", () => {
+    const g: VGraph = {
+      nodes: [
+        node({ id: "N1", shape: "box", label: "Left", x: 96, y: 96, align: "ljust" }),
+        node({ id: "N2", shape: "box", label: "Right", x: 288, y: 96, align: "rjust" }),
+        node({ id: "N3", shape: "box", label: "Up", x: 96, y: 240, vpos: "above" }),
+        node({ id: "N4", shape: "box", label: "Combo", x: 288, y: 240, align: "ljust", vpos: "above" }),
+      ],
+      edges: [],
+    };
+    const pic = graphToPic(g);
+    expect(pic).toContain('box "Left" ljust wid');
+    expect(pic).toContain('box "Right" rjust wid');
+    expect(pic).toContain('box "Up" above wid');
+    expect(pic).toContain('box "Combo" ljust above wid');
+    const back = parsePic(pic)!;
+    expect(back.nodes.map((n) => [n.align, n.vpos])).toEqual([
+      ["ljust", undefined],
+      ["rjust", undefined],
+      [undefined, "above"],
+      ["ljust", "above"],
+    ]);
+  });
+
+  it("sem align/vpos não emite atributo (default centralizado)", () => {
+    const g: VGraph = { nodes: [node({ id: "N1", shape: "box", label: "c", x: 96, y: 96 })], edges: [] };
+    const pic = graphToPic(g);
+    expect(pic).not.toMatch(/\b(ljust|rjust|above|below)\b/);
+    const n = parsePic(pic)!.nodes[0];
+    expect(n.align).toBeUndefined();
+    expect(n.vpos).toBeUndefined();
+  });
+
   it("losango com fill + fonte não confunde cor com rótulo", () => {
     const g: VGraph = { nodes: [node({ id: "N1", shape: "diamond", label: "ok?", x: 200, y: 100, w: 96, h: 72, fill: "gold", bold: true })], edges: [] };
     const n = parsePic(graphToPic(g))!.nodes[0];
@@ -284,6 +317,21 @@ describe("página (fixa o viewBox)", () => {
     const back = parsePic(legacy)!;
     expect(back.nodes.map((n) => n.id)).not.toContain("PAGE");
     expect(back.page).toEqual({ cx: 144, cy: 96, w: 288, h: 192 });
+  });
+});
+
+describe("duplicar nó (novo id + offset → 2 nós no pic)", () => {
+  it("clonar um nó gera um segundo objeto deslocado no pic gerado", () => {
+    const original = node({ id: "N1", shape: "box", label: "A", x: 96, y: 96, fill: "lightyellow" });
+    const copy: VNode = { ...original, id: "N1-copy", x: original.x + 16, y: original.y + 16 };
+    const g: VGraph = { nodes: [original, copy], edges: [] };
+    const pic = graphToPic(g);
+    expect((pic.match(/box "A"/g) ?? []).length).toBe(2);
+    const back = parsePic(pic)!;
+    expect(back.nodes).toHaveLength(2);
+    expect(back.nodes[1].x).toBe(original.x + 16);
+    expect(back.nodes[1].y).toBe(original.y + 16);
+    expect(back.nodes[1].fill).toBe("lightyellow");
   });
 });
 

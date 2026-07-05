@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Trash2 } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, Copy, Trash2 } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import { Button } from "@/components/ui/Button";
 import { useI18n } from "@/lib/i18n";
@@ -196,6 +196,23 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
     const o = objects[graph.nodes.findIndex((n) => n.id === id)];
     if (o?.line) onJumpToLine(o.line, o.col ?? undefined);
   }
+  /** Deslocamento (px) aplicado à cópia p/ ela não cair exatamente sobre o original. */
+  const DUPLICATE_OFFSET = 16;
+  /** Duplica o nó selecionado (só nós por ora): clona as props, desloca +16px
+   *  x/y, gera um id novo (mesmo padrão de `EditorPage.addShape`) e seleciona
+   *  a cópia. `graphToPic` renomeia p/ N{i} na hora de gerar — o `id` aqui só
+   *  precisa ser único no grafo. */
+  function duplicateSelected() {
+    if (!selNode) return;
+    const copy: VNode = {
+      ...selNode,
+      id: crypto.randomUUID?.() ?? `${selNode.id}-copy-${Date.now()}`,
+      x: selNode.x + DUPLICATE_OFFSET,
+      y: selNode.y + DUPLICATE_OFFSET,
+    };
+    onChange({ ...graph, nodes: [...graph.nodes, copy] });
+    setSel({ kind: "node", id: copy.id });
+  }
   function deleteSel() {
     if (!sel) return;
     if (sel.kind === "node") {
@@ -210,11 +227,14 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
       if ((e.key === "Delete" || e.key === "Backspace") && sel) {
-        const tag = (e.target as HTMLElement)?.tagName;
-        if (tag === "INPUT" || tag === "TEXTAREA") return;
         e.preventDefault();
         deleteSel();
+      } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d" && sel?.kind === "node") {
+        e.preventDefault();
+        duplicateSelected();
       }
     }
     window.addEventListener("keydown", onKey);
@@ -785,6 +805,30 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
             />
           )}
           {selNode && (
+            <Seg
+              title={t("visual.inspector.align")}
+              value={selNode.align}
+              onPick={(v) => updateNode(selNode.id, { align: v })}
+              options={[
+                { v: "ljust" as const, el: <AlignLeft size={13} />, testid: "visual-align-ljust" },
+                { v: undefined, el: <AlignCenter size={13} />, testid: "visual-align-center" },
+                { v: "rjust" as const, el: <AlignRight size={13} />, testid: "visual-align-rjust" },
+              ]}
+            />
+          )}
+          {selNode && (
+            <Seg
+              title={t("visual.inspector.vpos")}
+              value={selNode.vpos}
+              onPick={(v) => updateNode(selNode.id, { vpos: v })}
+              options={[
+                { v: "above" as const, el: <AlignVerticalJustifyStart size={13} />, testid: "visual-vpos-above" },
+                { v: undefined, el: <AlignVerticalJustifyCenter size={13} />, testid: "visual-vpos-center" },
+                { v: "below" as const, el: <AlignVerticalJustifyEnd size={13} />, testid: "visual-vpos-below" },
+              ]}
+            />
+          )}
+          {selNode && (
             <>
               <Swatches title={t("visual.inspector.fill")} colors={FILL_COLORS} value={selNode.fill} onPick={(c) => updateNode(selNode.id, { fill: c })} noneLabel={t("visual.none")} />
               <Swatches title={t("visual.inspector.stroke")} colors={STROKE_COLORS} value={selNode.stroke} onPick={(c) => updateNode(selNode.id, { stroke: c })} noneLabel={t("visual.none")} />
@@ -808,9 +852,16 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
               <Seg title={t("visual.inspector.thick")} value={selConn.thick} onPick={(v) => updConn({ thick: v })} options={THICK_OPTS} />
             </>
           )}
-          <Button variant="ghost" size="sm" onClick={deleteSel} data-testid="visual-delete" className="w-full justify-center text-(--color-danger)">
-            <Trash2 size={13} /> {t("visual.delete")}
-          </Button>
+          <div className="flex gap-1">
+            {selNode && (
+              <Button variant="ghost" size="sm" onClick={duplicateSelected} data-testid="visual-duplicate" className="flex-1 justify-center">
+                <Copy size={13} /> {t("visual.duplicate")}
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={deleteSel} data-testid="visual-delete" className="flex-1 justify-center text-(--color-danger)">
+              <Trash2 size={13} /> {t("visual.delete")}
+            </Button>
+          </div>
         </div>
       )}
     </div>

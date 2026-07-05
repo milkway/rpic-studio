@@ -51,6 +51,10 @@ export interface VNode extends Stroke {
   fontsize?: number;
   /** rotação do rótulo em graus (`rotated`, v0.7.0). */
   rotate?: number;
+  /** alinhamento horizontal do rótulo (`ljust`/`rjust`); ausente = centralizado. */
+  align?: "ljust" | "rjust";
+  /** alinhamento vertical do rótulo (`above`/`below`); ausente = centralizado. */
+  vpos?: "above" | "below";
 }
 
 /** Traço/pontas comuns a arestas e conectores livres. */
@@ -270,6 +274,8 @@ function fontAttrs(n: VNode): string {
   if (n.font) s += ` font "${esc(n.font)}"`;
   if (n.fontsize !== undefined) s += ` fontsize ${num(n.fontsize)}`;
   if (n.rotate) s += ` rotated ${num(n.rotate)}`;
+  if (n.align) s += ` ${n.align}`;
+  if (n.vpos) s += ` ${n.vpos}`;
   return s;
 }
 
@@ -431,7 +437,17 @@ function parseConnStyle(rest: string): { dash?: Dash; thick?: number } {
 /** Palavras cujo PRÓXIMO string é um valor (cor/família), não um rótulo. */
 const CONSUMES_STR = new Set(["font", "shaded", "outlined", "color", "colored", "colour", "coloured", "hatchcolor", "gradient"]);
 
-type LabelSeg = { label: string; math?: boolean; bold?: boolean; italic?: boolean; font?: string; fontsize?: number; rotate?: number };
+type LabelSeg = {
+  label: string;
+  math?: boolean;
+  bold?: boolean;
+  italic?: boolean;
+  font?: string;
+  fontsize?: number;
+  rotate?: number;
+  align?: "ljust" | "rjust";
+  vpos?: "above" | "below";
+};
 
 /** Interpreta o trecho "rótulos + fonte" (strings intercaladas com bold/italic/
  *  font/fontsize; pula valores de cor). Um único `$…$` = math. */
@@ -443,6 +459,10 @@ function parseLabelSeg(seg: string): LabelSeg {
     const t = toks[i];
     if (t === "bold") out.bold = true;
     else if (t === "italic") out.italic = true;
+    else if (t === "ljust") out.align = "ljust";
+    else if (t === "rjust") out.align = "rjust";
+    else if (t === "above") out.vpos = "above";
+    else if (t === "below") out.vpos = "below";
     else if (t === "fontsize") {
       const n = Number(toks[++i]);
       if (!Number.isNaN(n)) out.fontsize = n;
