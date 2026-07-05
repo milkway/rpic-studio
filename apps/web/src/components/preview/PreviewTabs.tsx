@@ -5,6 +5,7 @@ import { cn } from "@rpic/design-system";
 import type { Anim } from "@/lib/rpic";
 import type { CanvasSettings } from "@/lib/storage";
 import type { Shape, VGraph } from "@/lib/visualGraph";
+import type { Tool } from "@/components/visual/VisualOverlay";
 import { copyText, formatXml, toMarkdownSnippet } from "@/lib/exports";
 import { toPythonSnippet, toRSnippet } from "@/lib/bindings";
 import { useI18n } from "@/lib/i18n";
@@ -41,6 +42,8 @@ interface PreviewTabsProps {
   graph?: VGraph | null;
   onGraphChange?: (g: VGraph) => void;
   onAddShape?: (shape: Shape) => void;
+  tool?: Tool;
+  onSetTool?: (t: Tool) => void;
 }
 
 const MD_LABELS = {

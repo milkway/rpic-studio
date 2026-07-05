@@ -82,6 +82,26 @@ test("selecionar a seta pela linha e reancorar a ponta muda o lado", async ({ pa
   await expect(page.getByTestId("code-pane")).toContainText("arrow from N1.n to N2.w", { timeout: 5_000 });
 });
 
+test("desenhar linha livre ponto-a-ponto (sem forçar âncora)", async ({ page }) => {
+  await page.getByTestId("visual-add-box").click();
+  await expect(page.getByTestId("visual-handle")).toHaveCount(1, { timeout: 5_000 });
+  await page.waitForTimeout(400);
+  await page.getByTestId("visual-tool-line").click();
+  await expect(page.getByTestId("visual-draw-layer")).toBeVisible();
+  const cv = (await page.getByTestId("preview-canvas").boundingBox())!;
+  await page.mouse.move(cv.x + cv.width * 0.4, cv.y + cv.height * 0.55);
+  await page.mouse.down();
+  await page.mouse.move(cv.x + cv.width * 0.7, cv.y + cv.height * 0.75, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(400);
+  await expect(page.getByTestId("code-pane")).toContainText(/line from \([-\d.]+,[-\d.]+\) to \(/, {
+    timeout: 5_000,
+  });
+  await expect(page.getByTestId("visual-line-hit")).toHaveCount(1);
+  // volta para a ferramenta de seleção após desenhar
+  await expect(page.getByTestId("visual-draw-layer")).toHaveCount(0);
+});
+
 test("mover um objeto NÃO desloca os outros (página fixa)", async ({ page }) => {
   await page.getByTestId("visual-add-box").click();
   await page.getByTestId("visual-add-box").click();

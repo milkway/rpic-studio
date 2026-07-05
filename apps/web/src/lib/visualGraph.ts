@@ -43,6 +43,25 @@ export interface VEdge {
   toSide?: Side;
 }
 
+/** Ponta de um conector LIVRE: ou ancorada a um nó (node+side), ou um ponto
+ *  solto em px de tela (x,y). */
+export interface VEndpoint {
+  node?: string;
+  side?: Side;
+  x?: number;
+  y?: number;
+}
+
+/** Conector livre (linha/seta ponto-a-ponto), endpoints livres ou ancorados —
+ *  diferente de VEdge, que liga sempre dois nós. */
+export interface VLine {
+  id: string;
+  arrow: boolean;
+  a: VEndpoint;
+  b: VEndpoint;
+  label?: string;
+}
+
 /** Página do desenho (px, centro). Fixa o viewBox p/ mover um objeto não
  *  deslocar a figura toda (o rpic normaliza o viewBox ao bbox do conteúdo). */
 export interface Page {
@@ -55,6 +74,8 @@ export interface Page {
 export interface VGraph {
   nodes: VNode[];
   edges: VEdge[];
+  /** Conectores livres (linha/seta ponto-a-ponto). */
+  lines?: VLine[];
   /** Moldura da página (fixa a extensão); ausente = auto pelo conteúdo. */
   page?: Page;
 }
@@ -192,6 +213,29 @@ function nodePic(n: VNode, name: string): string {
   }
 }
 
+/** Posição px (tela) de uma ponta — ancorada usa o centro do nó (aprox. p/ label). */
+function endpointPx(e: VEndpoint, byId: Map<string, VNode>): { x: number; y: number } {
+  if (e.node) {
+    const n = byId.get(e.node);
+    if (n) return { x: n.x, y: n.y };
+  }
+  return { x: e.x ?? 0, y: e.y ?? 0 };
+}
+function endpointPic(e: VEndpoint, name: Map<string, string>): string {
+  if (e.node && e.side) return `${name.get(e.node) ?? e.node}.${e.side}`;
+  return `(${num(toInchX(e.x ?? 0))},${num(toInchY(e.y ?? 0))})`;
+}
+function linePic(ln: VLine, byId: Map<string, VNode>, name: Map<string, string>): string {
+  const verb = ln.arrow ? "arrow" : "line";
+  let s = `${verb} from ${endpointPic(ln.a, name)} to ${endpointPic(ln.b, name)}`;
+  if (ln.label) {
+    const a = endpointPx(ln.a, byId);
+    const b = endpointPx(ln.b, byId);
+    s += `\n"${esc(ln.label)}" at (${num(toInchX((a.x + b.x) / 2))},${num(toInchY((a.y + b.y) / 2))}) above`;
+  }
+  return s;
+}
+
 function edgePic(e: VEdge, byId: Map<string, VNode>, name: Map<string, string>): string | null {
   const a = byId.get(e.from);
   const b = byId.get(e.to);
@@ -219,6 +263,7 @@ export function graphToPic(g: VGraph): string {
     const line = edgePic(e, byId, name);
     if (line) body.push(line);
   }
+  for (const ln of g.lines ?? []) body.push(linePic(ln, byId, name));
   // Moldura da página POR ÚLTIMO (não desloca os índices `s{i}` dos objetos):
   // branca → invisível no papel; fixa o bbox (`invis` não contaria — o rpic só
   // soma ao bbox formas visíveis).
@@ -242,10 +287,10 @@ function unesc(s: string): string {
   return s.replace(/\\"/g, '"').replace(/\\\\/g, "\\");
 }
 function px(inch: number): number {
-  return Math.round(inch * PX_PER_INCH);
+  return Math.round(inch * PX_PER_INCH) + 0; // `+ 0` normaliza -0 → 0
 }
 function pyf(inch: number): number {
-  return Math.round(-inch * PX_PER_INCH);
+  return Math.round(-inch * PX_PER_INCH) + 0;
 }
 /** Extrai `shaded "…"` / `outlined "…"` de um trecho. */
 function parseStyle(rest: string): { fill?: string; stroke?: string } {
@@ -257,8 +302,17 @@ function parseStyle(rest: string): { fill?: string; stroke?: string } {
 const RE_BOX = new RegExp(`^(\\w+):\\s*(box|ellipse)\\s+(?:${STR}\\s+)?wid\\s+${N}\\s+ht\\s+${N}\\s+at\\s+${P}(.*)$`);
 const RE_CIRCLE = new RegExp(`^(\\w+):\\s*circle\\s+(?:${STR}\\s+)?diam\\s+${N}\\s+at\\s+${P}(.*)$`);
 const RE_DIAMOND = new RegExp(`^(\\w+):\\s*line\\s+from\\s+${P}\\s+to\\s+${P}\\s+to\\s+${P}\\s+to\\s+${P}\\s+close(.*)$`);
-const RE_EDGE = /^(arrow|line)\s+from\s+(\w+)\.(\w+)\s+to\s+(\w+)\.(\w+)\s*$/;
+const RE_CONN = /^(arrow|line)\s+from\s+(\S.*?)\s+to\s+(\S.*?)\s*$/;
 const RE_EDGE_LABEL = new RegExp(`^${STR}\\s+at\\s+${P}\\s*(?:above|below)?\\s*$`);
+
+/** Ponta de conector: `(x,y)` livre ou `Nome.side` ancorada. */
+function parseEndpoint(s: string): VEndpoint | null {
+  let m = /^\(([-\d.]+),([-\d.]+)\)$/.exec(s);
+  if (m) return { x: px(+m[1]), y: pyf(+m[2]) };
+  m = /^(\w+)\.(\w+)$/.exec(s);
+  if (m) return { node: m[1], side: m[2] as Side };
+  return null;
+}
 
 /**
  * Reconstrói o grafo lendo o pic gerado por `graphToPic`. Retorna null se o
@@ -269,8 +323,9 @@ const RE_EDGE_LABEL = new RegExp(`^${STR}\\s+at\\s+${P}\\s*(?:above|below)?\\s*$
 export function parsePic(source: string): VGraph | null {
   const nodes: VNode[] = [];
   const edges: VEdge[] = [];
+  const lines: VLine[] = [];
   let page: Page | undefined;
-  let last: VEdge | null = null;
+  let last: { label?: string } | null = null;
   for (const raw of source.split("\n")) {
     const line = raw.trim();
     if (!line || line.startsWith("#") || line === ".PS" || line === ".PE") continue;
@@ -327,17 +382,35 @@ export function parsePic(source: string): VGraph | null {
         ...parseStyle(rest),
       });
       last = null;
-    } else if ((m = RE_EDGE.exec(line))) {
-      const [, verb, from, fs, to, ts] = m;
-      last = { id: `${from}-${to}-${edges.length}`, from, to, arrow: verb === "arrow", fromSide: fs as Side, toSide: ts as Side };
-      edges.push(last);
+    } else if ((m = RE_CONN.exec(line))) {
+      const [, verb, aS, bS] = m;
+      const a = parseEndpoint(aS);
+      const b = parseEndpoint(bS);
+      if (a && b && a.node && a.side && b.node && b.side) {
+        // ambos ancorados → aresta nó-a-nó (caminho existente)
+        const edge: VEdge = { id: `${a.node}-${b.node}-${edges.length}`, from: a.node, to: b.node, arrow: verb === "arrow", fromSide: a.side, toSide: b.side };
+        edges.push(edge);
+        last = edge;
+      } else if (a && b) {
+        // alguma ponta livre → conector livre
+        const ln: VLine = { id: `L${lines.length}`, arrow: verb === "arrow", a, b };
+        lines.push(ln);
+        last = ln;
+      } else {
+        last = null;
+      }
     } else if (last && (m = RE_EDGE_LABEL.exec(line))) {
       last.label = unesc(m[1]);
     } else {
-      last = null; // linha desconhecida — não interrompe, só não é aresta+label
+      last = null; // linha desconhecida — não interrompe, só não é conector+label
     }
   }
-  if (nodes.length === 0) return null;
+  if (nodes.length === 0 && lines.length === 0) return null;
   const ids = new Set(nodes.map((n) => n.id));
-  return { nodes, edges: edges.filter((e) => ids.has(e.from) && ids.has(e.to)), page };
+  return {
+    nodes,
+    edges: edges.filter((e) => ids.has(e.from) && ids.has(e.to)),
+    lines,
+    page,
+  };
 }

@@ -87,6 +87,26 @@ describe("parsePic (round-trip)", () => {
   });
 });
 
+describe("conectores livres (VLine)", () => {
+  it("linha livre ponto-a-ponto e seta ancorada→livre round-trippam", () => {
+    const g: VGraph = {
+      nodes: [node({ id: "N1", shape: "box", x: 96, y: 96 })],
+      edges: [],
+      lines: [
+        { id: "L0", arrow: false, a: { x: 0, y: 0 }, b: { x: 192, y: 96 } },
+        { id: "L1", arrow: true, a: { node: "N1", side: "e" }, b: { x: 300, y: 200 } },
+      ],
+    };
+    const pic = graphToPic(g);
+    expect(pic).toContain("line from (0,0) to (2,-1)");
+    expect(pic).toMatch(/arrow from N1\.e to \(3\.125,-2\.083\)/);
+    const back = parsePic(pic)!;
+    expect(back.lines).toEqual(g.lines);
+    // a linha livre NÃO vira aresta nó-a-nó
+    expect(back.edges).toHaveLength(0);
+  });
+});
+
 describe("página (fixa o viewBox)", () => {
   it("cresce envolvendo os nós + margem e nunca encolhe", () => {
     const p1 = growPage(graph.nodes)!;

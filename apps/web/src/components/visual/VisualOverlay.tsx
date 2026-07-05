@@ -8,9 +8,13 @@ import {
   STROKE_COLORS,
   type Side,
   type VEdge,
+  type VEndpoint,
   type VGraph,
+  type VLine,
   type VNode,
 } from "@/lib/visualGraph";
+
+export type Tool = "select" | "line" | "arrow";
 
 interface Props {
   graph: VGraph;
@@ -20,9 +24,13 @@ interface Props {
   canvasRef: RefObject<HTMLDivElement | null>;
   /** Recalcula posições ao mudar o zoom (arraste usa Δtela/zoom). */
   zoom: number;
+  /** Ferramenta ativa: select ou desenhar linha/seta livre. */
+  tool: Tool;
+  /** Volta p/ "select" após desenhar. */
+  onToolDone: () => void;
 }
 
-type Sel = { kind: "node" | "edge"; id: string } | null;
+type Sel = { kind: "node" | "edge" | "line"; id: string } | null;
 interface Box {
   id: string;
   left: number;
@@ -94,7 +102,7 @@ function readTranslate(el: Element | null): Pt {
  * (sem fantasma). Só a âncora mais próxima do cursor aparece; arestas
  * selecionam clicando na linha e reancoram arrastando as pontas.
  */
-export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Props) {
+export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool, onToolDone }: Props) {
   const { t } = useI18n();
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [sel, setSel] = useState<Sel>(null);
@@ -103,6 +111,7 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
   const connect = useRef<{ fromId: string; fromSide: Side } | null>(null);
   const edgeDrag = useRef<{ edgeId: string; end: "from" | "to"; nodeId: string } | null>(null);
   const [rubber, setRubber] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const lines = graph.lines ?? [];
 
   // Auto-seleciona o nó recém-criado (abre o inspetor).
   const prevCount = useRef(graph.nodes.length);
@@ -170,12 +179,17 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
   function updateEdge(id: string, patch: Partial<VEdge>) {
     onChange({ ...graph, edges: graph.edges.map((e) => (e.id === id ? { ...e, ...patch } : e)) });
   }
+  function updateLine(id: string, patch: Partial<VLine>) {
+    onChange({ ...graph, lines: lines.map((l) => (l.id === id ? { ...l, ...patch } : l)) });
+  }
   function deleteSel() {
     if (!sel) return;
     if (sel.kind === "node") {
-      onChange({ nodes: graph.nodes.filter((n) => n.id !== sel.id), edges: graph.edges.filter((e) => e.from !== sel.id && e.to !== sel.id) });
-    } else {
+      onChange({ ...graph, nodes: graph.nodes.filter((n) => n.id !== sel.id), edges: graph.edges.filter((e) => e.from !== sel.id && e.to !== sel.id) });
+    } else if (sel.kind === "edge") {
       onChange({ ...graph, edges: graph.edges.filter((e) => e.id !== sel.id) });
+    } else {
+      onChange({ ...graph, lines: lines.filter((l) => l.id !== sel.id) });
     }
     setSel(null);
   }
@@ -197,6 +211,59 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
     const cr = canvasRef.current!.getBoundingClientRect();
     return { x: e.clientX - cr.left, y: e.clientY - cr.top };
   };
+
+  // Transform modelo(px)→tela: derivado de um nó (exato) ou da moldura da página
+  // (último `<g id="s…">`), permitindo posicionar pontos LIVRES sem `#s{i}`.
+  function transform(): { s: number; ox: number; oy: number } | null {
+    const stage = stageRef.current;
+    const canvas = canvasRef.current;
+    if (!stage || !canvas) return null;
+    const n0 = graph.nodes[0];
+    const b0 = n0 && boxOf(n0.id);
+    if (n0 && b0) {
+      const s = b0.w / n0.w;
+      return { s, ox: b0.cx - s * n0.x, oy: b0.cy - s * n0.y };
+    }
+    if (graph.page) {
+      const gs = stage.querySelectorAll('g[id^="s"]');
+      const frame = gs[gs.length - 1] as SVGGraphicsElement | undefined;
+      if (frame) {
+        const r = frame.getBoundingClientRect();
+        const cr = canvas.getBoundingClientRect();
+        const s = r.width / graph.page.w;
+        return {
+          s,
+          ox: r.left - cr.left - s * (graph.page.cx - graph.page.w / 2),
+          oy: r.top - cr.top - s * (graph.page.cy - graph.page.h / 2),
+        };
+      }
+    }
+    return null;
+  }
+  function toScreen(mx: number, my: number, tf = transform()): Pt | null {
+    return tf ? { x: tf.s * mx + tf.ox, y: tf.s * my + tf.oy } : null;
+  }
+  function toModel(sx: number, sy: number, tf = transform()): Pt | null {
+    return tf ? { x: (sx - tf.ox) / tf.s, y: (sy - tf.oy) / tf.s } : null;
+  }
+  /** Posição de tela de uma ponta de conector (ancorada ou livre). */
+  function endpointScreen(ep: VEndpoint, tf = transform()): Pt | null {
+    if (ep.node && ep.side) {
+      const b = boxOf(ep.node);
+      return b ? anchorWorld(b, ep.side) : null;
+    }
+    return toScreen(ep.x ?? 0, ep.y ?? 0, tf);
+  }
+  /** Ponto de tela → ponta: snap à âncora de um nó se perto, senão livre. */
+  function snapEndpoint(p: Pt): VEndpoint {
+    const box = boxes.find((b) => p.x >= b.left - 12 && p.x <= b.left + b.w + 12 && p.y >= b.top - 12 && p.y <= b.top + b.h + 12);
+    if (box) {
+      const shape = graph.nodes.find((n) => n.id === box.id)!.shape;
+      return { node: box.id, side: nearestAnchor(box, shape, p.x, p.y).side };
+    }
+    const m = toModel(p.x, p.y);
+    return m ? { x: Math.round(m.x), y: Math.round(m.y) } : { x: 0, y: 0 };
+  }
 
   // ── mover nó (mantém o translate no SVG até o recompile → sem fantasma) ──
   function onNodeDown(e: React.PointerEvent, id: string) {
@@ -311,6 +378,58 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
     window.addEventListener("pointerup", up);
   }
 
+  // ── desenhar linha/seta LIVRE (ferramenta ativa) ── (via window)
+  function onDrawDown(e: React.PointerEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const p0 = rel(e);
+    const start = snapEndpoint(p0);
+    const s0 = endpointScreen(start) ?? p0;
+    setRubber({ x1: s0.x, y1: s0.y, x2: p0.x, y2: p0.y });
+    const move = (ev: PointerEvent) => {
+      const p = rel(ev);
+      setRubber((c) => (c ? { ...c, x2: p.x, y2: p.y } : c));
+    };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setRubber(null);
+      const p1 = rel(ev);
+      const s1 = endpointScreen(snapEndpoint(p1)) ?? p1;
+      if (Math.hypot(s1.x - s0.x, s1.y - s0.y) < 6) {
+        onToolDone();
+        return; // clique sem arrasto → cancela
+      }
+      const ln: VLine = { id: `L${lines.length}`, arrow: tool === "arrow", a: start, b: snapEndpoint(p1) };
+      onChange({ ...graph, lines: [...lines, ln] });
+      setSel({ kind: "line", id: ln.id });
+      onToolDone();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
+  // ── mover/reancorar a ponta de um conector livre selecionado ──
+  function onLineEndDown(e: React.PointerEvent, lineId: string, end: "a" | "b") {
+    e.preventDefault();
+    e.stopPropagation();
+    const p0 = rel(e);
+    setRubber({ x1: p0.x, y1: p0.y, x2: p0.x, y2: p0.y });
+    const move = (ev: PointerEvent) => {
+      const p = rel(ev);
+      setRubber((c) => (c ? { ...c, x2: p.x, y2: p.y } : c));
+    };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setRubber(null);
+      const ep = snapEndpoint(rel(ev));
+      updateLine(lineId, end === "a" ? { a: ep } : { b: ep });
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
   // Pontos das arestas (âncoras efetivas).
   function endpoints(e: VEdge): { p1: Pt; p2: Pt; a: Box; b: Box } | null {
     const a = boxOf(e.from);
@@ -323,6 +442,7 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
   const selNode = sel?.kind === "node" ? graph.nodes.find((n) => n.id === sel.id) : undefined;
   const selEdge = sel?.kind === "edge" ? graph.edges.find((e) => e.id === sel.id) : undefined;
   const selEnds = selEdge ? endpoints(selEdge) : null;
+  const selLine = sel?.kind === "line" ? lines.find((l) => l.id === sel.id) : undefined;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10" data-testid="visual-overlay">
@@ -349,6 +469,32 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
                 data-testid="visual-edge-hit"
               />
               {selected && <line x1={ep.p1.x} y1={ep.p1.y} x2={ep.p2.x} y2={ep.p2.y} stroke="var(--color-accent)" strokeWidth={2} />}
+            </g>
+          );
+        })}
+        {/* Conectores livres */}
+        {lines.map((ln) => {
+          const p1 = endpointScreen(ln.a);
+          const p2 = endpointScreen(ln.b);
+          if (!p1 || !p2) return null;
+          const selected = sel?.kind === "line" && sel.id === ln.id;
+          return (
+            <g key={ln.id}>
+              <line
+                x1={p1.x}
+                y1={p1.y}
+                x2={p2.x}
+                y2={p2.y}
+                stroke="transparent"
+                strokeWidth={14}
+                style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  setSel({ kind: "line", id: ln.id });
+                }}
+                data-testid="visual-line-hit"
+              />
+              {selected && <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="var(--color-accent)" strokeWidth={2} />}
             </g>
           );
         })}
@@ -408,8 +554,33 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
           );
         })}
 
+      {/* Pontas do conector livre selecionado — arraste p/ mover/reancorar */}
+      {selLine &&
+        (["a", "b"] as const).map((end) => {
+          const p = endpointScreen(selLine[end]);
+          if (!p) return null;
+          return (
+            <div
+              key={end}
+              className="pointer-events-auto absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border-2 border-(--color-accent) bg-(--color-surface)"
+              style={{ left: p.x, top: p.y }}
+              onPointerDown={(e) => onLineEndDown(e, selLine.id, end)}
+              data-testid={`visual-lineend-${end}`}
+            />
+          );
+        })}
+
+      {/* Camada de captura no modo desenho (linha/seta livre) */}
+      {tool !== "select" && (
+        <div
+          className="pointer-events-auto absolute inset-0 cursor-crosshair"
+          onPointerDown={onDrawDown}
+          data-testid="visual-draw-layer"
+        />
+      )}
+
       {/* Inspetor */}
-      {(selNode || selEdge) && (
+      {(selNode || selEdge || selLine) && (
         <div
           className="pointer-events-auto absolute top-2 right-2 w-52 rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) p-3 shadow-lg"
           data-testid="visual-inspector"
@@ -418,8 +589,14 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
             {t("visual.inspector.label")}
           </label>
           <input
-            value={selNode?.label ?? selEdge?.label ?? ""}
-            onChange={(e) => (selNode ? updateNode(selNode.id, { label: e.target.value }) : updateEdge(selEdge!.id, { label: e.target.value }))}
+            value={selNode?.label ?? selEdge?.label ?? selLine?.label ?? ""}
+            onChange={(e) =>
+              selNode
+                ? updateNode(selNode.id, { label: e.target.value })
+                : selEdge
+                  ? updateEdge(selEdge.id, { label: e.target.value })
+                  : updateLine(selLine!.id, { label: e.target.value })
+            }
             data-testid="visual-label-input"
             className="mb-3 w-full rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-2 py-1 text-sm text-(--color-text) outline-none focus:border-(--color-accent)"
           />
@@ -435,6 +612,14 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
               className="mb-3 w-full rounded-(--radius-sm) border border-(--color-border) px-2 py-1 text-xs text-(--color-text) hover:bg-(--color-surface-muted)"
             >
               {selEdge.arrow ? t("visual.edge.arrow") : t("visual.edge.line")}
+            </button>
+          )}
+          {selLine && (
+            <button
+              onClick={() => updateLine(selLine.id, { arrow: !selLine.arrow })}
+              className="mb-3 w-full rounded-(--radius-sm) border border-(--color-border) px-2 py-1 text-xs text-(--color-text) hover:bg-(--color-surface-muted)"
+            >
+              {selLine.arrow ? t("visual.edge.arrow") : t("visual.edge.line")}
             </button>
           )}
           <Button variant="ghost" size="sm" onClick={deleteSel} data-testid="visual-delete" className="w-full justify-center text-(--color-danger)">

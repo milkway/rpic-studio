@@ -11,6 +11,7 @@ import { PreviewTabs } from "@/components/preview/PreviewTabs";
 import { SaveDialog } from "@/components/dialogs/SaveDialog";
 import { DefaultsBar } from "@/components/editor/DefaultsBar";
 import { DEFAULT_SIZE, graphToPic, growPage, parsePic, type Shape, type VGraph } from "@/lib/visualGraph";
+import { type Tool } from "@/components/visual/VisualOverlay";
 import { applyDefaults, readDefaults } from "@/lib/picDefaults";
 import { Button } from "@/components/ui/Button";
 import {
@@ -71,6 +72,7 @@ export function EditorPage() {
   const [initial] = useState(() => initialDoc(locale));
   const [doc, setDoc] = useState<DocState>({ source: initial.source });
   const [layout, setLayout] = useState(() => loadSettings().layout);
+  const [tool, setTool] = useState<Tool>("select");
   const [split, setSplit] = useState(0.42);
   const [saveOpen, setSaveOpen] = useState(false);
   const [defaultsOpen, setDefaultsOpen] = useState(false);
@@ -444,6 +446,8 @@ export function EditorPage() {
             graph={graph}
             onGraphChange={applyGraph}
             onAddShape={addShape}
+            tool={tool}
+            onSetTool={setTool}
           />
         </section>
       </div>

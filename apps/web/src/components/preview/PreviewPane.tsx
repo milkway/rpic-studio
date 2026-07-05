@@ -1,13 +1,26 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { gsap } from "gsap";
-import { Circle, Diamond, Egg, Loader2, Minus, Plus, RotateCcw, Scan, Square } from "lucide-react";
+import {
+  ArrowUpRight,
+  Circle,
+  Diamond,
+  Egg,
+  Loader2,
+  Minus,
+  MousePointer2,
+  Plus,
+  RotateCcw,
+  Scan,
+  Slash,
+  Square,
+} from "lucide-react";
 import { cn, motion } from "@rpic/design-system";
 import { useI18n } from "@/lib/i18n";
 import { animate, type Anim } from "@/lib/rpic";
 import { sanitizeSvg } from "@/lib/sanitize";
 import { type CanvasSettings } from "@/lib/storage";
 import { type Shape, type VGraph } from "@/lib/visualGraph";
-import { VisualOverlay } from "@/components/visual/VisualOverlay";
+import { VisualOverlay, type Tool } from "@/components/visual/VisualOverlay";
 import { CanvasSettingsPopover } from "./CanvasSettingsPopover";
 import { canvasBackground } from "./canvasStyle";
 import { Button } from "@/components/ui/Button";
@@ -18,6 +31,10 @@ const SHAPE_TOOLS: { shape: Shape; icon: typeof Square; testid: string }[] = [
   { shape: "circle", icon: Circle, testid: "visual-add-circle" },
   { shape: "ellipse", icon: Egg, testid: "visual-add-ellipse" },
   { shape: "diamond", icon: Diamond, testid: "visual-add-diamond" },
+];
+const DRAW_TOOLS: { tool: Tool; icon: typeof Square; testid: string }[] = [
+  { tool: "line", icon: Slash, testid: "visual-tool-line" },
+  { tool: "arrow", icon: ArrowUpRight, testid: "visual-tool-arrow" },
 ];
 
 interface PreviewPaneProps {
@@ -38,6 +55,9 @@ interface PreviewPaneProps {
   graph?: VGraph | null;
   onGraphChange?: (g: VGraph) => void;
   onAddShape?: (shape: Shape) => void;
+  /** Ferramenta ativa (select / desenhar linha/seta). */
+  tool?: Tool;
+  onSetTool?: (t: Tool) => void;
 }
 
 /** Papel técnico: SVG ao vivo com zoom, replay de animação e status. */
@@ -54,6 +74,8 @@ export function PreviewPane({
   graph,
   onGraphChange,
   onAddShape,
+  tool = "select",
+  onSetTool,
 }: PreviewPaneProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -126,6 +148,20 @@ export function PreviewPane({
             role="group"
             aria-label={t("visual.add")}
           >
+            {onSetTool && (
+              <Tip label={t("visual.tool.select")}>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  data-testid="visual-tool-select"
+                  aria-label={t("visual.tool.select")}
+                  className={cn(tool === "select" && "bg-(--color-surface-muted) text-(--color-accent)")}
+                  onClick={() => onSetTool("select")}
+                >
+                  <MousePointer2 size={15} />
+                </Button>
+              </Tip>
+            )}
             {SHAPE_TOOLS.map(({ shape, icon: Icon, testid }) => (
               <Tip key={shape} label={t(`visual.shape.${shape}`)}>
                 <Button
@@ -133,12 +169,30 @@ export function PreviewPane({
                   size="icon-sm"
                   data-testid={testid}
                   aria-label={t(`visual.shape.${shape}`)}
-                  onClick={() => onAddShape(shape)}
+                  onClick={() => {
+                    onSetTool?.("select");
+                    onAddShape(shape);
+                  }}
                 >
                   <Icon size={15} />
                 </Button>
               </Tip>
             ))}
+            {onSetTool &&
+              DRAW_TOOLS.map(({ tool: tl, icon: Icon, testid }) => (
+                <Tip key={tl} label={t(`visual.tool.${tl}`)}>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    data-testid={testid}
+                    aria-label={t(`visual.tool.${tl}`)}
+                    className={cn(tool === tl && "bg-(--color-surface-muted) text-(--color-accent)")}
+                    onClick={() => onSetTool(tl)}
+                  >
+                    <Icon size={15} />
+                  </Button>
+                </Tip>
+              ))}
           </div>
         )}
         <div className="ml-auto flex items-center gap-0.5">
@@ -208,7 +262,9 @@ export function PreviewPane({
               "flex min-h-full min-w-full p-8",
               // No modo visual, origem fixa no topo-esquerda: mover/adicionar um
               // nó estende o canvas em vez de recentralizar tudo.
-              graph && graph.nodes.length > 0 ? "items-start justify-start" : "items-center justify-center",
+              graph && (graph.nodes.length > 0 || (graph.lines?.length ?? 0) > 0)
+                ? "items-start justify-start"
+                : "items-center justify-center",
             )}
           >
             <div
@@ -230,13 +286,15 @@ export function PreviewPane({
             </span>
           </div>
         )}
-        {graph && graph.nodes.length > 0 && onGraphChange && !loading && (
+        {graph && (graph.nodes.length > 0 || (graph.lines?.length ?? 0) > 0) && onGraphChange && !loading && (
           <VisualOverlay
             graph={graph}
             onChange={onGraphChange}
             stageRef={stageRef}
             canvasRef={canvasRef}
             zoom={zoom}
+            tool={tool}
+            onToolDone={() => onSetTool?.("select")}
           />
         )}
       </div>
