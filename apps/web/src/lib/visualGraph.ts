@@ -43,12 +43,53 @@ export interface VEdge {
   toSide?: Side;
 }
 
+/** Página do desenho (px, centro). Fixa o viewBox p/ mover um objeto não
+ *  deslocar a figura toda (o rpic normaliza o viewBox ao bbox do conteúdo). */
+export interface Page {
+  cx: number;
+  cy: number;
+  w: number;
+  h: number;
+}
+
 export interface VGraph {
   nodes: VNode[];
   edges: VEdge[];
+  /** Moldura da página (fixa a extensão); ausente = auto pelo conteúdo. */
+  page?: Page;
 }
 
 export const EMPTY_GRAPH: VGraph = { nodes: [], edges: [] };
+
+/** Margem (px) entre os nós e a borda da página. */
+const PAGE_MARGIN = 48;
+
+/** Página que ENVOLVE os nós (+margem), unida à anterior — só cresce, nunca
+ *  encolhe, então arrastar/adicionar um objeto não recentraliza os demais. */
+export function growPage(nodes: VNode[], prev?: Page): Page | undefined {
+  if (nodes.length === 0) return prev;
+  let l = Infinity;
+  let t = Infinity;
+  let r = -Infinity;
+  let b = -Infinity;
+  for (const n of nodes) {
+    l = Math.min(l, n.x - n.w / 2);
+    t = Math.min(t, n.y - n.h / 2);
+    r = Math.max(r, n.x + n.w / 2);
+    b = Math.max(b, n.y + n.h / 2);
+  }
+  l -= PAGE_MARGIN;
+  t -= PAGE_MARGIN;
+  r += PAGE_MARGIN;
+  b += PAGE_MARGIN;
+  if (prev) {
+    l = Math.min(l, prev.cx - prev.w / 2);
+    t = Math.min(t, prev.cy - prev.h / 2);
+    r = Math.max(r, prev.cx + prev.w / 2);
+    b = Math.max(b, prev.cy + prev.h / 2);
+  }
+  return { cx: (l + r) / 2, cy: (t + b) / 2, w: r - l, h: b - t };
+}
 
 /** px por polegada — casa com o CSS e com os tamanhos padrão do pic. */
 export const PX_PER_INCH = 96;
@@ -178,6 +219,16 @@ export function graphToPic(g: VGraph): string {
     const line = edgePic(e, byId, name);
     if (line) body.push(line);
   }
+  // Moldura da página POR ÚLTIMO (não desloca os índices `s{i}` dos objetos):
+  // branca → invisível no papel; fixa o bbox (`invis` não contaria — o rpic só
+  // soma ao bbox formas visíveis).
+  if (g.page) {
+    const { cx, cy, w, h } = g.page;
+    body.push(
+      `PAGE: box wid ${num(w / PX_PER_INCH)} ht ${num(h / PX_PER_INCH)} ` +
+        `at (${num(toInchX(cx))},${num(toInchY(cy))}) outlined "#ffffff"`,
+    );
+  }
   return `.PS\n${body.join("\n")}\n.PE\n`;
 }
 
@@ -218,6 +269,7 @@ const RE_EDGE_LABEL = new RegExp(`^${STR}\\s+at\\s+${P}\\s*(?:above|below)?\\s*$
 export function parsePic(source: string): VGraph | null {
   const nodes: VNode[] = [];
   const edges: VEdge[] = [];
+  let page: Page | undefined;
   let last: VEdge | null = null;
   for (const raw of source.split("\n")) {
     const line = raw.trim();
@@ -225,6 +277,11 @@ export function parsePic(source: string): VGraph | null {
     let m: RegExpExecArray | null;
     if ((m = RE_BOX.exec(line))) {
       const [, id, shape, label, w, h, x, y, rest] = m;
+      if (id === "PAGE") {
+        page = { cx: px(+x), cy: pyf(+y), w: px(+w), h: px(+h) };
+        last = null;
+        continue;
+      }
       nodes.push({
         id,
         shape: shape as Shape,
@@ -282,5 +339,5 @@ export function parsePic(source: string): VGraph | null {
   }
   if (nodes.length === 0) return null;
   const ids = new Set(nodes.map((n) => n.id));
-  return { nodes, edges: edges.filter((e) => ids.has(e.from) && ids.has(e.to)) };
+  return { nodes, edges: edges.filter((e) => ids.has(e.from) && ids.has(e.to)), page };
 }

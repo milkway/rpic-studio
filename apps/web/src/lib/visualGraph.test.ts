@@ -1,5 +1,6 @@
 import {
   graphToPic,
+  growPage,
   parsePic,
   pickSides,
   PX_PER_INCH,
@@ -83,6 +84,27 @@ describe("parsePic (round-trip)", () => {
   it("pic escrito à mão (sem o formato gerado) → null", () => {
     expect(parsePic('box "a"; arrow; box "b"')).toBeNull();
     expect(parsePic(".PS\nbox\ncircle\n.PE")).toBeNull();
+  });
+});
+
+describe("página (fixa o viewBox)", () => {
+  it("cresce envolvendo os nós + margem e nunca encolhe", () => {
+    const p1 = growPage(graph.nodes)!;
+    expect(p1.w).toBeGreaterThan(480); // envolve x∈[96..480] + margem
+    // adicionar um nó bem à direita cresce a página; remover não encolhe
+    const wider = growPage([...graph.nodes, node({ id: "X", shape: "box", x: 900, y: 96 })], p1)!;
+    expect(wider.w).toBeGreaterThan(p1.w);
+    const back = growPage(graph.nodes, wider)!;
+    expect(back.w).toBe(wider.w); // não encolheu
+  });
+
+  it("a moldura PAGE round-trippa e NÃO vira nó", () => {
+    const withPage: VGraph = { ...graph, page: growPage(graph.nodes) };
+    const pic = graphToPic(withPage);
+    expect(pic).toMatch(/PAGE: box wid [\d.]+ ht [\d.]+ at \([-\d.]+,[-\d.]+\) outlined "#ffffff"/);
+    const back = parsePic(pic)!;
+    expect(back.nodes.map((n) => n.id)).not.toContain("PAGE"); // não é objeto
+    expect(back.page).toEqual(withPage.page);
   });
 });
 

@@ -82,6 +82,29 @@ test("selecionar a seta pela linha e reancorar a ponta muda o lado", async ({ pa
   await expect(page.getByTestId("code-pane")).toContainText("arrow from N1.n to N2.w", { timeout: 5_000 });
 });
 
+test("mover um objeto NÃO desloca os outros (página fixa)", async ({ page }) => {
+  await page.getByTestId("visual-add-box").click();
+  await page.getByTestId("visual-add-box").click();
+  await expect(page.getByTestId("visual-handle")).toHaveCount(2, { timeout: 5_000 });
+  await page.waitForTimeout(500);
+  const posA = () =>
+    page.evaluate(() => {
+      const el = document.querySelector('[data-testid="preview-stage"] #s0') as SVGGraphicsElement;
+      const r = el.getBoundingClientRect();
+      return { l: Math.round(r.left), t: Math.round(r.top) };
+    });
+  const before = await posA();
+  const b = (await page.getByTestId("visual-handle").nth(1).boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b.x + 250, b.y + 260, { steps: 12 });
+  await page.mouse.up();
+  await page.waitForTimeout(700);
+  const after = await posA();
+  expect(Math.abs(after.l - before.l)).toBeLessThan(4);
+  expect(Math.abs(after.t - before.t)).toBeLessThan(4);
+});
+
 test("o grafo sobrevive a reload (reconstruído do código do rascunho)", async ({ page }) => {
   await page.getByTestId("visual-add-ellipse").click();
   const handle = page.getByTestId("visual-handle").first();
