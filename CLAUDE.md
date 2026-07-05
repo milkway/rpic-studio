@@ -39,6 +39,16 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
 - **API (fase 2)**: sessão = cookie httpOnly opaco com `sha256(token)` na tabela `sessions`;
   extractor `CurrentUser`. Migrações são `.sql` puros em `db/migrations/`, aplicados pelo
   entrypoint do Postgres (recriar o volume para reaplicar).
+- **Render server-side** (`routes/render.rs`, `POST /api/render` → svg|png|pdf): pic é NÃO
+  confiável (`IncludePolicy::Deny`), CPU-bound em `spawn_blocking`, math via `ensure_math()`.
+  Param `google_font` restrito ao `GOOGLE_FONTS` allowlist (mitiga SSRF) e casa a fonte no
+  PNG/PDF. DUAS pegadinhas que deixam o texto EM BRANCO se ignoradas: (1) buscar o CSS do
+  Google com **UA de Android antigo** (`Mozilla/5.0 (Linux; U; Android 2.2)`) — só assim vem
+  o TTF estático completo (`/s/…ttf`); com UA moderno vem woff2/subset `/l/font?kit=` que o
+  fontdb não lê; (2) depois de `db.load_font_data`, usar o **nome real da família lido do
+  fontdb** (`db.faces()…families`), NÃO a string pedida — Merriweather e afins têm nameID
+  diferente e não casam com `set_sans_serif_family("Merriweather")`. Carrega os 4 estilos
+  (400/700 × normal/italic) p/ negrito/itálico usarem o glyph real, não sintetizado.
 
 ## i18n
 
@@ -60,6 +70,19 @@ topbar; escolha em `rpic:locale.v1`. Conteúdo estruturado (exemplos, ajuda) car
   genérica); preview, .svg e clipboard-SVG carregam a fonte com fidelidade.
 - **Variáveis pic** (`scale`, `boxwid`, `linethick`…) NÃO são aparência — mudam geometria. Vão no
   código via `DefaultsDialog` (`picDefaults.ts`, bloco idempotente por marcadores após `.PS`).
+
+## Deploy e GitHub
+
+- **GitHub**: `milkway/rpic-studio` (PRIVADO). CI e `rpic-release-watch` ativos. Fazer `git push`
+  junto de cada deploy para manter GitHub e produção alinhados.
+- **Produção**: studio.rpic.dev, via `./deploy.sh` (envia `git archive HEAD` por SSH — só o
+  versionado, INDEPENDENTE do GitHub; commitar antes de publicar). Stack isolada `rpic-studio`
+  (postgres/api internos, web em `127.0.0.1:8091`; `infra/docker-compose.prod.yml`), atrás de
+  nginx+certbot no host. O deploy roda gates, smoke e confirma que o `iqt-etl`/`explorer-iqt-etl`
+  e o painel-eleitoral-pe seguem `Up` — NÃO perturbar esses containers do servidor.
+- Segredos (`GOOGLE_CLIENT_SECRET`) vivem só em `~/rpic-app/infra/.env.prod` no servidor; nada
+  de segredo versionado (só `.env.example` com placeholders). Scripts que pedem sudo vão em
+  `~/config-studio-rpic/` para o usuário rodar.
 
 ## Direção visual (tema "rpic forest" — o mesmo do site rpic.dev)
 
