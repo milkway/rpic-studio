@@ -75,10 +75,11 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   rótulo; `parseLabelSeg` lê rótulos+fonte distinguindo valores de cor). **studio inteiro na rpic
   0.7.0** (web WASM `@strategicprojects/rpic@^0.7.0` — CUIDADO: o pin fica em `apps/web/package.json`,
   não só na raiz; e a git-dep da API em `apps/api/Cargo.toml` na tag `v0.7.0`). Todas as 4 issues do
-  rpic-lang (#225–#228 / PRs #229–#232) entregues: fonte por objeto, canvas fixo, geometria no bundle
-  (`compile().objects[]` — ainda NÃO adotado no overlay), texto girado + rgb()/0x. Roadmap restante:
-  cor livre (rgb/0x) + rotação de rótulo; geometria (`objects[].bbox` + `line/col` → clicar objeto ↦
-  linha).
+  rpic-lang (#225–#228 / PRs #229–#232) TODAS adotadas: fonte por objeto, canvas fixo, cor livre
+  (color picker → `shaded "#rrggbb"`), rótulo girado (`rotated`), e a geometria do bundle
+  (`useRpic().objects[]`, alinhada a `s{i}`) — usada p/ **duplo-clique no objeto → pula pra linha do
+  código** (`objects[nodeIndex].line` → `codeRef.focusAt`). O overlay AINDA se posiciona via
+  `getBoundingClientRect` do `#s{i}` (funciona bem); migrar p/ `objects[].bbox` é robustez futura.
 - **Render server-side** (`routes/render.rs`, `POST /api/render` → svg|png|pdf): pic é NÃO
   confiável (`IncludePolicy::Deny`), CPU-bound em `spawn_blocking`, math via `ensure_math()`.
   Param `google_font` restrito ao `GOOGLE_FONTS` allowlist (mitiga SSRF) e casa a fonte no

@@ -448,6 +448,8 @@ export function EditorPage() {
             onAddShape={addShape}
             tool={tool}
             onSetTool={setTool}
+            objects={rpic.objects}
+            onJumpToLine={(line, col) => codeRef.current?.focusAt(line, col ?? 1)}
           />
         </section>
       </div>

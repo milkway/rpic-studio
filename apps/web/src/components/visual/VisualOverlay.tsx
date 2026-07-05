@@ -3,6 +3,7 @@ import { Trash2 } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import { Button } from "@/components/ui/Button";
 import { useI18n } from "@/lib/i18n";
+import { type ObjectGeometry } from "@/lib/rpic";
 import {
   FILL_COLORS,
   FONT_FAMILIES,
@@ -30,6 +31,10 @@ interface Props {
   tool: Tool;
   /** Volta p/ "select" após desenhar. */
   onToolDone: () => void;
+  /** Geometria por objeto (v0.7.0), alinhada a `s{i}` — nó i → objects[i]. */
+  objects?: ObjectGeometry[];
+  /** Pular o cursor do editor para a linha do objeto (duplo-clique). */
+  onJumpToLine?: (line: number, col?: number) => void;
 }
 
 type Sel = { kind: "node" | "edge" | "line"; id: string } | null;
@@ -104,7 +109,7 @@ function readTranslate(el: Element | null): Pt {
  * (sem fantasma). Só a âncora mais próxima do cursor aparece; arestas
  * selecionam clicando na linha e reancoram arrastando as pontas.
  */
-export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool, onToolDone }: Props) {
+export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool, onToolDone, objects, onJumpToLine }: Props) {
   const { t } = useI18n();
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [sel, setSel] = useState<Sel>(null);
@@ -183,6 +188,13 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
   }
   function updateLine(id: string, patch: Partial<VLine>) {
     onChange({ ...graph, lines: lines.map((l) => (l.id === id ? { ...l, ...patch } : l)) });
+  }
+  /** Duplo-clique: pula o cursor do editor para a linha do objeto (v0.7.0:
+   *  objects[i] é alinhado a `s{i}`; nó i → objects[i]). */
+  function jumpToCode(id: string) {
+    if (!onJumpToLine || !objects) return;
+    const o = objects[graph.nodes.findIndex((n) => n.id === id)];
+    if (o?.line) onJumpToLine(o.line, o.col ?? undefined);
   }
   function deleteSel() {
     if (!sel) return;
@@ -539,6 +551,8 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
             onPointerMove={(e) => onNodeMove(e, b, node.shape)}
             onPointerUp={onNodeUp}
             onPointerLeave={() => !drag.current && !connect.current && setHover((h) => (h?.id === b.id ? null : h))}
+            onDoubleClick={() => jumpToCode(b.id)}
+            title={onJumpToLine ? "2× → código" : undefined}
             data-testid="visual-handle"
           >
             {showSide && (() => {

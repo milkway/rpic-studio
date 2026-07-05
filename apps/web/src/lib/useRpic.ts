@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { compile, ensureRpic, type Anim, type CompileError, type Diagnostic } from "./rpic";
+import { compile, ensureRpic, type Anim, type CompileError, type Diagnostic, type ObjectGeometry } from "./rpic";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 export interface RpicState {
@@ -20,6 +20,8 @@ export interface RpicState {
   compileMs: number | null;
   /** Contador incrementado a cada compilação boa (dispara efeitos no preview). */
   version: number;
+  /** Geometria por objeto (v0.7.0): bbox + `line/col` no código, alinhado a `s{i}`. */
+  objects: ObjectGeometry[];
 }
 
 export interface RpicOptions {
@@ -37,6 +39,7 @@ const INITIAL: RpicState = {
   loading: true,
   compileMs: null,
   version: 0,
+  objects: [],
 };
 
 /** Atraso extra antes de EXIBIR um erro ("lazy red"): sucesso aparece na hora,
@@ -87,6 +90,7 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
         errorDiag: null,
         compileMs,
         version: versionRef.current,
+        objects: bundle.objects ?? [],
       }));
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);

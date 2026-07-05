@@ -82,6 +82,18 @@ test("selecionar a seta pela linha e reancorar a ponta muda o lado", async ({ pa
   await expect(page.getByTestId("code-pane")).toContainText("arrow from N1.n to N2.w", { timeout: 5_000 });
 });
 
+test("duplo-clique no objeto pula o cursor pra sua linha (geometria v0.7.0)", async ({ page }) => {
+  await page.getByTestId("visual-add-box").click();
+  await page.getByTestId("visual-add-box").click();
+  await expect(page.getByTestId("visual-handle")).toHaveCount(2, { timeout: 5_000 });
+  await page.waitForTimeout(500);
+  // .PS(1) N1(2) N2(3) → 2º nó pula pra linha 3
+  await page.getByTestId("visual-handle").nth(1).dblclick();
+  await expect
+    .poll(() => page.evaluate(() => document.querySelector(".cm-activeLineGutter")?.textContent))
+    .toBe("3");
+});
+
 test("cor livre (hex) e rotação de rótulo (v0.7.0)", async ({ page }) => {
   await page.getByTestId("visual-add-box").click();
   await expect(page.getByTestId("visual-inspector")).toBeVisible({ timeout: 5_000 });

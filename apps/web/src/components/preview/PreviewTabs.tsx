@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Copy } from "lucide-react";
 import { cn } from "@rpic/design-system";
-import type { Anim } from "@/lib/rpic";
+import type { Anim, ObjectGeometry } from "@/lib/rpic";
 import type { CanvasSettings } from "@/lib/storage";
 import type { Shape, VGraph } from "@/lib/visualGraph";
 import type { Tool } from "@/components/visual/VisualOverlay";
@@ -44,6 +44,8 @@ interface PreviewTabsProps {
   onAddShape?: (shape: Shape) => void;
   tool?: Tool;
   onSetTool?: (t: Tool) => void;
+  objects?: ObjectGeometry[];
+  onJumpToLine?: (line: number, col?: number) => void;
 }
 
 const MD_LABELS = {

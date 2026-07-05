@@ -21,6 +21,7 @@ import { animate, type Anim } from "@/lib/rpic";
 import { sanitizeSvg } from "@/lib/sanitize";
 import { type CanvasSettings } from "@/lib/storage";
 import { type Shape, type VGraph } from "@/lib/visualGraph";
+import { type ObjectGeometry } from "@/lib/rpic";
 import { VisualOverlay, type Tool } from "@/components/visual/VisualOverlay";
 import { CanvasSettingsPopover } from "./CanvasSettingsPopover";
 import { canvasBackground } from "./canvasStyle";
@@ -60,6 +61,9 @@ interface PreviewPaneProps {
   /** Ferramenta ativa (select / desenhar linha/seta). */
   tool?: Tool;
   onSetTool?: (t: Tool) => void;
+  /** Geometria por objeto (v0.7.0) + pular pra linha do código. */
+  objects?: ObjectGeometry[];
+  onJumpToLine?: (line: number, col?: number) => void;
 }
 
 /** Papel técnico: SVG ao vivo com zoom, replay de animação e status. */
@@ -78,6 +82,8 @@ export function PreviewPane({
   onAddShape,
   tool = "select",
   onSetTool,
+  objects,
+  onJumpToLine,
 }: PreviewPaneProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -297,6 +303,8 @@ export function PreviewPane({
             zoom={zoom}
             tool={tool}
             onToolDone={() => onSetTool?.("select")}
+            objects={objects}
+            onJumpToLine={onJumpToLine}
           />
         )}
       </div>
