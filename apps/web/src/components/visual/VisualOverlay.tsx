@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/Button";
 import { useI18n } from "@/lib/i18n";
 import {
   FILL_COLORS,
+  FONT_FAMILIES,
+  FONT_SIZES,
   STROKE_COLORS,
   type Side,
   type VEdge,
@@ -621,7 +623,7 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
             className="mb-2 w-full resize-none rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-2 py-1 text-sm text-(--color-text) outline-none focus:border-(--color-accent)"
           />
           {selNode && (
-            <label className="mb-3 flex cursor-pointer items-center gap-2 text-xs text-(--color-text-body)">
+            <label className="mb-2 flex cursor-pointer items-center gap-2 text-xs text-(--color-text-body)">
               <input
                 type="checkbox"
                 checked={!!selNode.math}
@@ -630,6 +632,62 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
               />
               {t("visual.inspector.math")}
             </label>
+          )}
+          {selNode && (
+            <div className="mb-3">
+              <span className="mb-1 block font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
+                {t("visual.inspector.font")}
+              </span>
+              <div className="mb-1 flex gap-1">
+                <button
+                  onClick={() => updateNode(selNode.id, { bold: !selNode.bold || undefined })}
+                  data-testid="visual-bold"
+                  className={cn(
+                    "h-7 flex-1 rounded-(--radius-sm) border font-bold",
+                    selNode.bold ? "border-(--color-accent) bg-(--color-accent-soft) text-(--color-accent)" : "border-(--color-border) text-(--color-text-muted) hover:text-(--color-text)",
+                  )}
+                >
+                  B
+                </button>
+                <button
+                  onClick={() => updateNode(selNode.id, { italic: !selNode.italic || undefined })}
+                  data-testid="visual-italic"
+                  className={cn(
+                    "h-7 flex-1 rounded-(--radius-sm) border italic",
+                    selNode.italic ? "border-(--color-accent) bg-(--color-accent-soft) text-(--color-accent)" : "border-(--color-border) text-(--color-text-muted) hover:text-(--color-text)",
+                  )}
+                >
+                  I
+                </button>
+                <select
+                  value={selNode.fontsize ?? ""}
+                  onChange={(e) => updateNode(selNode.id, { fontsize: e.target.value ? Number(e.target.value) : undefined })}
+                  data-testid="visual-fontsize"
+                  className="h-7 rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-1 text-xs text-(--color-text)"
+                >
+                  <option value="">pt</option>
+                  {FONT_SIZES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <select
+                value={selNode.font ?? ""}
+                onChange={(e) => updateNode(selNode.id, { font: e.target.value || undefined })}
+                data-testid="visual-font-family"
+                className="w-full rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-2 py-1 text-xs text-(--color-text)"
+                style={{ fontFamily: selNode.font || undefined }}
+              >
+                <option value="">{t("visual.inspector.fontDefault")}</option>
+                {FONT_FAMILIES.map((f) => (
+                  <option key={f} value={f} style={{ fontFamily: f }}>
+                    {f}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
           {selNode && (
             <>

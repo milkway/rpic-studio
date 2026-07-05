@@ -82,6 +82,26 @@ test("selecionar a seta pela linha e reancorar a ponta muda o lado", async ({ pa
   await expect(page.getByTestId("code-pane")).toContainText("arrow from N1.n to N2.w", { timeout: 5_000 });
 });
 
+test("fonte por objeto: bold/italic/família/tamanho no código e no SVG", async ({ page }) => {
+  await page.getByTestId("visual-add-box").click();
+  await expect(page.getByTestId("visual-inspector")).toBeVisible({ timeout: 5_000 });
+  await page.getByTestId("visual-label-input").fill("Serifada");
+  await page.getByTestId("visual-bold").click();
+  await page.getByTestId("visual-italic").click();
+  await page.getByTestId("visual-font-family").selectOption("Georgia");
+  await page.getByTestId("visual-fontsize").selectOption("14");
+  await expect(page.getByTestId("code-pane")).toContainText('bold italic font "Georgia" fontsize 14', { timeout: 5_000 });
+  // o WASM 0.7.0 emite os atributos no <text>
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const s = document.querySelector('[data-testid="preview-stage"] svg')?.innerHTML || "";
+        return s.includes('font-weight="bold"') && s.includes('font-style="italic"');
+      }),
+    )
+    .toBe(true);
+});
+
 test("texto: rótulo multilinha, objeto solto e toggle math", async ({ page }) => {
   await page.getByTestId("visual-add-box").click();
   await expect(page.getByTestId("visual-inspector")).toBeVisible({ timeout: 5_000 });

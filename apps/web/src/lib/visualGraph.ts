@@ -42,6 +42,13 @@ export interface VNode extends Stroke {
   h: number;
   /** rótulo é TeX (`$…$`) — auto-liga texlabels. */
   math?: boolean;
+  // Fonte por objeto (v0.7.0) — atributos por-string do rpic, uniformes no nó.
+  bold?: boolean;
+  italic?: boolean;
+  /** família (`font "…"`); ex.: "serif", "monospace", "Georgia", "Roboto"… */
+  font?: string;
+  /** tamanho em pontos (`fontsize`). */
+  fontsize?: number;
 }
 
 /** Traço/pontas comuns a arestas e conectores livres. */
@@ -164,6 +171,19 @@ export const STROKE_COLORS = [
   "goldenrod",
 ] as const;
 
+/** Famílias de fonte por objeto (v0.7.0) — genéricas/sistema, sem carregamento. */
+export const FONT_FAMILIES = [
+  "serif",
+  "sans-serif",
+  "monospace",
+  "Georgia",
+  "Times New Roman",
+  "Courier New",
+  "Arial",
+  "Verdana",
+] as const;
+export const FONT_SIZES = [8, 10, 12, 14, 18, 24] as const;
+
 // ─────────────────────────── geração de pic ───────────────────────────
 
 function num(n: number): string {
@@ -219,13 +239,25 @@ function connStyleSuffix(c: ConnStyle): string {
   return s;
 }
 
-/** Rótulo(s) pic: math → um `"$…$"`; senão `\n` vira strings empilhadas. */
-function labelsPic(n: { label: string; math?: boolean }): string {
+/** Atributos de fonte (por-string no rpic) — repetidos em cada linha do rótulo. */
+function fontAttrs(n: VNode): string {
+  let s = "";
+  if (n.bold) s += " bold";
+  if (n.italic) s += " italic";
+  if (n.font) s += ` font "${esc(n.font)}"`;
+  if (n.fontsize !== undefined) s += ` fontsize ${num(n.fontsize)}`;
+  return s;
+}
+
+/** Rótulo(s) pic: math → um `"$…$"`; senão `\n` vira strings empilhadas. Cada
+ *  string leva os atributos de fonte (o rpic os aplica por-string). */
+function labelsPic(n: VNode): string {
   if (!n.label) return "";
-  if (n.math) return `"$${esc(n.label)}$"`;
+  const fa = fontAttrs(n);
+  if (n.math) return `"$${esc(n.label)}$"${fa}`;
   return n.label
     .split("\n")
-    .map((l) => `"${esc(l)}"`)
+    .map((l) => `"${esc(l)}"${fa}`)
     .join(" ");
 }
 
@@ -365,24 +397,49 @@ function parseConnStyle(rest: string): { dash?: Dash; thick?: number } {
   return out;
 }
 
-const STR_NG = `"(?:[^"\\\\]|\\\\.)*"`; // string pic (sem grupo de captura)
-const LABELS = `((?:${STR_NG}\\s+)*)`; // run de rótulos empilhados (pode ser vazio)
+/** Palavras cujo PRÓXIMO string é um valor (cor/família), não um rótulo. */
+const CONSUMES_STR = new Set(["font", "shaded", "outlined", "color", "colored", "colour", "coloured", "hatchcolor", "gradient"]);
 
-/** Extrai rótulo(s) de um run de strings: junta com `\n`; um único `$…$` = math. */
-function parseLabels(run: string): { label: string; math?: boolean } {
-  const strs = run.match(new RegExp(STR_NG, "g")) ?? [];
-  const parts = strs.map((s) => unesc(s.slice(1, -1)));
-  if (parts.length === 1) {
-    const m = /^\$(.*)\$$/.exec(parts[0]);
-    if (m) return { label: m[1], math: true };
+type LabelSeg = { label: string; math?: boolean; bold?: boolean; italic?: boolean; font?: string; fontsize?: number };
+
+/** Interpreta o trecho "rótulos + fonte" (strings intercaladas com bold/italic/
+ *  font/fontsize; pula valores de cor). Um único `$…$` = math. */
+function parseLabelSeg(seg: string): LabelSeg {
+  const toks = seg.match(/"(?:[^"\\]|\\.)*"|\S+/g) ?? [];
+  const labels: string[] = [];
+  const out: LabelSeg = { label: "" };
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i];
+    if (t === "bold") out.bold = true;
+    else if (t === "italic") out.italic = true;
+    else if (t === "fontsize") {
+      const n = Number(toks[++i]);
+      if (!Number.isNaN(n)) out.fontsize = n;
+    } else if (t === "font") {
+      const s = toks[++i];
+      if (s?.startsWith('"')) out.font = unesc(s.slice(1, -1));
+    } else if (CONSUMES_STR.has(t)) {
+      i++; // pula o valor (nome de cor)
+    } else if (t.startsWith('"')) {
+      labels.push(unesc(t.slice(1, -1)));
+    }
   }
-  return { label: parts.join("\n") };
+  if (labels.length === 1) {
+    const m = /^\$(.*)\$$/.exec(labels[0]);
+    if (m) {
+      out.label = m[1];
+      out.math = true;
+      return out;
+    }
+  }
+  out.label = labels.join("\n");
+  return out;
 }
 
-const RE_BOX = new RegExp(`^(\\w+):\\s*(box|ellipse)\\s+${LABELS}wid\\s+${N}\\s+ht\\s+${N}\\s+at\\s+${P}(.*)$`);
-const RE_CIRCLE = new RegExp(`^(\\w+):\\s*circle\\s+${LABELS}diam\\s+${N}\\s+at\\s+${P}(.*)$`);
+const RE_BOX = new RegExp(`^(\\w+):\\s*(box|ellipse)\\s+(.*?)wid\\s+${N}\\s+ht\\s+${N}\\s+at\\s+${P}(.*)$`);
+const RE_CIRCLE = new RegExp(`^(\\w+):\\s*circle\\s+(.*?)diam\\s+${N}\\s+at\\s+${P}(.*)$`);
 const RE_DIAMOND = new RegExp(`^(\\w+):\\s*line\\s+from\\s+${P}\\s+to\\s+${P}\\s+to\\s+${P}\\s+to\\s+${P}\\s+close(.*)$`);
-const RE_TEXT = new RegExp(`^(\\w+):\\s*((?:${STR_NG}\\s+)+)at\\s+${P}\\s*$`); // texto solto (≥1 string)
+const RE_TEXT = new RegExp(`^(\\w+):\\s*(.+?)\\s+at\\s+${P}\\s*$`); // texto solto
 const RE_CANVAS = new RegExp(`^canvas\\s+from\\s+${P}\\s+to\\s+${P}\\s*$`);
 const RE_CONN = /^(arrow|line)(\s+<->|\s+<-)?\s+from\s+(\S+)\s+to\s+(\S+)(\s.*)?$/;
 const RE_EDGE_LABEL = new RegExp(`^${STR}\\s+at\\s+${P}\\s*(?:above|below)?\\s*$`);
@@ -422,7 +479,7 @@ export function parsePic(source: string): VGraph | null {
       nodes.push({
         id,
         shape: shape as Shape,
-        ...parseLabels(run),
+        ...parseLabelSeg(run),
         x: px(+x),
         y: pyf(+y),
         w: px(+w),
@@ -435,7 +492,7 @@ export function parsePic(source: string): VGraph | null {
       nodes.push({
         id,
         shape: "circle",
-        ...parseLabels(run),
+        ...parseLabelSeg(run),
         x: px(+x),
         y: pyf(+y),
         w: px(+d),
@@ -448,7 +505,7 @@ export function parsePic(source: string): VGraph | null {
       nodes.push({
         id,
         shape: "text",
-        ...parseLabels(run),
+        ...parseLabelSeg(run),
         x: px(+x),
         y: pyf(+y),
         w: DEFAULT_SIZE.text.w,
@@ -474,13 +531,12 @@ export function parsePic(source: string): VGraph | null {
       const cy = +y2;
       const wInch = 2 * (+x2 - cx);
       const hInch = 2 * (+y1 - cy);
-      const labelM = new RegExp(`${STR_NG}\\s*$`).exec(
-        rest.replace(new RegExp(`shaded\\s+${STR}`), "").replace(new RegExp(`outlined\\s+${STR}`), ""),
-      );
+      // rest tem estilo (shaded/outlined/…) + rótulo + fonte, tudo junto:
+      // parseLabelSeg pula os valores de cor e devolve rótulo+fonte.
       nodes.push({
         id,
         shape: "diamond",
-        ...parseLabels(labelM ? labelM[0] : ""),
+        ...parseLabelSeg(rest),
         x: px(cx),
         y: pyf(cy),
         w: px(wInch),

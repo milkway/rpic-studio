@@ -107,6 +107,37 @@ describe("conectores livres (VLine)", () => {
   });
 });
 
+describe("fonte por objeto (Fase 4)", () => {
+  it("bold/italic/font/fontsize por string, round-trip", () => {
+    const g: VGraph = {
+      nodes: [node({ id: "N1", shape: "box", label: "Título", x: 96, y: 96, bold: true, italic: true, font: "Georgia", fontsize: 12 })],
+      edges: [],
+    };
+    const pic = graphToPic(g);
+    expect(pic).toContain('box "Título" bold italic font "Georgia" fontsize 12 wid');
+    const n = parsePic(pic)!.nodes[0];
+    expect([n.bold, n.italic, n.font, n.fontsize]).toEqual([true, true, "Georgia", 12]);
+    expect(n.label).toBe("Título");
+  });
+
+  it("fonte repetida por linha em rótulo multilinha", () => {
+    const g: VGraph = { nodes: [node({ id: "N1", shape: "box", label: "a\nb", x: 96, y: 96, bold: true })], edges: [] };
+    const pic = graphToPic(g);
+    expect(pic).toContain('box "a" bold "b" bold wid');
+    const n = parsePic(pic)!.nodes[0];
+    expect(n.label).toBe("a\nb");
+    expect(n.bold).toBe(true);
+  });
+
+  it("losango com fill + fonte não confunde cor com rótulo", () => {
+    const g: VGraph = { nodes: [node({ id: "N1", shape: "diamond", label: "ok?", x: 200, y: 100, w: 96, h: 72, fill: "gold", bold: true })], edges: [] };
+    const n = parsePic(graphToPic(g))!.nodes[0];
+    expect(n.label).toBe("ok?");
+    expect(n.fill).toBe("gold");
+    expect(n.bold).toBe(true);
+  });
+});
+
 describe("texto & math (Fase 3)", () => {
   it("rótulo multilinha vira strings empilhadas e round-trippa", () => {
     const g: VGraph = { nodes: [node({ id: "N1", shape: "box", label: "linha 1\nlinha 2", x: 96, y: 96 })], edges: [] };
