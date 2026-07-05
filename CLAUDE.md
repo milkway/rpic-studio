@@ -70,9 +70,15 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   da moldura da página) p/ posicionar pontos livres sem `#s{i}`; a barra é modo-ferramenta
   (select/linha/seta). Texto (Fase 3): `shape:"text"` (objeto solto `Nx: "…" at (x,y)`), rótulo
   MULTILINHA (`\n` → strings empilhadas), e `math:true` → `"$…$"` (o `esc`/`unesc` só mexem em aspas,
-  NÃO dobram `\`, p/ o backslash do TeX passar). Roadmap: Fase 4 fonte por objeto (bloqueada pela
-  issue rpic #225). Issues abertas no rpic-lang: #225 fonte por objeto, #226 canvas fixo, #227 geometria no
-  compile, #228 texto girado + rgb/hex.
+  NÃO dobram `\`, p/ o backslash do TeX passar). Fonte por objeto (Fase 4, rpic 0.7.0): `bold`,
+  `italic`, `font "…"`, `fontsize` — atributos POR-STRING do rpic (o gerador repete em cada linha do
+  rótulo; `parseLabelSeg` lê rótulos+fonte distinguindo valores de cor). **studio inteiro na rpic
+  0.7.0** (web WASM `@strategicprojects/rpic@^0.7.0` — CUIDADO: o pin fica em `apps/web/package.json`,
+  não só na raiz; e a git-dep da API em `apps/api/Cargo.toml` na tag `v0.7.0`). Todas as 4 issues do
+  rpic-lang (#225–#228 / PRs #229–#232) entregues: fonte por objeto, canvas fixo, geometria no bundle
+  (`compile().objects[]` — ainda NÃO adotado no overlay), texto girado + rgb()/0x. Roadmap restante:
+  cor livre (rgb/0x) + rotação de rótulo; geometria (`objects[].bbox` + `line/col` → clicar objeto ↦
+  linha).
 - **Render server-side** (`routes/render.rs`, `POST /api/render` → svg|png|pdf): pic é NÃO
   confiável (`IncludePolicy::Deny`), CPU-bound em `spawn_blocking`, math via `ensure_math()`.
   Param `google_font` restrito ao `GOOGLE_FONTS` allowlist (mitiga SSRF) e casa a fonte no
