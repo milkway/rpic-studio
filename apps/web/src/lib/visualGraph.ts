@@ -27,6 +27,12 @@ export interface Stroke {
   thick?: number;
   /** preenchimento hachurado */
   hatch?: "hatch" | "crosshatch";
+  /** ângulo das linhas de hachura em graus (rpic `hatchangle`, default 45) */
+  hatchAngle?: number;
+  /** espaçamento entre linhas de hachura em polegadas (rpic `hatchsep`, default 0.08) */
+  hatchSep?: number;
+  /** cor das linhas de hachura (nome pic ou `#rrggbb` → rpic `hatchcolor`) */
+  hatchColor?: string;
 }
 
 export interface VNode extends Stroke {
@@ -233,7 +239,12 @@ function styleSuffix(n: Stroke): string {
   let s = "";
   if (n.fill) s += ` shaded "${n.fill}"`;
   if (n.stroke) s += ` outlined "${n.stroke}"`;
-  if (n.hatch) s += ` ${n.hatch}`;
+  if (n.hatch) {
+    s += ` ${n.hatch}`;
+    if (n.hatchAngle !== undefined) s += ` hatchangle ${num(n.hatchAngle)}`;
+    if (n.hatchSep !== undefined) s += ` hatchsep ${num(n.hatchSep)}`;
+    if (n.hatchColor) s += ` hatchcolor "${n.hatchColor}"`;
+  }
   if (n.dash) s += ` ${n.dash}`;
   if (n.thick !== undefined) s += ` thick ${num(n.thick)}`;
   return s;
@@ -421,6 +432,12 @@ function parseStyle(rest: string): Partial<Stroke> {
   if (stroke) out.stroke = unesc(stroke);
   const hatch = /\b(crosshatch|hatch)\b/.exec(rest)?.[1];
   if (hatch) out.hatch = hatch as "hatch" | "crosshatch";
+  const hAngle = /\bhatchangle\s+(-?[\d.]+)/.exec(rest);
+  if (hAngle) out.hatchAngle = +hAngle[1];
+  const hSep = /\bhatchsep\s+([\d.]+)/.exec(rest);
+  if (hSep) out.hatchSep = +hSep[1];
+  const hColor = new RegExp(`hatchcolor\\s+${STR}`).exec(rest)?.[1];
+  if (hColor) out.hatchColor = unesc(hColor);
   Object.assign(out, parseConnStyle(rest));
   return out;
 }

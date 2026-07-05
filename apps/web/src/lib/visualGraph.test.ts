@@ -277,6 +277,22 @@ describe("estilos por objeto (Fase 2)", () => {
     expect(n.thick).toBe(1.5);
   });
 
+  it("parâmetros de hatch (ângulo/espaço/cor) round-trippam", () => {
+    const g: VGraph = {
+      nodes: [
+        node({ id: "N1", shape: "box", x: 96, y: 96, hatch: "hatch", hatchAngle: 30, hatchSep: 0.05, hatchColor: "gray" }),
+      ],
+      edges: [],
+    };
+    const pic = graphToPic(g);
+    expect(pic).toMatch(/hatch hatchangle 30 hatchsep 0\.05 hatchcolor "gray"/);
+    const n = parsePic(pic)!.nodes[0];
+    expect(n.hatch).toBe("hatch");
+    expect(n.hatchAngle).toBe(30);
+    expect(n.hatchSep).toBe(0.05);
+    expect(n.hatchColor).toBe("gray");
+  });
+
   it("conector: pontas (fim/início/ambas) e tracejado round-trippam", () => {
     const g: VGraph = {
       nodes: [],

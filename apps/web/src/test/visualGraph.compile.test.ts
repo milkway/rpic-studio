@@ -66,6 +66,18 @@ describe("alinhamento de rótulo (ljust/rjust/above/below) compila no WASM real"
     expect(out.svg).toMatch(/text-anchor="end"[^>]*>Right</);
     expect(out.svg).toMatch(/text-anchor="start"[^>]*>Combo</);
   });
+
+  it("hatch com ângulo/espaço/cor compila no WASM real", () => {
+    const g: VGraph = {
+      nodes: [
+        { id: "a", shape: "box", label: "", x: 0, y: 0, w: 96, h: 64, hatch: "hatch", hatchAngle: 30, hatchSep: 0.05, hatchColor: "gray" },
+      ],
+      edges: [],
+    };
+    const out = compile(graphToPic(g));
+    expect(out.svg).toContain("<svg");
+    expect(out.svg).toContain("</svg>");
+  });
 });
 
 describe("arco e spline (VLine.kind) compilam no WASM real", () => {

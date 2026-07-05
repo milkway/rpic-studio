@@ -540,8 +540,45 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10" data-testid="visual-overlay">
+      {/* Fundo clicável (só no modo select): clicar no vazio DESELECIONA. Fica
+          por baixo das alças/linhas/âncoras (DOM anterior), então só recebe
+          cliques em área vazia. */}
+      {tool === "select" && (
+        <div
+          className="pointer-events-auto absolute inset-0"
+          onPointerDown={() => setSel(null)}
+          data-testid="visual-deselect"
+        />
+      )}
       {/* Arestas: linha invisível clicável (selecionar) + realce da selecionada */}
       <svg className="pointer-events-none absolute inset-0 h-full w-full">
+        {/* Marca de seleção do nó NO FORMATO do objeto (não um retângulo fixo) */}
+        {selNode &&
+          (() => {
+            const b = boxOf(selNode.id);
+            if (!b) return null;
+            const common = { fill: "none", stroke: "var(--color-accent)", strokeWidth: 2 } as const;
+            if (selNode.shape === "circle" || selNode.shape === "ellipse")
+              return <ellipse cx={b.cx} cy={b.cy} rx={b.w / 2} ry={b.h / 2} {...common} />;
+            if (selNode.shape === "diamond")
+              return (
+                <polygon
+                  points={`${b.cx},${b.top} ${b.left + b.w},${b.cy} ${b.cx},${b.top + b.h} ${b.left},${b.cy}`}
+                  {...common}
+                />
+              );
+            return (
+              <rect
+                x={b.left}
+                y={b.top}
+                width={b.w}
+                height={b.h}
+                rx={3}
+                strokeDasharray={selNode.shape === "text" ? "4 3" : undefined}
+                {...common}
+              />
+            );
+          })()}
         {graph.edges.map((edge) => {
           const ep = endpoints(edge);
           if (!ep) return null;
@@ -616,7 +653,9 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
             key={b.id}
             className={cn(
               "pointer-events-auto absolute cursor-move rounded-sm transition-[outline] duration-100",
-              selected ? "outline outline-2 outline-(--color-accent)" : "outline outline-1 outline-transparent hover:outline-(--color-accent)/40",
+              // Selecionado → a marca no formato (SVG) já aparece; aqui só o
+              // realce sutil de HOVER quando NÃO está selecionado.
+              !selected && "outline outline-1 outline-transparent hover:outline-(--color-accent)/40",
             )}
             style={{ left: b.left, top: b.top, width: b.w, height: b.h }}
             onPointerDown={(e) => onNodeDown(e, b.id)}
@@ -627,18 +666,26 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
             title={onJumpToLine ? "2× → código" : undefined}
             data-testid="visual-handle"
           >
-            {showSide && (() => {
-              const a = anchorXY(showSide, b.w, b.h);
+            {/* Âncoras de conexão: TODAS quando o nó está selecionado (visível e
+                consistente com as pontas de um conector); só a mais próxima no
+                hover quando não selecionado (mantém o centro livre p/ mover). */}
+            {(selected ? sidesFor(node.shape) : showSide ? [showSide] : []).map((side) => {
+              const a = anchorXY(side, b.w, b.h);
               return (
                 <div
-                  title={`.${showSide}`}
-                  className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 cursor-crosshair rounded-full border-2 border-(--color-surface) bg-(--color-accent) shadow"
+                  key={side}
+                  title={`.${side}`}
+                  className={cn(
+                    "absolute -translate-x-1/2 -translate-y-1/2 cursor-crosshair rounded-full border-2 border-(--color-surface) bg-(--color-accent) shadow",
+                    // no nó selecionado as âncoras são menores (não poluem)
+                    selected && side !== showSide ? "h-2.5 w-2.5 opacity-70" : "h-3 w-3",
+                  )}
                   style={{ left: a.x, top: a.y }}
-                  onPointerDown={(e) => onAnchorDown(e, b.id, showSide)}
-                  data-testid={`visual-anchor-${showSide}`}
+                  onPointerDown={(e) => onAnchorDown(e, b.id, side)}
+                  data-testid={`visual-anchor-${side}`}
                 />
               );
-            })()}
+            })}
           </div>
         );
       })}
@@ -833,6 +880,38 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
               <Swatches title={t("visual.inspector.fill")} colors={FILL_COLORS} value={selNode.fill} onPick={(c) => updateNode(selNode.id, { fill: c })} noneLabel={t("visual.none")} />
               <Swatches title={t("visual.inspector.stroke")} colors={STROKE_COLORS} value={selNode.stroke} onPick={(c) => updateNode(selNode.id, { stroke: c })} noneLabel={t("visual.none")} />
               <Seg title={t("visual.inspector.hatch")} value={selNode.hatch} onPick={(v) => updateNode(selNode.id, { hatch: v })} options={[{ v: undefined, el: "∅" }, { v: "hatch" as const, el: "▧" }, { v: "crosshatch" as const, el: "▦" }]} />
+              {selNode.hatch && (
+                <>
+                  <Seg
+                    title={t("visual.inspector.hatchAngle")}
+                    value={selNode.hatchAngle}
+                    onPick={(v) => updateNode(selNode.id, { hatchAngle: v })}
+                    options={[
+                      { v: 0, el: "0°" },
+                      { v: undefined, el: "45°" },
+                      { v: 90, el: "90°" },
+                      { v: 135, el: "135°" },
+                    ]}
+                  />
+                  <Seg
+                    title={t("visual.inspector.hatchSep")}
+                    value={selNode.hatchSep}
+                    onPick={(v) => updateNode(selNode.id, { hatchSep: v })}
+                    options={[
+                      { v: 0.04, el: "≣" },
+                      { v: undefined, el: "≡" },
+                      { v: 0.15, el: "═" },
+                    ]}
+                  />
+                  <Swatches
+                    title={t("visual.inspector.hatchColor")}
+                    colors={STROKE_COLORS}
+                    value={selNode.hatchColor}
+                    onPick={(c) => updateNode(selNode.id, { hatchColor: c })}
+                    noneLabel={t("visual.none")}
+                  />
+                </>
+              )}
               <Seg title={t("visual.inspector.line")} value={selNode.dash} onPick={(v) => updateNode(selNode.id, { dash: v })} options={DASH_OPTS} />
               <Seg title={t("visual.inspector.thick")} value={selNode.thick} onPick={(v) => updateNode(selNode.id, { thick: v })} options={THICK_OPTS} />
             </>

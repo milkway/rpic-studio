@@ -61,9 +61,13 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   setState quando muda) — imune a corridas de timing (injeção/crossFade/reflow). graph px == unidade
   de usuário do SVG (96/pol) → arrastar é `Δtela/zoom`; no drop MANTÉM o `translate` do `<g>` até o
   recompile substituir o SVG (evita o "fantasma" old+new). No modo visual o preview alinha ao
-  TOPO-ESQUERDA (origem fixa) em vez de centralizar, senão mover/adicionar recentraliza tudo. Só a
-  âncora (compass point) MAIS PRÓXIMA do cursor aparece (dentro de `SHOW_DIST`); o centro fica livre
-  p/ mover/selecionar (âncora `.c` não é renderizada — interceptaria o clique). Conectar sai de uma
+  TOPO-ESQUERDA (origem fixa) em vez de centralizar, senão mover/adicionar recentraliza tudo. No nó
+  SELECIONADO aparecem TODAS as âncoras (descoberta/consistência com as pontas de conector); em
+  não-selecionados, só a âncora MAIS PRÓXIMA do cursor (dentro de `SHOW_DIST`). CUIDADO nos e2e: o
+  testid `visual-anchor-{side}` deixa de ser único (o selecionado mostra todas) → escopar ao handle do
+  nó. A **marca de seleção do nó segue o FORMATO** (SVG: ellipse/polígono/rect, não retângulo fixo).
+  Clicar no VAZIO deselecciona (layer `visual-deselect`, primeiro filho do overlay, por baixo das
+  alças; só no modo select). O centro fica livre p/ mover (âncora `.c` não é renderizada). Conectar sai de uma
   âncora; a aresta seleciona clicando na LINHA (não há bola) e reancora arrastando as pontas
   (`fromSide/toSide`). Arraste de conexão/reancoragem usa listeners de WINDOW (não `setPointerCapture`
   na âncora, que remonta no re-render e perde a captura). Ids: nós = nome pic (N1…); arestas =
@@ -74,7 +78,9 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   `canvas from … to …` (v0.7.0, diretiva que NÃO gera `s{i}`) que FIXA o viewBox → mover um objeto
   não desloca a figura. Rascunhos antigos com a moldura branca `PAGE: box … outlined "#ffffff"`
   ainda são lidos. `growPage` só cresce.
-  Estilo por objeto (Fase 2): `fill/stroke` (cor), `hatch|crosshatch`, `dashed|dotted`, `thick`; e
+  Estilo por objeto (Fase 2): `fill/stroke` (cor), `hatch|crosshatch` (+ params `hatchAngle`/`hatchSep`/
+  `hatchColor` → `hatchangle`/`hatchsep`/`hatchcolor`; inspetor mostra os controles só quando há
+  hachura), `dashed|dotted`, `thick`; e
   conectores com pontas `arrow`(fim)/`back`(início) → gera `arrow`/`line`/`line <-`/`line <->`. O
   overlay tem um transform modelo↔tela (derivado de um nó DIMENSIONADO — texto tem w/h nominal — ou
   da moldura da página) p/ posicionar pontos livres sem `#s{i}`; a barra é modo-ferramenta

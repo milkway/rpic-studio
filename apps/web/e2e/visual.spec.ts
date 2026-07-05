@@ -33,6 +33,16 @@ test("clicar a alça abre o inspetor; editar rótulo atualiza código e render",
   await expect(page.getByTestId("code-pane")).toContainText('box "Alpha"');
 });
 
+test("clicar no vazio deseleciona (fecha o inspetor)", async ({ page }) => {
+  await page.getByTestId("visual-add-box").click();
+  await page.getByTestId("visual-handle").first().click();
+  await expect(page.getByTestId("visual-inspector")).toBeVisible({ timeout: 5_000 });
+  // clica numa área vazia do canvas (canto inferior esquerdo, longe do nó)
+  const canvas = (await page.getByTestId("preview-canvas").boundingBox())!;
+  await page.mouse.click(canvas.x + 24, canvas.y + canvas.height - 24);
+  await expect(page.getByTestId("visual-inspector")).toHaveCount(0, { timeout: 5_000 });
+});
+
 test("conectar da âncora .e do nó A ao nó B cria a seta N1.e -> N2.w", async ({ page }) => {
   await page.getByTestId("visual-add-box").click();
   await page.getByTestId("visual-add-box").click();
@@ -45,7 +55,10 @@ test("conectar da âncora .e do nó A ao nó B cria a seta N1.e -> N2.w", async 
   const ex = a.x + a.width - 3;
   const ey = a.y + a.height / 2;
   await page.mouse.move(ex, ey);
-  await expect(page.getByTestId("visual-anchor-e")).toBeVisible({ timeout: 3_000 });
+  // escopa ao nó A: o nó selecionado (B) também mostra sua âncora .e
+  await expect(
+    page.getByTestId("visual-handle").nth(0).getByTestId("visual-anchor-e"),
+  ).toBeVisible({ timeout: 3_000 });
   // arrasta da âncora .e até o centro do nó B (à direita)
   await page.mouse.down();
   await page.mouse.move(b.x + b.width * 0.25, b.y + b.height / 2, { steps: 10 });
@@ -63,7 +76,9 @@ test("selecionar a seta pela linha e reancorar a ponta muda o lado", async ({ pa
   const b = (await page.getByTestId("visual-handle").nth(1).boundingBox())!;
   // conecta A.e -> B
   await page.mouse.move(a.x + a.width - 3, a.y + a.height / 2);
-  await expect(page.getByTestId("visual-anchor-e")).toBeVisible({ timeout: 3_000 });
+  await expect(
+    page.getByTestId("visual-handle").nth(0).getByTestId("visual-anchor-e"),
+  ).toBeVisible({ timeout: 3_000 });
   await page.mouse.down();
   await page.mouse.move(b.x + b.width * 0.25, b.y + b.height / 2, { steps: 8 });
   await page.mouse.up();
