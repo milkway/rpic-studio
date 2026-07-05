@@ -82,6 +82,29 @@ test("selecionar a seta pela linha e reancorar a ponta muda o lado", async ({ pa
   await expect(page.getByTestId("code-pane")).toContainText("arrow from N1.n to N2.w", { timeout: 5_000 });
 });
 
+test("estilos por objeto: hatch/dashed no nó, pontas na seta", async ({ page }) => {
+  await page.getByTestId("visual-add-box").click();
+  await expect(page.getByTestId("visual-inspector")).toBeVisible({ timeout: 5_000 });
+  // nó: crosshatch + dashed
+  await page.locator('[data-testid="visual-inspector"] button:has-text("▦")').click();
+  await page.locator('[data-testid="visual-inspector"] button:has-text("╌╌")').click();
+  await expect(page.getByTestId("code-pane")).toContainText("crosshatch", { timeout: 5_000 });
+  await expect(page.getByTestId("code-pane")).toContainText("dashed");
+
+  // conector livre com pontas nos dois lados
+  await page.getByTestId("visual-add-circle").click();
+  await page.waitForTimeout(300);
+  await page.getByTestId("visual-tool-arrow").click();
+  const cv = (await page.getByTestId("preview-canvas").boundingBox())!;
+  await page.mouse.move(cv.x + cv.width * 0.4, cv.y + cv.height * 0.55);
+  await page.mouse.down();
+  await page.mouse.move(cv.x + cv.width * 0.7, cv.y + cv.height * 0.7, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.getByTestId("visual-inspector")).toBeVisible();
+  await page.locator('[data-testid="visual-inspector"] button:has-text("↔")').click();
+  await expect(page.getByTestId("code-pane")).toContainText("line <-> from", { timeout: 5_000 });
+});
+
 test("desenhar linha livre ponto-a-ponto (sem forçar âncora)", async ({ page }) => {
   await page.getByTestId("visual-add-box").click();
   await expect(page.getByTestId("visual-handle")).toHaveCount(1, { timeout: 5_000 });

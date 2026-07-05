@@ -59,6 +59,17 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   na âncora, que remonta no re-render e perde a captura). Ids: nós = nome pic (N1…); arestas =
   `from-to-índice` (determinístico, IGUAL ao que `parsePic` atribui) p/ a seleção sobreviver ao
   round-trip. Losango = `line … close shaded/outlined`.
+- **Editor visual — modelo e roadmap** (`lib/visualGraph.ts`): além de nós+arestas, tem `VLine`
+  (conectores LIVRES: pontas `{x,y}` livres ou `{node,side}` ancoradas) e uma `Page` (moldura
+  `PAGE: box … outlined "#ffffff"` emitida por ÚLTIMO que FIXA o viewBox → mover um objeto não
+  desloca a figura; `invis` não serviria pois não conta no bbox do rpic). `growPage` só cresce.
+  Estilo por objeto (Fase 2): `fill/stroke` (cor), `hatch|crosshatch`, `dashed|dotted`, `thick`; e
+  conectores com pontas `arrow`(fim)/`back`(início) → gera `arrow`/`line`/`line <-`/`line <->`. O
+  overlay tem um transform modelo↔tela (derivado de um nó ou da moldura da página) p/ posicionar
+  pontos livres sem `#s{i}`; a barra é modo-ferramenta (select/linha/seta). Roadmap "editor completo
+  de figuras": Fase 3 texto/LaTeX multilinha, Fase 4 fonte por objeto (bloqueada pela issue rpic
+  #225). Issues abertas no rpic-lang: #225 fonte por objeto, #226 canvas fixo, #227 geometria no
+  compile, #228 texto girado + rgb/hex.
 - **Render server-side** (`routes/render.rs`, `POST /api/render` → svg|png|pdf): pic é NÃO
   confiável (`IncludePolicy::Deny`), CPU-bound em `spawn_blocking`, math via `ensure_math()`.
   Param `google_font` restrito ao `GOOGLE_FONTS` allowlist (mitiga SSRF) e casa a fonte no

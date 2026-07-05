@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Trash2 } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import { Button } from "@/components/ui/Button";
@@ -443,6 +443,23 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
   const selEdge = sel?.kind === "edge" ? graph.edges.find((e) => e.id === sel.id) : undefined;
   const selEnds = selEdge ? endpoints(selEdge) : null;
   const selLine = sel?.kind === "line" ? lines.find((l) => l.id === sel.id) : undefined;
+  const selConn = selEdge ?? selLine;
+  const updConn = (patch: Partial<VLine>) =>
+    selEdge ? updateEdge(selEdge.id, patch) : selLine ? updateLine(selLine.id, patch) : undefined;
+  type Heads = "none" | "end" | "start" | "both";
+  const headsVal: Heads = selConn ? (selConn.arrow && selConn.back ? "both" : selConn.arrow ? "end" : selConn.back ? "start" : "none") : "none";
+  const setHeads = (v: Heads) =>
+    updConn({ arrow: v === "end" || v === "both", back: v === "start" || v === "both" });
+  const DASH_OPTS = [
+    { v: undefined, el: "──" },
+    { v: "dashed" as const, el: "╌╌" },
+    { v: "dotted" as const, el: "┈┈" },
+  ];
+  const THICK_OPTS = [
+    { v: undefined, el: <div className="h-px w-5 bg-current" /> },
+    { v: 1.5, el: <div className="h-0.5 w-5 bg-current" /> },
+    { v: 3, el: <div className="h-1 w-5 rounded-full bg-current" /> },
+  ];
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10" data-testid="visual-overlay">
@@ -604,29 +621,58 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
             <>
               <Swatches title={t("visual.inspector.fill")} colors={FILL_COLORS} value={selNode.fill} onPick={(c) => updateNode(selNode.id, { fill: c })} noneLabel={t("visual.none")} />
               <Swatches title={t("visual.inspector.stroke")} colors={STROKE_COLORS} value={selNode.stroke} onPick={(c) => updateNode(selNode.id, { stroke: c })} noneLabel={t("visual.none")} />
+              <Seg title={t("visual.inspector.hatch")} value={selNode.hatch} onPick={(v) => updateNode(selNode.id, { hatch: v })} options={[{ v: undefined, el: "∅" }, { v: "hatch" as const, el: "▧" }, { v: "crosshatch" as const, el: "▦" }]} />
+              <Seg title={t("visual.inspector.line")} value={selNode.dash} onPick={(v) => updateNode(selNode.id, { dash: v })} options={DASH_OPTS} />
+              <Seg title={t("visual.inspector.thick")} value={selNode.thick} onPick={(v) => updateNode(selNode.id, { thick: v })} options={THICK_OPTS} />
             </>
           )}
-          {selEdge && (
-            <button
-              onClick={() => updateEdge(selEdge.id, { arrow: !selEdge.arrow })}
-              className="mb-3 w-full rounded-(--radius-sm) border border-(--color-border) px-2 py-1 text-xs text-(--color-text) hover:bg-(--color-surface-muted)"
-            >
-              {selEdge.arrow ? t("visual.edge.arrow") : t("visual.edge.line")}
-            </button>
-          )}
-          {selLine && (
-            <button
-              onClick={() => updateLine(selLine.id, { arrow: !selLine.arrow })}
-              className="mb-3 w-full rounded-(--radius-sm) border border-(--color-border) px-2 py-1 text-xs text-(--color-text) hover:bg-(--color-surface-muted)"
-            >
-              {selLine.arrow ? t("visual.edge.arrow") : t("visual.edge.line")}
-            </button>
+          {selConn && (
+            <>
+              <Seg title={t("visual.inspector.ends")} value={headsVal} onPick={setHeads} options={[{ v: "none" as const, el: "─" }, { v: "end" as const, el: "→", testid: "visual-heads-end" }, { v: "start" as const, el: "←" }, { v: "both" as const, el: "↔" }]} />
+              <Seg title={t("visual.inspector.line")} value={selConn.dash} onPick={(v) => updConn({ dash: v })} options={DASH_OPTS} />
+              <Seg title={t("visual.inspector.thick")} value={selConn.thick} onPick={(v) => updConn({ thick: v })} options={THICK_OPTS} />
+            </>
           )}
           <Button variant="ghost" size="sm" onClick={deleteSel} data-testid="visual-delete" className="w-full justify-center text-(--color-danger)">
             <Trash2 size={13} /> {t("visual.delete")}
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+function Seg<T>({
+  title,
+  value,
+  options,
+  onPick,
+}: {
+  title: string;
+  value: T;
+  options: { v: T; el: ReactNode; testid?: string }[];
+  onPick: (v: T) => void;
+}) {
+  return (
+    <div className="mb-3">
+      <span className="mb-1 block font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">{title}</span>
+      <div className="flex gap-1">
+        {options.map((o, i) => (
+          <button
+            key={i}
+            onClick={() => onPick(o.v)}
+            data-testid={o.testid}
+            className={cn(
+              "flex h-7 flex-1 items-center justify-center rounded-(--radius-sm) border text-sm leading-none",
+              value === o.v
+                ? "border-(--color-accent) bg-(--color-accent-soft) text-(--color-accent)"
+                : "border-(--color-border) text-(--color-text-muted) hover:text-(--color-text)",
+            )}
+          >
+            {o.el}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

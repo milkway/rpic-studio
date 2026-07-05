@@ -16,7 +16,20 @@ export type Shape = "box" | "circle" | "ellipse" | "diamond";
 /** Âncoras pic (compass points + centro) — lados de saída/entrada das arestas. */
 export type Side = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw" | "c";
 
-export interface VNode {
+/** Estilo de traço comum a formas e conectores. */
+export type Dash = "dashed" | "dotted";
+export interface Stroke {
+  /** nomes de cor pic ("lightyellow", "gray"…); ausente = padrão */
+  fill?: string;
+  stroke?: string;
+  dash?: Dash;
+  /** espessura em pontos (linethick); ausente = padrão */
+  thick?: number;
+  /** preenchimento hachurado */
+  hatch?: "hatch" | "crosshatch";
+}
+
+export interface VNode extends Stroke {
   id: string;
   shape: Shape;
   label: string;
@@ -26,18 +39,23 @@ export interface VNode {
   /** dimensões em px */
   w: number;
   h: number;
-  /** nomes de cor pic ("lightyellow", "gray"…); ausente = padrão */
-  fill?: string;
-  stroke?: string;
 }
 
-export interface VEdge {
+/** Traço/pontas comuns a arestas e conectores livres. */
+export interface ConnStyle {
+  /** true = ponta de seta no FIM (arrow); false = sem ponta no fim. */
+  arrow: boolean;
+  /** ponta de seta também no INÍCIO. */
+  back?: boolean;
+  dash?: Dash;
+  thick?: number;
+}
+
+export interface VEdge extends ConnStyle {
   id: string;
   from: string;
   to: string;
   label?: string;
-  /** true = seta (arrow); false = linha simples (line) */
-  arrow: boolean;
   /** Âncoras explícitas escolhidas ao conectar; ausente = automático (eixo). */
   fromSide?: Side;
   toSide?: Side;
@@ -54,9 +72,8 @@ export interface VEndpoint {
 
 /** Conector livre (linha/seta ponto-a-ponto), endpoints livres ou ancorados —
  *  diferente de VEdge, que liga sempre dois nós. */
-export interface VLine {
+export interface VLine extends ConnStyle {
   id: string;
-  arrow: boolean;
   a: VEndpoint;
   b: VEndpoint;
   label?: string;
@@ -173,10 +190,27 @@ function toInchY(px: number): number {
   return -px / PX_PER_INCH;
 }
 
-function styleSuffix(n: VNode): string {
+function styleSuffix(n: Stroke): string {
   let s = "";
   if (n.fill) s += ` shaded "${n.fill}"`;
   if (n.stroke) s += ` outlined "${n.stroke}"`;
+  if (n.hatch) s += ` ${n.hatch}`;
+  if (n.dash) s += ` ${n.dash}`;
+  if (n.thick !== undefined) s += ` thick ${num(n.thick)}`;
+  return s;
+}
+
+/** Verbo + spec de pontas p/ um conector (arrow=fim, back=início). */
+function connVerb(c: ConnStyle): string {
+  if (c.arrow && c.back) return "line <->";
+  if (c.back) return "line <-";
+  if (c.arrow) return "arrow";
+  return "line";
+}
+function connStyleSuffix(c: ConnStyle): string {
+  let s = "";
+  if (c.dash) s += ` ${c.dash}`;
+  if (c.thick !== undefined) s += ` thick ${num(c.thick)}`;
   return s;
 }
 
@@ -226,8 +260,7 @@ function endpointPic(e: VEndpoint, name: Map<string, string>): string {
   return `(${num(toInchX(e.x ?? 0))},${num(toInchY(e.y ?? 0))})`;
 }
 function linePic(ln: VLine, byId: Map<string, VNode>, name: Map<string, string>): string {
-  const verb = ln.arrow ? "arrow" : "line";
-  let s = `${verb} from ${endpointPic(ln.a, name)} to ${endpointPic(ln.b, name)}`;
+  let s = `${connVerb(ln)} from ${endpointPic(ln.a, name)} to ${endpointPic(ln.b, name)}${connStyleSuffix(ln)}`;
   if (ln.label) {
     const a = endpointPx(ln.a, byId);
     const b = endpointPx(ln.b, byId);
@@ -241,8 +274,7 @@ function edgePic(e: VEdge, byId: Map<string, VNode>, name: Map<string, string>):
   const b = byId.get(e.to);
   if (!a || !b) return null;
   const [sa, sb] = e.fromSide && e.toSide ? [e.fromSide, e.toSide] : pickSides(a, b);
-  const verb = e.arrow ? "arrow" : "line";
-  let line = `${verb} from ${name.get(a.id)}.${sa} to ${name.get(b.id)}.${sb}`;
+  let line = `${connVerb(e)} from ${name.get(a.id)}.${sa} to ${name.get(b.id)}.${sb}${connStyleSuffix(e)}`;
   if (e.label) {
     const mx = num(toInchX((a.x + b.x) / 2));
     const my = num(toInchY((a.y + b.y) / 2));
@@ -292,17 +324,32 @@ function px(inch: number): number {
 function pyf(inch: number): number {
   return Math.round(-inch * PX_PER_INCH) + 0;
 }
-/** Extrai `shaded "…"` / `outlined "…"` de um trecho. */
-function parseStyle(rest: string): { fill?: string; stroke?: string } {
+/** Extrai estilo (cor/fill/hatch/dash/thick) — só chaves presentes. */
+function parseStyle(rest: string): Partial<Stroke> {
+  const out: Partial<Stroke> = {};
   const fill = new RegExp(`shaded\\s+${STR}`).exec(rest)?.[1];
   const stroke = new RegExp(`outlined\\s+${STR}`).exec(rest)?.[1];
-  return { fill: fill && unesc(fill), stroke: stroke && unesc(stroke) };
+  if (fill) out.fill = unesc(fill);
+  if (stroke) out.stroke = unesc(stroke);
+  const hatch = /\b(crosshatch|hatch)\b/.exec(rest)?.[1];
+  if (hatch) out.hatch = hatch as "hatch" | "crosshatch";
+  Object.assign(out, parseConnStyle(rest));
+  return out;
+}
+/** Traço de um trecho de atributos (dash/thick) — só chaves presentes. */
+function parseConnStyle(rest: string): { dash?: Dash; thick?: number } {
+  const out: { dash?: Dash; thick?: number } = {};
+  const dash = /\b(dashed|dotted)\b/.exec(rest)?.[1];
+  if (dash) out.dash = dash as Dash;
+  const thickM = /\bthick\s+([\d.]+)/.exec(rest);
+  if (thickM) out.thick = +thickM[1];
+  return out;
 }
 
 const RE_BOX = new RegExp(`^(\\w+):\\s*(box|ellipse)\\s+(?:${STR}\\s+)?wid\\s+${N}\\s+ht\\s+${N}\\s+at\\s+${P}(.*)$`);
 const RE_CIRCLE = new RegExp(`^(\\w+):\\s*circle\\s+(?:${STR}\\s+)?diam\\s+${N}\\s+at\\s+${P}(.*)$`);
 const RE_DIAMOND = new RegExp(`^(\\w+):\\s*line\\s+from\\s+${P}\\s+to\\s+${P}\\s+to\\s+${P}\\s+to\\s+${P}\\s+close(.*)$`);
-const RE_CONN = /^(arrow|line)\s+from\s+(\S.*?)\s+to\s+(\S.*?)\s*$/;
+const RE_CONN = /^(arrow|line)(\s+<->|\s+<-)?\s+from\s+(\S+)\s+to\s+(\S+)(\s.*)?$/;
 const RE_EDGE_LABEL = new RegExp(`^${STR}\\s+at\\s+${P}\\s*(?:above|below)?\\s*$`);
 
 /** Ponta de conector: `(x,y)` livre ou `Nome.side` ancorada. */
@@ -383,17 +430,23 @@ export function parsePic(source: string): VGraph | null {
       });
       last = null;
     } else if ((m = RE_CONN.exec(line))) {
-      const [, verb, aS, bS] = m;
+      const [, verb, headRaw, aS, bS, trailing] = m;
+      const head = headRaw?.trim();
+      const arrow = verb === "arrow" || head === "<->";
+      const back = head === "<->" || head === "<-";
+      const cs = parseConnStyle(trailing ?? "");
       const a = parseEndpoint(aS);
       const b = parseEndpoint(bS);
       if (a && b && a.node && a.side && b.node && b.side) {
         // ambos ancorados → aresta nó-a-nó (caminho existente)
-        const edge: VEdge = { id: `${a.node}-${b.node}-${edges.length}`, from: a.node, to: b.node, arrow: verb === "arrow", fromSide: a.side, toSide: b.side };
+        const edge: VEdge = { id: `${a.node}-${b.node}-${edges.length}`, from: a.node, to: b.node, arrow, fromSide: a.side, toSide: b.side, ...cs };
+        if (back) edge.back = true;
         edges.push(edge);
         last = edge;
       } else if (a && b) {
         // alguma ponta livre → conector livre
-        const ln: VLine = { id: `L${lines.length}`, arrow: verb === "arrow", a, b };
+        const ln: VLine = { id: `L${lines.length}`, arrow, a, b, ...cs };
+        if (back) ln.back = true;
         lines.push(ln);
         last = ln;
       } else {

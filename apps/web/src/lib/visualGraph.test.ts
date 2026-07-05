@@ -107,6 +107,36 @@ describe("conectores livres (VLine)", () => {
   });
 });
 
+describe("estilos por objeto (Fase 2)", () => {
+  it("nó com hatch/dashed/thick round-trippa e gera pic", () => {
+    const g: VGraph = {
+      nodes: [node({ id: "N1", shape: "box", x: 96, y: 96, fill: "lightblue", hatch: "crosshatch", dash: "dashed", thick: 1.5 })],
+      edges: [],
+    };
+    const pic = graphToPic(g);
+    expect(pic).toMatch(/box wid .* shaded "lightblue" crosshatch dashed thick 1\.5/);
+    const n = parsePic(pic)!.nodes[0];
+    expect(n.hatch).toBe("crosshatch");
+    expect(n.dash).toBe("dashed");
+    expect(n.thick).toBe(1.5);
+  });
+
+  it("conector: pontas (fim/início/ambas) e tracejado round-trippam", () => {
+    const g: VGraph = {
+      nodes: [],
+      edges: [],
+      lines: [
+        { id: "L0", arrow: true, back: true, dash: "dotted", a: { x: 0, y: 0 }, b: { x: 96, y: 0 } },
+        { id: "L1", arrow: false, back: true, a: { x: 0, y: 96 }, b: { x: 96, y: 96 } },
+      ],
+    };
+    const pic = graphToPic(g);
+    expect(pic).toContain("line <-> from (0,0) to (1,0) dotted");
+    expect(pic).toContain("line <- from (0,-1) to (1,-1)");
+    expect(parsePic(pic)!.lines).toEqual(g.lines);
+  });
+});
+
 describe("página (fixa o viewBox)", () => {
   it("cresce envolvendo os nós + margem e nunca encolhe", () => {
     const p1 = growPage(graph.nodes)!;
