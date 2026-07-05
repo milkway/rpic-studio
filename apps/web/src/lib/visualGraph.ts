@@ -49,6 +49,8 @@ export interface VNode extends Stroke {
   font?: string;
   /** tamanho em pontos (`fontsize`). */
   fontsize?: number;
+  /** rotação do rótulo em graus (`rotated`, v0.7.0). */
+  rotate?: number;
 }
 
 /** Traço/pontas comuns a arestas e conectores livres. */
@@ -239,13 +241,14 @@ function connStyleSuffix(c: ConnStyle): string {
   return s;
 }
 
-/** Atributos de fonte (por-string no rpic) — repetidos em cada linha do rótulo. */
+/** Atributos por-string do rótulo (fonte + rotação) — repetidos em cada linha. */
 function fontAttrs(n: VNode): string {
   let s = "";
   if (n.bold) s += " bold";
   if (n.italic) s += " italic";
   if (n.font) s += ` font "${esc(n.font)}"`;
   if (n.fontsize !== undefined) s += ` fontsize ${num(n.fontsize)}`;
+  if (n.rotate) s += ` rotated ${num(n.rotate)}`;
   return s;
 }
 
@@ -400,7 +403,7 @@ function parseConnStyle(rest: string): { dash?: Dash; thick?: number } {
 /** Palavras cujo PRÓXIMO string é um valor (cor/família), não um rótulo. */
 const CONSUMES_STR = new Set(["font", "shaded", "outlined", "color", "colored", "colour", "coloured", "hatchcolor", "gradient"]);
 
-type LabelSeg = { label: string; math?: boolean; bold?: boolean; italic?: boolean; font?: string; fontsize?: number };
+type LabelSeg = { label: string; math?: boolean; bold?: boolean; italic?: boolean; font?: string; fontsize?: number; rotate?: number };
 
 /** Interpreta o trecho "rótulos + fonte" (strings intercaladas com bold/italic/
  *  font/fontsize; pula valores de cor). Um único `$…$` = math. */
@@ -418,6 +421,9 @@ function parseLabelSeg(seg: string): LabelSeg {
     } else if (t === "font") {
       const s = toks[++i];
       if (s?.startsWith('"')) out.font = unesc(s.slice(1, -1));
+    } else if (t === "rotated") {
+      const n = Number(toks[++i]);
+      if (!Number.isNaN(n)) out.rotate = n;
     } else if (CONSUMES_STR.has(t)) {
       i++; // pula o valor (nome de cor)
     } else if (t.startsWith('"')) {

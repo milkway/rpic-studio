@@ -82,6 +82,24 @@ test("selecionar a seta pela linha e reancorar a ponta muda o lado", async ({ pa
   await expect(page.getByTestId("code-pane")).toContainText("arrow from N1.n to N2.w", { timeout: 5_000 });
 });
 
+test("cor livre (hex) e rotação de rótulo (v0.7.0)", async ({ page }) => {
+  await page.getByTestId("visual-add-box").click();
+  await expect(page.getByTestId("visual-inspector")).toBeVisible({ timeout: 5_000 });
+  await page.getByTestId("visual-label-input").fill("giro");
+  // cor hex custom (setter nativo p/ o React captar)
+  await page.locator('[data-testid="visual-inspector"] input[type="color"]').first().evaluate((el: HTMLInputElement, val: string) => {
+    const s = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
+    s.call(el, val);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  }, "#ff33cc");
+  await page.locator('[data-testid="visual-inspector"] button:has-text("90°")').click();
+  await expect(page.getByTestId("code-pane")).toContainText('shaded "#ff33cc"', { timeout: 5_000 });
+  await expect(page.getByTestId("code-pane")).toContainText("rotated 90");
+  await expect
+    .poll(() => page.evaluate(() => /rotate\(/.test(document.querySelector('[data-testid="preview-stage"] svg')?.innerHTML || "")))
+    .toBe(true);
+});
+
 test("fonte por objeto: bold/italic/família/tamanho no código e no SVG", async ({ page }) => {
   await page.getByTestId("visual-add-box").click();
   await expect(page.getByTestId("visual-inspector")).toBeVisible({ timeout: 5_000 });

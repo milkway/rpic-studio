@@ -129,6 +129,19 @@ describe("fonte por objeto (Fase 4)", () => {
     expect(n.bold).toBe(true);
   });
 
+  it("cor hex livre e rotação de rótulo round-trippam", () => {
+    const g: VGraph = {
+      nodes: [node({ id: "N1", shape: "box", label: "eixo", x: 96, y: 96, fill: "#1b5e20", rotate: 90 })],
+      edges: [],
+    };
+    const pic = graphToPic(g);
+    expect(pic).toContain('shaded "#1b5e20"');
+    expect(pic).toContain('"eixo" rotated 90');
+    const n = parsePic(pic)!.nodes[0];
+    expect(n.fill).toBe("#1b5e20");
+    expect(n.rotate).toBe(90);
+  });
+
   it("losango com fill + fonte não confunde cor com rótulo", () => {
     const g: VGraph = { nodes: [node({ id: "N1", shape: "diamond", label: "ok?", x: 200, y: 100, w: 96, h: 72, fill: "gold", bold: true })], edges: [] };
     const n = parsePic(graphToPic(g))!.nodes[0];

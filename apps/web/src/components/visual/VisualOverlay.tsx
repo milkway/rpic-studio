@@ -690,6 +690,19 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
             </div>
           )}
           {selNode && (
+            <Seg
+              title={t("visual.inspector.rotate")}
+              value={selNode.rotate ?? 0}
+              onPick={(v) => updateNode(selNode.id, { rotate: v || undefined })}
+              options={[
+                { v: 0, el: "0°" },
+                { v: 45, el: "45°" },
+                { v: 90, el: "90°" },
+                { v: -45, el: "−45°" },
+              ]}
+            />
+          )}
+          {selNode && (
             <>
               <Swatches title={t("visual.inspector.fill")} colors={FILL_COLORS} value={selNode.fill} onPick={(c) => updateNode(selNode.id, { fill: c })} noneLabel={t("visual.none")} />
               <Swatches title={t("visual.inspector.stroke")} colors={STROKE_COLORS} value={selNode.stroke} onPick={(c) => updateNode(selNode.id, { stroke: c })} noneLabel={t("visual.none")} />
@@ -776,6 +789,22 @@ function Swatches({
         {colors.map((c) => (
           <button key={c} onClick={() => onPick(c)} title={c} style={{ background: c }} className={cn("h-5 w-5 rounded-full border border-(--color-border)", value === c && "ring-2 ring-(--color-accent)")} />
         ))}
+        {/* cor livre (rgb/hex — v0.7.0): emite `shaded "#rrggbb"` */}
+        <label
+          title="Cor livre"
+          className={cn(
+            "relative h-5 w-5 cursor-pointer overflow-hidden rounded-full border border-(--color-border)",
+            value?.startsWith("#") && "ring-2 ring-(--color-accent)",
+          )}
+          style={{ background: value?.startsWith("#") ? value : "conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)" }}
+        >
+          <input
+            type="color"
+            value={value?.startsWith("#") ? value : "#1b5e20"}
+            onChange={(e) => onPick(e.target.value)}
+            className="absolute inset-0 cursor-pointer opacity-0"
+          />
+        </label>
       </div>
     </div>
   );
