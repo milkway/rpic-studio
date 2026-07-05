@@ -25,6 +25,7 @@ import { type CanvasSettings } from "@/lib/storage";
 import { type Shape, type VGraph } from "@/lib/visualGraph";
 import { type ObjectGeometry } from "@/lib/rpic";
 import { VisualOverlay, type Tool } from "@/components/visual/VisualOverlay";
+import { ObjectsOverlay } from "@/components/visual/ObjectsOverlay";
 import { CanvasSettingsPopover } from "./CanvasSettingsPopover";
 import { canvasBackground } from "./canvasStyle";
 import { Button } from "@/components/ui/Button";
@@ -311,6 +312,19 @@ export function PreviewPane({
             onJumpToLine={onJumpToLine}
           />
         )}
+        {/* Sem cena editável (pic fora do formato do editor), mas o diagrama
+            compila: overlay UNIVERSAL — seleciona objetos e pula pro código. */}
+        {!(graph && (graph.nodes.length > 0 || (graph.lines?.length ?? 0) > 0)) &&
+          !loading &&
+          objects &&
+          objects.length > 0 && (
+            <ObjectsOverlay
+              objects={objects}
+              stageRef={stageRef}
+              canvasRef={canvasRef}
+              onJumpToLine={onJumpToLine}
+            />
+          )}
       </div>
 
       <div className="flex h-7 shrink-0 items-center gap-3 border-t border-(--color-border) bg-(--color-surface) px-3 font-mono text-[11px] text-(--color-text-muted)">

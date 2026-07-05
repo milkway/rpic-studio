@@ -55,7 +55,13 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   diagrama. O modelo é um grafo nós/arestas que **gera pic** (`graphToPic`, formato REGULAR:
   `N1: box "…" at (x,y)`, `arrow from N1.e to N2.w`). NÃO há blob embutido: o grafo é **reconstruído
   lendo o próprio pic** (`parsePic`) — código limpo, e sobrevive a draft/save/share/reload de graça.
-  `parsePic` retorna null para pic escrito à mão (fora do formato) → sem edição visual. Arredonda px
+  `parsePic` retorna null para pic escrito à mão (fora do formato) → sem GRAFO editável (arrastar/
+  estilizar), mas aí entra o **overlay universal** (`components/visual/ObjectsOverlay.tsx`): sobre
+  QUALQUER pic que compile, usa `useRpic().objects[]` (bbox por `#s{i}`, `line/col`, `file`) p/ dar
+  caixa selecionável por objeto + duplo-clique→linha do código. Só objetos do próprio input (`file`
+  ausente) são interativos. É a base p/ editar pic pronto; estilo-por-linha e ampliar o `parsePic` são
+  os próximos incrementos. O PreviewPane escolhe: `VisualOverlay` (grafo) OU `ObjectsOverlay` (resto).
+  Arredonda px
   no parse p/ evitar drift no round-trip px→pol(3 casas)→px. Cada nó vira, em ORDEM, um
   `<g id="s{i}">` no SVG; o overlay lê a posição real via `getBoundingClientRect` num loop rAF (só
   setState quando muda) — imune a corridas de timing (injeção/crossFade/reflow). graph px == unidade

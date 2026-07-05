@@ -43,6 +43,27 @@ test("clicar no vazio deseleciona (fecha o inspetor)", async ({ page }) => {
   await expect(page.getByTestId("visual-inspector")).toHaveCount(0, { timeout: 5_000 });
 });
 
+test("overlay universal: pic à mão (fora do formato) fica selecionável e pula pro código", async ({
+  page,
+}) => {
+  // posicionamento relativo → parsePic devolve null → sem grafo editável, mas o
+  // overlay universal (objects[]) ainda dá seleção + duplo-clique→código.
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "rpic:draft.v1",
+      JSON.stringify({ source: 'box "A"\nmove\ncircle "B"\nmove\nellipse "C"', circuits: false, savedAt: "" }),
+    ),
+  );
+  await page.reload();
+  await page.waitForSelector('[data-testid="objects-handle"]', { timeout: 20_000 });
+  await expect(page.getByTestId("objects-handle")).toHaveCount(3, { timeout: 5_000 });
+  // 3º objeto = ellipse "C" (linha 5) → duplo-clique leva o cursor até lá
+  await page.getByTestId("objects-handle").nth(2).dblclick();
+  await expect
+    .poll(() => page.evaluate(() => document.querySelector(".cm-activeLineGutter")?.textContent))
+    .toBe("5");
+});
+
 test("conectar da âncora .e do nó A ao nó B cria a seta N1.e -> N2.w", async ({ page }) => {
   await page.getByTestId("visual-add-box").click();
   await page.getByTestId("visual-add-box").click();
