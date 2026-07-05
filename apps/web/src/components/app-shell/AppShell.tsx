@@ -4,6 +4,7 @@ import { Moon, Sun } from "lucide-react";
 import { asset, cn } from "@rpic/design-system";
 import { useI18n, type Locale } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
+import { useMe } from "@/lib/queries";
 import { Button } from "@/components/ui/Button";
 import { Tip } from "@/components/ui/Tooltip";
 import {
@@ -80,6 +81,7 @@ interface AppShellProps {
 export function AppShell({ actions, children }: AppShellProps) {
   const { t } = useI18n();
   const { pathname } = useLocation();
+  const { data: me } = useMe();
   // "Editor" cobre o rascunho (/) e diagramas salvos (/e/:id)
   const editorActive = pathname === "/" || pathname.startsWith("/e/");
   return (
@@ -109,6 +111,11 @@ export function AppShell({ actions, children }: AppShellProps) {
           <NavLink to="/ajuda" className={navLinkClass}>
             {t("nav.help")}
           </NavLink>
+          {me?.is_admin ? (
+            <NavLink to="/usuarios" className={navLinkClass}>
+              {t("nav.users")}
+            </NavLink>
+          ) : null}
         </nav>
         <div className="ml-auto flex items-center gap-1.5">
           {actions}

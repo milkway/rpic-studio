@@ -4,6 +4,7 @@ pub mod auth;
 pub mod diagrams;
 pub mod health;
 pub mod render;
+pub mod users;
 
 use crate::AppState;
 use axum::routing::{get, post, put};
@@ -18,6 +19,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/me", get(auth::me))
         .route("/api/auth/prefs", put(auth::set_prefs))
+        .route("/api/users", get(users::list))
         .route("/api/diagrams", get(diagrams::list).post(diagrams::create))
         .route(
             "/api/diagrams/{id}",

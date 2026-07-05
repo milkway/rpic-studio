@@ -7,6 +7,20 @@ export interface User {
   picture_url: string | null;
   /** Preferências salvas na conta (papel do diagrama, idioma, tema…). */
   prefs: Record<string, unknown>;
+  /** true quando o usuário tem acesso admin (ex.: página de Usuários). */
+  is_admin?: boolean;
+}
+
+/** Retorno de GET /api/users (só admin): quem já fez login no app. */
+export interface UsersReport {
+  total: number;
+  activeSessions: number;
+  users: {
+    email: string;
+    name: string;
+    createdAt: string;
+    lastLogin: string;
+  }[];
 }
 
 export interface DiagramSummary {

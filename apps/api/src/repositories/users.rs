@@ -1,6 +1,6 @@
 //! Usuários — upsert a partir do perfil Google.
 
-use crate::models::User;
+use crate::models::{User, UserAdminRow};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -29,6 +29,22 @@ pub async fn upsert_google_user(
     .bind(picture_url)
     .fetch_one(pool)
     .await
+}
+
+/// Todos os usuários, mais recentes por último login primeiro (página admin).
+pub async fn list_admin_rows(pool: &PgPool) -> sqlx::Result<Vec<UserAdminRow>> {
+    sqlx::query_as::<_, UserAdminRow>(
+        "SELECT email, name, created_at, last_login FROM users ORDER BY last_login DESC",
+    )
+    .fetch_all(pool)
+    .await
+}
+
+/// Nº de sessões ainda válidas (não expiradas).
+pub async fn active_session_count(pool: &PgPool) -> sqlx::Result<i64> {
+    sqlx::query_scalar::<_, i64>("SELECT count(*) FROM sessions WHERE expires_at > now()")
+        .fetch_one(pool)
+        .await
 }
 
 pub async fn set_prefs(

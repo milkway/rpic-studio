@@ -36,6 +36,7 @@ pub struct AppState {
     paths(
         routes::health::health,
         routes::auth::me,
+        routes::users::list,
         routes::diagrams::list,
         routes::diagrams::create,
         routes::diagrams::get,
@@ -46,6 +47,8 @@ pub struct AppState {
     ),
     components(schemas(
         models::User,
+        models::UserAdminRow,
+        models::UsersReport,
         models::Diagram,
         models::DiagramSummary,
         models::SharedDiagram,

@@ -146,7 +146,8 @@ pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> ApiResult<
     (status = 200, body = User),
     (status = 401, description = "sem sessão válida")
 ))]
-pub async fn me(CurrentUser(user): CurrentUser) -> Json<User> {
+pub async fn me(State(state): State<AppState>, CurrentUser(mut user): CurrentUser) -> Json<User> {
+    user.is_admin = state.config.is_admin(&user.email);
     Json(user)
 }
 

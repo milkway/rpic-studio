@@ -11,6 +11,7 @@ import { BindingsPage } from "@/routes/BindingsPage";
 import { HelpPage } from "@/routes/HelpPage";
 import { DiagramsPage } from "@/routes/DiagramsPage";
 import { SharedPage } from "@/routes/SharedPage";
+import { UsersPage } from "@/routes/UsersPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,6 +33,7 @@ export default function App() {
               <Route path="/e/:id" element={<EditorPage />} />
               <Route path="/d/:slug" element={<SharedPage />} />
               <Route path="/diagramas" element={<DiagramsPage />} />
+              <Route path="/usuarios" element={<UsersPage />} />
               <Route path="/exemplos" element={<ExamplesPage />} />
               <Route path="/bindings" element={<BindingsPage />} />
               <Route path="/ajuda" element={<HelpPage />} />

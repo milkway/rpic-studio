@@ -15,6 +15,8 @@ pub enum ApiError {
     BadRequest(String),
     #[error("não autenticado")]
     Unauthorized,
+    #[error("acesso negado")]
+    Forbidden,
     #[error(transparent)]
     Database(#[from] sqlx::Error),
     #[error(transparent)]
@@ -27,6 +29,7 @@ impl IntoResponse for ApiError {
             ApiError::NotFound => (StatusCode::NOT_FOUND, self.to_string()),
             ApiError::BadRequest(_) => (StatusCode::BAD_REQUEST, self.to_string()),
             ApiError::Unauthorized => (StatusCode::UNAUTHORIZED, self.to_string()),
+            ApiError::Forbidden => (StatusCode::FORBIDDEN, self.to_string()),
             ApiError::Database(e) => {
                 // Nunca vazar detalhes sensíveis ao cliente; log interno completo.
                 tracing::error!(error = %e, "erro de banco de dados");

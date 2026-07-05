@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "./api";
-import type { Diagram, DiagramInput, DiagramSummary, SharedDiagram, User } from "./types";
+import type { Diagram, DiagramInput, DiagramSummary, SharedDiagram, User, UsersReport } from "./types";
 
 /** Login está configurado/disponível? false também quando a API está fora
  *  do ar — o app segue 100% funcional anônimo, sem botão quebrado. */
@@ -54,6 +54,17 @@ export function useDiagrams(enabled: boolean) {
     queryKey: ["diagrams"],
     enabled,
     queryFn: () => api<DiagramSummary[]>("/api/diagrams"),
+  });
+}
+
+/** Relatório de usuários (admin only). Só habilite com `me?.is_admin` —
+ *  a API responde 403 para não-admin e 401 anônimo. */
+export function useUsers(enabled: boolean) {
+  return useQuery({
+    queryKey: ["users"],
+    enabled,
+    retry: false,
+    queryFn: () => api<UsersReport>("/api/users"),
   });
 }
 

@@ -15,6 +15,9 @@ pub struct Config {
     pub google_client_secret: String,
     /// Cookies com `Secure` (true atrás de HTTPS em produção).
     pub cookie_secure: bool,
+    /// E-mails com acesso à página de administração (lista de usuários).
+    /// Vem de `ADMIN_EMAILS` (separado por vírgula); vazio = ninguém é admin.
+    pub admin_emails: Vec<String>,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -45,7 +48,18 @@ impl Config {
             google_client_id: env_or("GOOGLE_CLIENT_ID", ""),
             google_client_secret: env_or("GOOGLE_CLIENT_SECRET", ""),
             cookie_secure: env_or("COOKIE_SECURE", "false") == "true",
+            admin_emails: env_or("ADMIN_EMAILS", "")
+                .split(',')
+                .map(|s| s.trim().to_lowercase())
+                .filter(|s| !s.is_empty())
+                .collect(),
         })
+    }
+
+    /// O e-mail (case-insensitive) consta na allowlist de administradores?
+    pub fn is_admin(&self, email: &str) -> bool {
+        let email = email.trim().to_lowercase();
+        self.admin_emails.iter().any(|a| a == &email)
     }
 
     pub fn is_production(&self) -> bool {

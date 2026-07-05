@@ -44,6 +44,7 @@ pub async fn find_user(
                 name: r.name,
                 picture_url: r.picture_url,
                 prefs: r.prefs,
+                is_admin: false, // derivado em /api/auth/me pela allowlist
             },
             r.expires_at,
         )
