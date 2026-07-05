@@ -39,6 +39,16 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
 - **API (fase 2)**: sessão = cookie httpOnly opaco com `sha256(token)` na tabela `sessions`;
   extractor `CurrentUser`. Migrações são `.sql` puros em `db/migrations/`, aplicados pelo
   entrypoint do Postgres (recriar o volume para reaplicar).
+- **Editor visual** (`components/visual/VisualCanvas.tsx` + `lib/visualGraph.ts`): modo alternativo
+  (toggle Código/Visual) que monta um grafo de nós/arestas e **gera pic** (`graphToPic`). O rpic é
+  compilador de mão única (sem source-map), então NÃO há round-trip de pic arbitrário → tela: o modo
+  visual tem o próprio modelo. Ele **viaja embutido no `source`** como um comentário `# rpic-studio:
+  visual:v1 <base64 JSON>` (padrão de marcador, como o `picDefaults`), lido por `readGraph`. Assim
+  sobrevive a draft/save/share/reload SEM migração de banco (a conta só guarda `source`). Cuidado:
+  no modo visual o `graphToPic` REGERA o source inteiro a cada edição — editar o pic à mão no modo
+  Código e voltar ao Visual descarta as mudanças (há banner avisando). Coordenadas do modelo são px
+  de tela (y p/ baixo); a inversão p/ polegadas pic (y p/ cima) fica só em `graphToPic`. Losango =
+  `line … close shaded/outlined` (polígono fechado preenchido; pontas nos compass points).
 - **Render server-side** (`routes/render.rs`, `POST /api/render` → svg|png|pdf): pic é NÃO
   confiável (`IncludePolicy::Deny`), CPU-bound em `spawn_blocking`, math via `ensure_math()`.
   Param `google_font` restrito ao `GOOGLE_FONTS` allowlist (mitiga SSRF) e casa a fonte no
