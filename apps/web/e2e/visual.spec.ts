@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
 
 // Edição visual SOBRE o render real (painel direito): barra de ícones adiciona
-// formas, alças sobre o diagrama movem/conectam; o código pic fica sempre ao
-// vivo à esquerda. O grafo viaja embutido no source.
+// formas, alças/âncoras sobre o diagrama movem/conectam; o código pic fica
+// sempre ao vivo à esquerda e o grafo é reconstruído lendo esse código (parse).
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await page.evaluate(() => localStorage.clear());
@@ -33,23 +33,24 @@ test("clicar a alça abre o inspetor; editar rótulo atualiza código e render",
   await expect(page.getByTestId("code-pane")).toContainText('box "Alpha"');
 });
 
-test("conectar dois nós pela alça cria uma seta", async ({ page }) => {
+test("conectar da âncora .e do nó A ao nó B cria a seta N1.e -> N2.w", async ({ page }) => {
   await page.getByTestId("visual-add-box").click();
   await page.getByTestId("visual-add-box").click();
   await expect(page.getByTestId("visual-handle")).toHaveCount(2, { timeout: 5_000 });
 
-  const from = (await page.getByTestId("visual-connect-handle").nth(0).boundingBox())!;
+  // arrasta da âncora leste do nó A até o centro do nó B (à direita)
+  const from = (await page.getByTestId("visual-anchor-e").nth(0).boundingBox())!;
   const toBox = (await page.getByTestId("visual-handle").nth(1).boundingBox())!;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
   await page.mouse.move(toBox.x + toBox.width / 2, toBox.y + toBox.height / 2, { steps: 10 });
   await page.mouse.up();
 
-  await expect(page.getByTestId("code-pane")).toContainText("arrow from", { timeout: 5_000 });
+  await expect(page.getByTestId("code-pane")).toContainText("arrow from N1.e to N2.w", { timeout: 5_000 });
   await expect(page.getByTestId("visual-edge-marker")).toHaveCount(1);
 });
 
-test("o grafo sobrevive a reload (embutido no source do rascunho)", async ({ page }) => {
+test("o grafo sobrevive a reload (reconstruído do código do rascunho)", async ({ page }) => {
   await page.getByTestId("visual-add-ellipse").click();
   const handle = page.getByTestId("visual-handle").first();
   await expect(handle).toBeVisible({ timeout: 5_000 });

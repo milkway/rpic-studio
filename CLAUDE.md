@@ -42,17 +42,17 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
 - **Editor visual** (`components/visual/VisualOverlay.tsx` + `lib/visualGraph.ts`): o código pic fica
   SEMPRE ao vivo à esquerda; à direita, uma barra de ícones (no header do `PreviewPane`) adiciona
   formas e um OVERLAY sobre o render real do rpic dá alças p/ mover/conectar/estilizar clicando no
-  diagrama. O modelo é um grafo nós/arestas que **gera pic** (`graphToPic`); como o rpic é compilador
-  de mão única (sem source-map), NÃO há round-trip de pic arbitrário → o grafo **viaja embutido no
-  `source`** como comentário `# rpic-studio:visual:v1 <base64 JSON>` (padrão de marcador, como o
-  `picDefaults`), lido por `readGraph` — sobrevive a draft/save/share/reload SEM migração de banco.
-  Cada nó vira, em ORDEM, um `<g id="s{i}">` no SVG (statements do pic); o overlay lê a posição real
-  via `getBoundingClientRect` num loop rAF (só faz setState quando muda) — imune a corridas de timing
-  de injeção/crossFade/reflow que quebram medições pontuais. graph px == unidades de usuário do SVG
-  (ambos 96/pol), então arrastar é `Δgraph = Δtela/zoom`. Coords do modelo são px de tela (y p/
-  baixo); a inversão p/ polegadas pic (y p/ cima) fica só em `graphToPic`. Losango =
-  `line … close shaded/outlined` (polígono fechado preenchido; pontas nos compass points). Editar o
-  pic à mão no corpo gerado é sobrescrito na próxima edição visual (o grafo é a fonte no visual).
+  diagrama. O modelo é um grafo nós/arestas que **gera pic** (`graphToPic`, formato REGULAR:
+  `N1: box "…" at (x,y)`, `arrow from N1.e to N2.w`). NÃO há blob embutido: o grafo é **reconstruído
+  lendo o próprio pic** (`parsePic`) — código limpo, e sobrevive a draft/save/share/reload de graça.
+  `parsePic` retorna null para pic escrito à mão (fora do formato) → sem edição visual. Arredonda px
+  no parse p/ evitar drift no round-trip px→pol(3 casas)→px. Cada nó vira, em ORDEM, um
+  `<g id="s{i}">` no SVG; o overlay lê a posição real via `getBoundingClientRect` num loop rAF (só
+  setState quando muda) — imune a corridas de timing (injeção/crossFade/reflow). graph px == unidade
+  de usuário do SVG (96/pol) → arrastar é `Δtela/zoom`; no drop MANTÉM o `translate` do `<g>` até o
+  recompile substituir o SVG (evita o "fantasma" old+new). Âncoras (compass points) só aparecem no
+  hover do nó e conectam de um lado específico; o CENTRO fica livre p/ mover/selecionar (âncora `.c`
+  NÃO é renderizada, senão intercepta o clique de seleção). Losango = `line … close shaded/outlined`.
 - **Render server-side** (`routes/render.rs`, `POST /api/render` → svg|png|pdf): pic é NÃO
   confiável (`IncludePolicy::Deny`), CPU-bound em `spawn_blocking`, math via `ensure_math()`.
   Param `google_font` restrito ao `GOOGLE_FONTS` allowlist (mitiga SSRF) e casa a fonte no

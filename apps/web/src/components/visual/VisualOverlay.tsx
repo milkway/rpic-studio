@@ -1,9 +1,16 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { Trash2 } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import { Button } from "@/components/ui/Button";
 import { useI18n } from "@/lib/i18n";
-import { FILL_COLORS, STROKE_COLORS, type VEdge, type VGraph, type VNode } from "@/lib/visualGraph";
+import {
+  FILL_COLORS,
+  STROKE_COLORS,
+  type Side,
+  type VEdge,
+  type VGraph,
+  type VNode,
+} from "@/lib/visualGraph";
 
 interface Props {
   graph: VGraph;
@@ -11,7 +18,7 @@ interface Props {
   /** O `preview-stage` (SVG injetado) e o container rolável do preview. */
   stageRef: RefObject<HTMLDivElement | null>;
   canvasRef: RefObject<HTMLDivElement | null>;
-  /** Recalcula as posições ao mudar o zoom. */
+  /** Recalcula as posições ao mudar o zoom (arraste usa Δtela/zoom). */
   zoom: number;
 }
 
@@ -26,6 +33,41 @@ interface Box {
   cy: number;
 }
 
+// Âncoras de CONEXÃO visíveis (perímetro). O centro fica livre p/ mover/selec.
+const BOX_SIDES: Side[] = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
+const DIAMOND_SIDES: Side[] = ["n", "s", "e", "w"];
+
+function sidesFor(shape: VNode["shape"]): Side[] {
+  return shape === "diamond" ? DIAMOND_SIDES : BOX_SIDES;
+}
+
+/** Posição de uma âncora dentro do box (0..w, 0..h). */
+function anchorXY(side: Side, w: number, h: number): { x: number; y: number } {
+  const x = side.includes("w") ? 0 : side.includes("e") ? w : w / 2;
+  const y = side.includes("n") ? 0 : side.includes("s") ? h : h / 2;
+  return { x, y };
+}
+
+/** Âncora do box mais próxima de um ponto de tela (para o destino da conexão). */
+function nearestSide(box: Box, px: number, py: number): Side {
+  const nx = (px - box.cx) / (box.w / 2 || 1);
+  const ny = (py - box.cy) / (box.h / 2 || 1);
+  const h = Math.abs(nx) > 0.45;
+  const v = Math.abs(ny) > 0.45;
+  const ew = nx < 0 ? "w" : "e";
+  const ns = ny < 0 ? "n" : "s";
+  if (h && v) return (ns + ew) as Side;
+  if (h) return ew as Side;
+  if (v) return ns as Side;
+  return "c";
+}
+
+function readTranslate(el: Element | null): { x: number; y: number } {
+  const t = el?.getAttribute("transform");
+  const m = t && /translate\(([-\d.]+)[ ,]([-\d.]+)\)/.exec(t);
+  return m ? { x: +m[1], y: +m[2] } : { x: 0, y: 0 };
+}
+
 function newId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -33,27 +75,34 @@ function newId(): string {
 }
 
 /**
- * Camada de edição SOBRE o render real do rpic. Cada nó do grafo corresponde,
- * em ordem, a um `<g id="s{i}">` no SVG (statements do pic gerado por
- * `graphToPic`); lemos a posição real via `getBoundingClientRect` — sem
- * matemática de transform. Como graph px == unidades de usuário do SVG (ambos
- * 96/polegada), arrastar é só `Δgraph = Δtela / zoom`.
+ * Camada de edição SOBRE o render real do rpic. Cada nó corresponde, em ordem,
+ * a um `<g id="s{i}">` no SVG (statements do pic gerado); a posição é lida via
+ * `getBoundingClientRect` num loop rAF que só faz setState quando muda — imune a
+ * corridas de timing. graph px == unidade de usuário do SVG (96/pol) → arrastar
+ * é `Δtela/zoom`. As âncoras (compass points) só aparecem ao passar o mouse no
+ * nó; conectar sai de uma âncora específica (a seta gerada usa aquele lado).
  */
 export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Props) {
   const { t } = useI18n();
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [sel, setSel] = useState<Sel>(null);
-  const drag = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number; moved: boolean } | null>(
-    null,
-  );
-  const connect = useRef<{ fromId: string } | null>(null);
+  const drag = useRef<{
+    id: string;
+    sx: number;
+    sy: number;
+    ox: number;
+    oy: number;
+    bx: number;
+    by: number;
+    moved: boolean;
+  } | null>(null);
+  const connect = useRef<{ fromId: string; fromSide: Side } | null>(null);
   const [connecting, setConnecting] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(
     null,
   );
 
-  // Auto-seleciona o nó recém-adicionado (abre o inspetor p/ rotular/estilizar).
-  // No 1º nó o overlay MONTA junto (sem crescimento a detectar), então tratamos
-  // o mount separadamente; adições seguintes vêm pelo crescimento da contagem.
+  // Auto-seleciona o nó recém-criado (abre o inspetor). No 1º nó o overlay monta
+  // junto (sem crescimento a detectar), então tratamos o mount à parte.
   const prevCount = useRef(graph.nodes.length);
   useEffect(() => {
     if (graph.nodes.length === 1) setSel({ kind: "node", id: graph.nodes[0].id });
@@ -66,30 +115,12 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
     prevCount.current = graph.nodes.length;
   }, [graph.nodes]);
 
-  // Posição de tela de cada nó, lida do `#s{i}` renderizado.
-  const computeBoxes = useCallback((): Box[] => {
-    const stage = stageRef.current;
-    const canvas = canvasRef.current;
-    if (!stage || !canvas) return [];
-    const cr = canvas.getBoundingClientRect();
-    const next: Box[] = [];
-    graph.nodes.forEach((n, i) => {
-      const el = stage.querySelector(`#s${i}`);
-      if (!el) return;
-      const r = (el as SVGGraphicsElement).getBoundingClientRect();
-      if (r.width < 1 || r.height < 1) return; // ignora rect transitório/degenerado
-      const left = r.left - cr.left;
-      const top = r.top - cr.top;
-      next.push({ id: n.id, left, top, w: r.width, h: r.height, cx: left + r.width / 2, cy: top + r.height / 2 });
-    });
-    return next;
-  }, [graph.nodes, stageRef, canvasRef]);
+  const nodeEl = (id: string): SVGGraphicsElement | null => {
+    const i = graph.nodes.findIndex((n) => n.id === id);
+    return i < 0 ? null : (stageRef.current?.querySelector(`#s${i}`) ?? null);
+  };
 
-  // Loop rAF que MANTÉM as alças coladas ao SVG. Só chama setState quando as
-  // posições realmente mudam (na maioria dos frames não muda → sem re-render),
-  // então é barato e imune a corridas de timing entre injeção do SVG, crossFade
-  // e reflow do centramento — que quebravam medições pontuais. Pausa durante
-  // arraste/conexão (esses aplicam translate ao vivo).
+  // Loop rAF que MANTÉM as alças coladas ao SVG (só setState quando muda).
   const boxesRef = useRef<Box[]>([]);
   useEffect(() => {
     let raf = 0;
@@ -106,9 +137,26 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
           Math.abs(x.h - y.h) < 0.5
         );
       });
+    const compute = (): Box[] => {
+      const stage = stageRef.current;
+      const canvas = canvasRef.current;
+      if (!stage || !canvas) return boxesRef.current;
+      const cr = canvas.getBoundingClientRect();
+      const next: Box[] = [];
+      graph.nodes.forEach((n, i) => {
+        const el = stage.querySelector(`#s${i}`);
+        if (!el) return;
+        const r = (el as SVGGraphicsElement).getBoundingClientRect();
+        if (r.width < 1 || r.height < 1) return;
+        const left = r.left - cr.left;
+        const top = r.top - cr.top;
+        next.push({ id: n.id, left, top, w: r.width, h: r.height, cx: left + r.width / 2, cy: top + r.height / 2 });
+      });
+      return next;
+    };
     const loop = () => {
       if (!drag.current && !connect.current) {
-        const next = computeBoxes();
+        const next = compute();
         if (!same(next, boxesRef.current)) {
           boxesRef.current = next;
           setBoxes(next);
@@ -118,13 +166,9 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [computeBoxes]);
+  }, [graph.nodes, stageRef, canvasRef]);
 
   const boxOf = (id: string) => boxes.find((b) => b.id === id);
-  const nodeEl = (id: string): SVGGraphicsElement | null => {
-    const i = graph.nodes.findIndex((n) => n.id === id);
-    return i < 0 ? null : (stageRef.current?.querySelector(`#s${i}`) ?? null);
-  };
 
   function updateNode(id: string, patch: Partial<VNode>) {
     onChange({ ...graph, nodes: graph.nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)) });
@@ -158,13 +202,14 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
     return () => window.removeEventListener("keydown", onKey);
   }, [sel, graph]);
 
-  // ── arrastar nó (feedback ao vivo: translada a alça e o próprio grupo SVG) ──
+  // ── arrastar nó ── (mantém o translate no SVG até o recompile → sem fantasma)
   function onNodeDown(e: React.PointerEvent, id: string) {
     e.preventDefault();
     e.stopPropagation();
     setSel({ kind: "node", id });
     const n = graph.nodes.find((x) => x.id === id)!;
-    drag.current = { id, sx: e.clientX, sy: e.clientY, ox: n.x, oy: n.y, moved: false };
+    const base = readTranslate(nodeEl(id));
+    drag.current = { id, sx: e.clientX, sy: e.clientY, ox: n.x, oy: n.y, bx: base.x, by: base.y, moved: false };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }
   function onNodeMove(e: React.PointerEvent) {
@@ -173,38 +218,39 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
     const dxs = e.clientX - d.sx;
     const dys = e.clientY - d.sy;
     if (Math.abs(dxs) + Math.abs(dys) > 2) d.moved = true;
-    // move a alça (px de tela) e translada o grupo SVG (unidades = Δtela/zoom)
     (e.currentTarget as HTMLElement).style.transform = `translate(${dxs}px,${dys}px)`;
-    nodeEl(d.id)?.setAttribute("transform", `translate(${dxs / zoom},${dys / zoom})`);
+    nodeEl(d.id)?.setAttribute("transform", `translate(${d.bx + dxs / zoom},${d.by + dys / zoom})`);
   }
   function onNodeUp(e: React.PointerEvent) {
     const d = drag.current;
     drag.current = null;
     if (!d) return;
-    const target = e.currentTarget as HTMLElement;
-    target.releasePointerCapture?.(e.pointerId);
-    target.style.transform = "";
-    nodeEl(d.id)?.removeAttribute("transform");
+    const el = e.currentTarget as HTMLElement;
+    el.releasePointerCapture?.(e.pointerId);
+    el.style.transform = ""; // a alça volta a seguir o box (loop); o <g> fica
     if (d.moved) {
       updateNode(d.id, { x: d.ox + (e.clientX - d.sx) / zoom, y: d.oy + (e.clientY - d.sy) / zoom });
     }
   }
 
-  // ── conectar (arrasta da alça até outro nó) ──
-  function onHandleDown(e: React.PointerEvent, id: string) {
+  // ── conectar a partir de uma âncora ──
+  function onAnchorDown(e: React.PointerEvent, id: string, side: Side) {
     e.preventDefault();
     e.stopPropagation();
-    connect.current = { fromId: id };
+    connect.current = { fromId: id, fromSide: side };
     const b = boxOf(id);
-    if (b) setConnecting({ x1: b.cx, y1: b.cy, x2: b.cx, y2: b.cy });
+    if (b) {
+      const a = anchorXY(side, b.w, b.h);
+      setConnecting({ x1: b.left + a.x, y1: b.top + a.y, x2: b.left + a.x, y2: b.top + a.y });
+    }
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }
-  function onHandleMove(e: React.PointerEvent) {
+  function onAnchorMove(e: React.PointerEvent) {
     if (!connect.current) return;
     const cr = canvasRef.current!.getBoundingClientRect();
     setConnecting((c) => (c ? { ...c, x2: e.clientX - cr.left, y2: e.clientY - cr.top } : c));
   }
-  function onHandleUp(e: React.PointerEvent) {
+  function onAnchorUp(e: React.PointerEvent) {
     const c = connect.current;
     connect.current = null;
     setConnecting(null);
@@ -212,13 +258,20 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
     const cr = canvasRef.current!.getBoundingClientRect();
     const px = e.clientX - cr.left;
     const py = e.clientY - cr.top;
-    const target = boxes.find(
-      (b) => px >= b.left && px <= b.left + b.w && py >= b.top && py <= b.top + b.h,
-    );
+    const target = boxes.find((b) => px >= b.left && px <= b.left + b.w && py >= b.top && py <= b.top + b.h);
     if (target && target.id !== c.fromId) {
-      const edge: VEdge = { id: newId(), from: c.fromId, to: target.id, arrow: true };
+      // âncora de destino: a mais próxima do ponto de soltura; se caiu no centro,
+      // usa o lado voltado para a origem (entrada natural no fluxograma).
+      let toSide = nearestSide(target, px, py);
+      if (toSide === "c") {
+        const src = boxOf(c.fromId);
+        if (src) toSide = nearestSide(target, src.cx, src.cy);
+      }
+      const edge: VEdge = { id: newId(), from: c.fromId, to: target.id, arrow: true, fromSide: c.fromSide, toSide };
       onChange({ ...graph, edges: [...graph.edges, edge] });
       setSel({ kind: "edge", id: edge.id });
+    } else {
+      setSel(null);
     }
   }
 
@@ -227,15 +280,18 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10" data-testid="visual-overlay">
-      {/* alças dos nós */}
       {boxes.map((b) => {
+        const node = graph.nodes.find((n) => n.id === b.id);
+        if (!node) return null;
         const selected = sel?.kind === "node" && sel.id === b.id;
         return (
           <div
             key={b.id}
             className={cn(
-              "group pointer-events-auto absolute cursor-move rounded-sm",
-              selected ? "outline outline-2 outline-(--color-accent)" : "hover:outline hover:outline-1 hover:outline-(--color-accent)/60",
+              "group pointer-events-auto absolute cursor-move rounded-sm transition-[outline] duration-100",
+              selected
+                ? "outline outline-2 outline-(--color-accent)"
+                : "outline outline-1 outline-transparent hover:outline-(--color-accent)/50",
             )}
             style={{ left: b.left, top: b.top, width: b.w, height: b.h }}
             onPointerDown={(e) => onNodeDown(e, b.id)}
@@ -243,38 +299,45 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
             onPointerUp={onNodeUp}
             data-testid="visual-handle"
           >
-            <div
-              className={cn(
-                "absolute -top-1.5 -right-1.5 h-3.5 w-3.5 cursor-crosshair rounded-full border-2 border-(--color-surface) bg-(--color-accent)",
-                selected ? "opacity-100" : "opacity-0 group-hover:opacity-100",
-              )}
-              onPointerDown={(e) => onHandleDown(e, b.id)}
-              onPointerMove={onHandleMove}
-              onPointerUp={onHandleUp}
-              data-testid="visual-connect-handle"
-            />
+            {/* Âncoras (compass points) — escondidas até o hover no nó */}
+            {sidesFor(node.shape).map((side) => {
+              const a = anchorXY(side, b.w, b.h);
+              return (
+                <div
+                  key={side}
+                  title={`.${side}`}
+                  className={cn(
+                    "absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 cursor-crosshair rounded-full",
+                    "border border-(--color-surface) bg-(--color-accent) opacity-0 transition-opacity",
+                    "group-hover:opacity-100 hover:!scale-125",
+                    selected && "opacity-100",
+                  )}
+                  style={{ left: a.x, top: a.y }}
+                  onPointerDown={(e) => onAnchorDown(e, b.id, side)}
+                  onPointerMove={onAnchorMove}
+                  onPointerUp={onAnchorUp}
+                  data-testid={`visual-anchor-${side}`}
+                />
+              );
+            })}
           </div>
         );
       })}
 
-      {/* marcadores de aresta (ponto médio entre os dois nós) */}
+      {/* Marcadores de aresta (ponto médio entre os nós) */}
       {graph.edges.map((edge) => {
         const a = boxOf(edge.from);
         const b = boxOf(edge.to);
         if (!a || !b) return null;
-        const x = (a.cx + b.cx) / 2;
-        const y = (a.cy + b.cy) / 2;
         const selected = sel?.kind === "edge" && sel.id === edge.id;
         return (
           <div
             key={edge.id}
             className={cn(
               "pointer-events-auto absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border-2",
-              selected
-                ? "border-(--color-accent) bg-(--color-accent)"
-                : "border-(--color-accent)/70 bg-(--color-surface)",
+              selected ? "border-(--color-accent) bg-(--color-accent)" : "border-(--color-accent)/70 bg-(--color-surface)",
             )}
-            style={{ left: x, top: y }}
+            style={{ left: (a.cx + b.cx) / 2, top: (a.cy + b.cy) / 2 }}
             onPointerDown={(e) => {
               e.stopPropagation();
               setSel({ kind: "edge", id: edge.id });
@@ -284,7 +347,7 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
         );
       })}
 
-      {/* linha temporária de conexão */}
+      {/* Linha temporária de conexão */}
       {connecting && (
         <svg className="pointer-events-none absolute inset-0 h-full w-full">
           <line
@@ -299,7 +362,7 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
         </svg>
       )}
 
-      {/* inspetor */}
+      {/* Inspetor */}
       {(selNode || selEdge) && (
         <div
           className="pointer-events-auto absolute top-2 right-2 w-52 rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) p-3 shadow-lg"
@@ -311,9 +374,7 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
           <input
             value={selNode?.label ?? selEdge?.label ?? ""}
             onChange={(e) =>
-              selNode
-                ? updateNode(selNode.id, { label: e.target.value })
-                : updateEdge(selEdge!.id, { label: e.target.value })
+              selNode ? updateNode(selNode.id, { label: e.target.value }) : updateEdge(selEdge!.id, { label: e.target.value })
             }
             data-testid="visual-label-input"
             className="mb-3 w-full rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-2 py-1 text-sm text-(--color-text) outline-none focus:border-(--color-accent)"
@@ -394,10 +455,7 @@ function Swatches({
             onClick={() => onPick(c)}
             title={c}
             style={{ background: c }}
-            className={cn(
-              "h-5 w-5 rounded-full border border-(--color-border)",
-              value === c && "ring-2 ring-(--color-accent)",
-            )}
+            className={cn("h-5 w-5 rounded-full border border-(--color-border)", value === c && "ring-2 ring-(--color-accent)")}
           />
         ))}
       </div>

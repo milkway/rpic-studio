@@ -1,17 +1,20 @@
 // Modelo do EDITOR VISUAL (grafo de nós/arestas) e sua serialização para pic.
 //
 // O rpic é um compilador de mão única (texto pic → SVG, sem source-map), então
-// o modo visual tem o PRÓPRIO modelo — este grafo — e GERA pic. Para sobreviver
-// a draft/save/share/reload sem migração de banco (a conta só guarda `source`),
-// o grafo é EMBUTIDO no próprio código como um comentário `#` (uma linha), lido
-// de volta ao reabrir. O pic gerado é o que compila/preview/exporta.
+// o modo visual tem o PRÓPRIO modelo — este grafo — e GERA pic. Mas como o pic
+// gerado tem um formato REGULAR (`N1: box "…" at (x,y)`, `arrow from N1.e to
+// N2.w`), o grafo é reconstruído LENDO O PRÓPRIO CÓDIGO (`parsePic`) — sem blob
+// embutido. Assim o código fica limpo e sobrevive a draft/save/share/reload
+// naturalmente (a conta só guarda `source`).
 //
 // Coordenadas do modelo: PIXELS de tela (origem no topo-esquerda, y p/ BAIXO,
 // x/y = CENTRO do nó). A conversão para polegadas pic (y p/ CIMA) acontece só na
-// geração (`graphToPic`). Assim a tela faz aritmética trivial e a inversão de y
-// fica num único lugar.
+// geração; o parse faz a inversa (e arredonda p/ px inteiro, evitando drift).
 
 export type Shape = "box" | "circle" | "ellipse" | "diamond";
+
+/** Âncoras pic (compass points + centro) — lados de saída/entrada das arestas. */
+export type Side = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw" | "c";
 
 export interface VNode {
   id: string;
@@ -35,6 +38,9 @@ export interface VEdge {
   label?: string;
   /** true = seta (arrow); false = linha simples (line) */
   arrow: boolean;
+  /** Âncoras explícitas escolhidas ao conectar; ausente = automático (eixo). */
+  fromSide?: Side;
+  toSide?: Side;
 }
 
 export interface VGraph {
@@ -74,8 +80,6 @@ export const STROKE_COLORS = [
   "firebrick",
   "goldenrod",
 ] as const;
-
-type Side = "n" | "s" | "e" | "w";
 
 // ─────────────────────────── geração de pic ───────────────────────────
 
@@ -151,7 +155,7 @@ function edgePic(e: VEdge, byId: Map<string, VNode>, name: Map<string, string>):
   const a = byId.get(e.from);
   const b = byId.get(e.to);
   if (!a || !b) return null;
-  const [sa, sb] = pickSides(a, b);
+  const [sa, sb] = e.fromSide && e.toSide ? [e.fromSide, e.toSide] : pickSides(a, b);
   const verb = e.arrow ? "arrow" : "line";
   let line = `${verb} from ${name.get(a.id)}.${sa} to ${name.get(b.id)}.${sb}`;
   if (e.label) {
@@ -162,34 +166,7 @@ function edgePic(e: VEdge, byId: Map<string, VNode>, name: Map<string, string>):
   return line;
 }
 
-// ─────────────────────── embutir/ler o grafo no source ───────────────────────
-
-const GRAPH_PREFIX = "# rpic-studio:visual:v1 ";
-const GRAPH_RE = /^# rpic-studio:visual:v1 (\S+)\s*$/m;
-
-function encodeGraph(g: VGraph): string {
-  const bytes = new TextEncoder().encode(JSON.stringify(g));
-  let bin = "";
-  for (const b of bytes) bin += String.fromCharCode(b);
-  return btoa(bin);
-}
-
-function decodeGraph(b64: string): VGraph | null {
-  try {
-    const bin = atob(b64);
-    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
-    const obj = JSON.parse(new TextDecoder().decode(bytes));
-    if (obj && Array.isArray(obj.nodes) && Array.isArray(obj.edges)) return obj as VGraph;
-  } catch {
-    /* grafo corrompido → trata como ausente */
-  }
-  return null;
-}
-
-/**
- * Gera o código pic COMPLETO a partir do grafo: a linha-comentário com o grafo
- * embutido, depois `.PS`/nós/arestas/`.PE`. É a saída que vai para `doc.source`.
- */
+/** Gera o código pic a partir do grafo (`.PS`/nós/arestas/`.PE`), sem blob. */
 export function graphToPic(g: VGraph): string {
   const name = new Map<string, string>();
   g.nodes.forEach((n, i) => name.set(n.id, `N${i + 1}`));
@@ -201,18 +178,109 @@ export function graphToPic(g: VGraph): string {
     const line = edgePic(e, byId, name);
     if (line) body.push(line);
   }
-
-  const embedded = `${GRAPH_PREFIX}${encodeGraph(g)}`;
-  return `${embedded}\n.PS\n${body.join("\n")}\n.PE\n`;
+  return `.PS\n${body.join("\n")}\n.PE\n`;
 }
 
-/** Lê o grafo embutido no source (ou null se não houver / estiver corrompido). */
-export function readGraph(source: string): VGraph | null {
-  const m = GRAPH_RE.exec(source);
-  return m ? decodeGraph(m[1]) : null;
+// ─────────────────── ler o grafo de volta do pic gerado ───────────────────
+
+const STR = `"((?:[^"\\\\]|\\\\.)*)"`; // string pic com aspas escapadas
+const N = `([-\\d.]+)`; // número
+const P = `\\(${N},${N}\\)`; // ponto (x,y)
+
+function unesc(s: string): string {
+  return s.replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+}
+function px(inch: number): number {
+  return Math.round(inch * PX_PER_INCH);
+}
+function pyf(inch: number): number {
+  return Math.round(-inch * PX_PER_INCH);
+}
+/** Extrai `shaded "…"` / `outlined "…"` de um trecho. */
+function parseStyle(rest: string): { fill?: string; stroke?: string } {
+  const fill = new RegExp(`shaded\\s+${STR}`).exec(rest)?.[1];
+  const stroke = new RegExp(`outlined\\s+${STR}`).exec(rest)?.[1];
+  return { fill: fill && unesc(fill), stroke: stroke && unesc(stroke) };
 }
 
-/** Há um grafo visual embutido neste source? (para o banner de aviso.) */
-export function hasVisualGraph(source: string): boolean {
-  return GRAPH_RE.test(source);
+const RE_BOX = new RegExp(`^(\\w+):\\s*(box|ellipse)\\s+(?:${STR}\\s+)?wid\\s+${N}\\s+ht\\s+${N}\\s+at\\s+${P}(.*)$`);
+const RE_CIRCLE = new RegExp(`^(\\w+):\\s*circle\\s+(?:${STR}\\s+)?diam\\s+${N}\\s+at\\s+${P}(.*)$`);
+const RE_DIAMOND = new RegExp(`^(\\w+):\\s*line\\s+from\\s+${P}\\s+to\\s+${P}\\s+to\\s+${P}\\s+to\\s+${P}\\s+close(.*)$`);
+const RE_EDGE = /^(arrow|line)\s+from\s+(\w+)\.(\w+)\s+to\s+(\w+)\.(\w+)\s*$/;
+const RE_EDGE_LABEL = new RegExp(`^${STR}\\s+at\\s+${P}\\s*(?:above|below)?\\s*$`);
+
+/**
+ * Reconstrói o grafo lendo o pic gerado por `graphToPic`. Retorna null se o
+ * código não casar com esse formato (pic escrito à mão) — aí não há edição
+ * visual. Os ids dos nós são os próprios nomes pic (N1, N2…); a ordem dos nós
+ * casa com os `<g id="s{i}">` do SVG (nós vêm primeiro).
+ */
+export function parsePic(source: string): VGraph | null {
+  const nodes: VNode[] = [];
+  const edges: VEdge[] = [];
+  let last: VEdge | null = null;
+  for (const raw of source.split("\n")) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#") || line === ".PS" || line === ".PE") continue;
+    let m: RegExpExecArray | null;
+    if ((m = RE_BOX.exec(line))) {
+      const [, id, shape, label, w, h, x, y, rest] = m;
+      nodes.push({
+        id,
+        shape: shape as Shape,
+        label: label ? unesc(label) : "",
+        x: px(+x),
+        y: pyf(+y),
+        w: px(+w),
+        h: px(+h),
+        ...parseStyle(rest),
+      });
+      last = null;
+    } else if ((m = RE_CIRCLE.exec(line))) {
+      const [, id, label, d, x, y, rest] = m;
+      nodes.push({
+        id,
+        shape: "circle",
+        label: label ? unesc(label) : "",
+        x: px(+x),
+        y: pyf(+y),
+        w: px(+d),
+        h: px(+d),
+        ...parseStyle(rest),
+      });
+      last = null;
+    } else if ((m = RE_DIAMOND.exec(line))) {
+      const [, id, x1, y1, x2, y2, , , , , rest] = m;
+      // pontos: (cx,cy+dy) (cx+dx,cy) (cx,cy-dy) (cx-dx,cy)
+      const cx = +x1;
+      const cy = +y2;
+      const wInch = 2 * (+x2 - cx);
+      const hInch = 2 * (+y1 - cy);
+      const labelM = new RegExp(`${STR}\\s*$`).exec(
+        rest.replace(new RegExp(`shaded\\s+${STR}`), "").replace(new RegExp(`outlined\\s+${STR}`), ""),
+      );
+      nodes.push({
+        id,
+        shape: "diamond",
+        label: labelM ? unesc(labelM[1]) : "",
+        x: px(cx),
+        y: pyf(cy),
+        w: px(wInch),
+        h: px(hInch),
+        ...parseStyle(rest),
+      });
+      last = null;
+    } else if ((m = RE_EDGE.exec(line))) {
+      const [, verb, from, fs, to, ts] = m;
+      last = { id: `${from}-${to}-${edges.length}`, from, to, arrow: verb === "arrow", fromSide: fs as Side, toSide: ts as Side };
+      edges.push(last);
+    } else if (last && (m = RE_EDGE_LABEL.exec(line))) {
+      last.label = unesc(m[1]);
+    } else {
+      last = null; // linha desconhecida — não interrompe, só não é aresta+label
+    }
+  }
+  if (nodes.length === 0) return null;
+  const ids = new Set(nodes.map((n) => n.id));
+  return { nodes, edges: edges.filter((e) => ids.has(e.from) && ids.has(e.to)) };
 }

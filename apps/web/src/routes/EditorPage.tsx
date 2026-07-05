@@ -10,7 +10,7 @@ import { DiagnosticsPanel } from "@/components/preview/DiagnosticsPanel";
 import { PreviewTabs } from "@/components/preview/PreviewTabs";
 import { SaveDialog } from "@/components/dialogs/SaveDialog";
 import { DefaultsBar } from "@/components/editor/DefaultsBar";
-import { DEFAULT_SIZE, graphToPic, readGraph, type Shape, type VGraph } from "@/lib/visualGraph";
+import { DEFAULT_SIZE, graphToPic, parsePic, type Shape, type VGraph } from "@/lib/visualGraph";
 import { applyDefaults, readDefaults } from "@/lib/picDefaults";
 import { Button } from "@/components/ui/Button";
 import {
@@ -238,8 +238,8 @@ export function EditorPage() {
     return () => window.removeEventListener(PREFS_EVENT, onPrefs);
   }, []);
 
-  // Grafo do editor visual embutido no source (null = diagrama sem grafo).
-  const graph = useMemo(() => readGraph(doc.source), [doc.source]);
+  // Grafo do editor visual, reconstruído do pic gerado (null = pic à mão).
+  const graph = useMemo(() => parsePic(doc.source), [doc.source]);
 
   // Aplica um grafo: regenera o pic PRESERVANDO o bloco de padrões do usuário.
   const applyGraph = useCallback((g: VGraph) => {
