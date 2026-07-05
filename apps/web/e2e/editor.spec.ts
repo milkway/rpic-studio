@@ -86,15 +86,23 @@ test("circuitos ligam automaticamente quando o código usa a biblioteca", async 
   );
 });
 
-test("digitar $…$ com build lean mostra aviso e fixa a preferência math", async ({ page }) => {
+test("digitar $…$ em rascunho ativa o build math automaticamente (auto-reload)", async ({
+  page,
+}) => {
   const code = page.locator('[data-testid="code-pane"] .cm-content');
   await code.click();
   await page.keyboard.press(process.platform === "darwin" ? "Meta+a" : "Control+a");
   await page.keyboard.type('box "$x^2$" fit');
-  await expect(page.getByText(/reload the page|recarregue a página/)).toBeVisible({
-    timeout: 5_000,
+  // Fixa a preferência math; em rascunho o app persiste e recarrega sozinho
+  // (limite do wasm-bindgen: o build só troca reinicializando).
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("rpic:math.v1")), { timeout: 5_000 })
+    .toBe("1");
+  // Na volta, o farejador de $…$ sobe o build math e tipografa (svg aninhado
+  // com glyph paths, sem texto literal) — tudo sem intervenção do usuário.
+  await expect(page.locator('[data-testid="preview-stage"] svg svg path').first()).toBeVisible({
+    timeout: 30_000,
   });
-  expect(await page.evaluate(() => localStorage.getItem("rpic:math.v1"))).toBe("1");
 });
 
 test("com o build math, $…$ vira tipografia real no preview", async ({ page }) => {

@@ -30,6 +30,15 @@ const en = {
   "users.col.createdAt": "Created",
   "users.col.lastLogin": "Last login",
 
+  // paleta de circuitos
+  "circuitPalette.tip": "Insert a circuit element",
+  "circuitPalette.button": "Circuits",
+  "circuitPalette.title": "Insert element",
+  "circuitPalette.group.passive": "Passive",
+  "circuitPalette.group.source": "Sources",
+  "circuitPalette.group.semiconductor": "Semiconductors",
+  "circuitPalette.group.connector": "Connectors",
+
   // bindings
   "bindings.title": "Bindings",
   "bindings.subtitle":
@@ -75,6 +84,8 @@ const en = {
   "visual.inspector.fontDefault": "Default font",
   "visual.inspector.rotate": "Rotate",
   "visual.inspector.arcDir": "Direction",
+  "visual.inspector.align": "Align",
+  "visual.inspector.vpos": "Position",
   "visual.newNode": "Text",
   "visual.hint.connect": "drag the top-right dot to connect · Del removes",
   "visual.empty": "Empty canvas",
@@ -90,6 +101,7 @@ const en = {
   "visual.edge.arrow": "Arrow (click for line)",
   "visual.edge.line": "Line (click for arrow)",
   "visual.delete": "Delete",
+  "visual.duplicate": "Duplicate",
   "visual.replaceConfirm":
     "The visual builder will replace your current pic code with a generated one. Continue?",
   "visual.codeBanner":
@@ -237,6 +249,7 @@ const en = {
 
   // math
   "math.reloadHint": "Math $…$ detected — reload the page to typeset it",
+  "math.loadingMath": "Math $…$ detected — enabling typesetting…",
 
   // papel do preview (grade/fundo — não sai no export)
   "canvas.button": "Diagram paper",
@@ -313,6 +326,15 @@ const pt: Record<MessageKey, string> = {
   "users.col.createdAt": "Criado em",
   "users.col.lastLogin": "Último login",
 
+  // paleta de circuitos
+  "circuitPalette.tip": "Inserir um elemento de circuito",
+  "circuitPalette.button": "Circuitos",
+  "circuitPalette.title": "Inserir elemento",
+  "circuitPalette.group.passive": "Passivos",
+  "circuitPalette.group.source": "Fontes",
+  "circuitPalette.group.semiconductor": "Semicondutores",
+  "circuitPalette.group.connector": "Conectores",
+
   "bindings.title": "Bindings",
   "bindings.subtitle":
     "O mesmo motor rpic em todo lugar — linha de comando, R, Python ou JavaScript. Instale, renderize para SVG/PNG/PDF e reaproveite os diagramas que você desenha aqui.",
@@ -357,6 +379,8 @@ const pt: Record<MessageKey, string> = {
   "visual.inspector.fontDefault": "Fonte padrão",
   "visual.inspector.rotate": "Girar",
   "visual.inspector.arcDir": "Sentido",
+  "visual.inspector.align": "Alinhamento",
+  "visual.inspector.vpos": "Posição",
   "visual.newNode": "Texto",
   "visual.hint.connect": "arraste o ponto no canto p/ conectar · Del remove",
   "visual.empty": "Tela vazia",
@@ -372,6 +396,7 @@ const pt: Record<MessageKey, string> = {
   "visual.edge.arrow": "Seta (clique p/ linha)",
   "visual.edge.line": "Linha (clique p/ seta)",
   "visual.delete": "Excluir",
+  "visual.duplicate": "Duplicar",
   "visual.replaceConfirm":
     "O construtor visual vai substituir seu código pic atual por um gerado. Continuar?",
   "visual.codeBanner":
@@ -507,6 +532,7 @@ const pt: Record<MessageKey, string> = {
   "diag.line": "linha {n}",
 
   "math.reloadHint": "Fórmulas $…$ detectadas — recarregue a página para tipografá-las",
+  "math.loadingMath": "Fórmulas $…$ detectadas — ativando a tipografia…",
 
   "canvas.button": "Papel do diagrama",
   "canvas.paper": "Papel",

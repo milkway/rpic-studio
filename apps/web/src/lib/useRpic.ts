@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { compile, ensureRpic, type Anim, type CompileError, type Diagnostic, type ObjectGeometry } from "./rpic";
+import { detectTexLabels } from "./detect";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 export interface RpicState {
@@ -52,10 +53,13 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
   const [state, setState] = useState<RpicState>(INITIAL);
   const versionRef = useRef(0);
   const errorTimerRef = useRef<number | null>(null);
+  // Documento inicial já tem TeX? Então carrega o build math direto (sem reload).
+  // Capturado no 1º render: `ensureRpic` é idempotente, só a 1ª chamada fixa o build.
+  const initialTexRef = useRef(detectTexLabels(source));
 
   useEffect(() => {
     let cancelled = false;
-    ensureRpic()
+    ensureRpic(initialTexRef.current)
       .then(() => {
         if (!cancelled) setState((s) => ({ ...s, loading: false }));
       })

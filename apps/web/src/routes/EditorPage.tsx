@@ -10,9 +10,11 @@ import { DiagnosticsPanel } from "@/components/preview/DiagnosticsPanel";
 import { PreviewTabs } from "@/components/preview/PreviewTabs";
 import { SaveDialog } from "@/components/dialogs/SaveDialog";
 import { DefaultsBar } from "@/components/editor/DefaultsBar";
+import { CircuitPalette } from "@/components/editor/CircuitPalette";
 import { DEFAULT_SIZE, graphToPic, growPage, parsePic, type Shape, type VGraph } from "@/lib/visualGraph";
 import { type Tool } from "@/components/visual/VisualOverlay";
 import { applyDefaults, readDefaults } from "@/lib/picDefaults";
+import { insertCircuitElement, type CircuitElement } from "@/lib/circuitCatalog";
 import { Button } from "@/components/ui/Button";
 import {
   DropdownMenu,
@@ -133,16 +135,31 @@ export function EditorPage() {
     [errorInfo, warningInfos],
   );
 
-  // Math digitado com o build lean carregado: fixa a preferência e avisa que
-  // um reload ativa a tipografia (a troca de build exige reinicializar o wasm).
-  const mathHintShown = useRef(false);
+  // Math digitado com o build lean carregado: a troca de build exige
+  // reinicializar o wasm (limite do wasm-bindgen), então recarregamos. Em
+  // rascunho é AUTOMÁTICO (o rascunho é persistido antes; ao voltar, o farejador
+  // de `$…$` já sobe o build math — ver useRpic/ensureRpic). Em modo salvo NÃO
+  // recarregamos sozinhos (perderia edições não salvas) — só avisamos.
+  const mathReloadArmed = useRef(false);
+  const sourceRef = useRef(doc.source);
+  sourceRef.current = doc.source;
   useEffect(() => {
-    if (texlabels && !mathActive() && !mathHintShown.current) {
-      mathHintShown.current = true;
-      rememberMathPreference();
+    if (!texlabels || mathActive() || mathReloadArmed.current) return;
+    mathReloadArmed.current = true;
+    rememberMathPreference();
+    if (savedMode) {
       toast(t("math.reloadHint"));
+      return;
     }
-  }, [texlabels, toast, t]);
+    toast(t("math.loadingMath"));
+    const id = window.setTimeout(() => {
+      // pode ter apagado o $…$ nesse meio-tempo — só recarrega se ainda faz sentido
+      if (!detectTexLabels(sourceRef.current) || mathActive()) return;
+      saveDraft(sourceRef.current, detectCircuits(sourceRef.current));
+      window.location.reload();
+    }, 1200);
+    return () => window.clearTimeout(id);
+  }, [texlabels, savedMode, toast, t]);
 
   // Modo salvo: carrega o diagrama no editor quando a query resolve.
   const loadedIdRef = useRef<string | null>(null);
@@ -298,6 +315,12 @@ export function EditorPage() {
 
   const setSource = useCallback((source: string) => setDoc((d) => ({ ...d, source })), []);
 
+  // Paleta de circuitos: garante `copy "circuits"` e insere o snippet do
+  // elemento escolhido antes de `.PE` (idempotente — ver lib/circuitCatalog).
+  const insertCircuit = useCallback((element: CircuitElement) => {
+    setDoc((d) => ({ ...d, source: insertCircuitElement(d.source, element) }));
+  }, []);
+
   return (
     <AppShell
       actions={
@@ -371,6 +394,7 @@ export function EditorPage() {
                 {t("defaults.button")}
               </Button>
             </Tip>
+            <CircuitPalette onInsert={insertCircuit} />
             <div className="ml-auto flex items-center gap-3">
               <Tip label={t("editor.clear")}>
                 <Button

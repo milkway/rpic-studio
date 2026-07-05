@@ -39,11 +39,14 @@ let initializedBuild: "lean" | "math" | null = null;
 let readyPromise: Promise<void> | null = null;
 
 /** Inicializa o WASM (idempotente; o primeiro chamador fixa o build).
- *  Em falha (ex.: fetch do .wasm), NÃO cacheia a rejeição — uma nova chamada
- *  tenta de novo (o binding 0.6.2 também limpa seu slot interno, #216). */
-export function ensureRpic(): Promise<void> {
+ *  `mathHint` (ex.: o documento inicial já tem `$…$`) força o build math na
+ *  primeira carga — abrir/recarregar/compartilhar um diagrama com TeX passa a
+ *  renderizar sem pedir reload. Em falha (ex.: fetch do .wasm), NÃO cacheia a
+ *  rejeição — uma nova chamada tenta de novo (o binding 0.6.2 também limpa seu
+ *  slot interno, #216). */
+export function ensureRpic(mathHint = false): Promise<void> {
   if (!readyPromise) {
-    const math = mathPreferred();
+    const math = mathPreferred() || mathHint;
     initializedBuild = math ? "math" : "lean";
     readyPromise = rpic.ready(math ? mathWasmUrl : wasmUrl, { math }).catch((e) => {
       readyPromise = null;
