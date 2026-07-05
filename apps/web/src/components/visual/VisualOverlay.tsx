@@ -18,7 +18,7 @@ interface Props {
   /** O `preview-stage` (SVG injetado) e o container rolável do preview. */
   stageRef: RefObject<HTMLDivElement | null>;
   canvasRef: RefObject<HTMLDivElement | null>;
-  /** Recalcula as posições ao mudar o zoom (arraste usa Δtela/zoom). */
+  /** Recalcula posições ao mudar o zoom (arraste usa Δtela/zoom). */
   zoom: number;
 }
 
@@ -32,77 +32,79 @@ interface Box {
   cx: number;
   cy: number;
 }
+interface Pt {
+  x: number;
+  y: number;
+}
 
-// Âncoras de CONEXÃO visíveis (perímetro). O centro fica livre p/ mover/selec.
+// Âncoras de conexão por forma (o centro fica livre p/ mover/selecionar).
 const BOX_SIDES: Side[] = ["n", "s", "e", "w", "ne", "nw", "se", "sw"];
 const DIAMOND_SIDES: Side[] = ["n", "s", "e", "w"];
+const SHOW_DIST = 30; // px: distância p/ revelar a âncora mais próxima
 
 function sidesFor(shape: VNode["shape"]): Side[] {
   return shape === "diamond" ? DIAMOND_SIDES : BOX_SIDES;
 }
 
 /** Posição de uma âncora dentro do box (0..w, 0..h). */
-function anchorXY(side: Side, w: number, h: number): { x: number; y: number } {
+function anchorXY(side: Side, w: number, h: number): Pt {
   const x = side.includes("w") ? 0 : side.includes("e") ? w : w / 2;
   const y = side.includes("n") ? 0 : side.includes("s") ? h : h / 2;
   return { x, y };
 }
-
-/** Âncora do box mais próxima de um ponto de tela (para o destino da conexão). */
-function nearestSide(box: Box, px: number, py: number): Side {
-  const nx = (px - box.cx) / (box.w / 2 || 1);
-  const ny = (py - box.cy) / (box.h / 2 || 1);
-  const h = Math.abs(nx) > 0.45;
-  const v = Math.abs(ny) > 0.45;
-  const ew = nx < 0 ? "w" : "e";
-  const ns = ny < 0 ? "n" : "s";
-  if (h && v) return (ns + ew) as Side;
-  if (h) return ew as Side;
-  if (v) return ns as Side;
-  return "c";
+function anchorWorld(b: Box, side: Side): Pt {
+  const a = anchorXY(side, b.w, b.h);
+  return { x: b.left + a.x, y: b.top + a.y };
 }
 
-function readTranslate(el: Element | null): { x: number; y: number } {
+/** Lados automáticos (eixo dominante) entre dois boxes (coords de tela). */
+function autoSides(a: Box, b: Box): [Side, Side] {
+  const dx = b.cx - a.cx;
+  const dy = b.cy - a.cy;
+  if (Math.abs(dx) >= Math.abs(dy)) return dx >= 0 ? ["e", "w"] : ["w", "e"];
+  return dy >= 0 ? ["s", "n"] : ["n", "s"];
+}
+
+/** Âncora (do conjunto da forma) mais próxima de um ponto de tela + a distância. */
+function nearestAnchor(b: Box, shape: VNode["shape"], px: number, py: number): { side: Side; dist: number } {
+  let best: Side = "n";
+  let bd = Infinity;
+  for (const s of sidesFor(shape)) {
+    const w = anchorWorld(b, s);
+    const d = Math.hypot(w.x - px, w.y - py);
+    if (d < bd) {
+      bd = d;
+      best = s;
+    }
+  }
+  return { side: best, dist: bd };
+}
+
+function readTranslate(el: Element | null): Pt {
   const t = el?.getAttribute("transform");
   const m = t && /translate\(([-\d.]+)[ ,]([-\d.]+)\)/.exec(t);
   return m ? { x: +m[1], y: +m[2] } : { x: 0, y: 0 };
 }
 
-function newId(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `n-${Math.round(Math.random() * 1e9)}`;
-}
-
 /**
  * Camada de edição SOBRE o render real do rpic. Cada nó corresponde, em ordem,
- * a um `<g id="s{i}">` no SVG (statements do pic gerado); a posição é lida via
- * `getBoundingClientRect` num loop rAF que só faz setState quando muda — imune a
- * corridas de timing. graph px == unidade de usuário do SVG (96/pol) → arrastar
- * é `Δtela/zoom`. As âncoras (compass points) só aparecem ao passar o mouse no
- * nó; conectar sai de uma âncora específica (a seta gerada usa aquele lado).
+ * a um `<g id="s{i}">` no SVG; a posição é lida via `getBoundingClientRect` num
+ * loop rAF (só setState quando muda). graph px == unidade do SVG (96/pol) →
+ * arrastar é `Δtela/zoom`; no drop mantém o `translate` do `<g>` até o recompile
+ * (sem fantasma). Só a âncora mais próxima do cursor aparece; arestas
+ * selecionam clicando na linha e reancoram arrastando as pontas.
  */
 export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Props) {
   const { t } = useI18n();
   const [boxes, setBoxes] = useState<Box[]>([]);
   const [sel, setSel] = useState<Sel>(null);
-  const drag = useRef<{
-    id: string;
-    sx: number;
-    sy: number;
-    ox: number;
-    oy: number;
-    bx: number;
-    by: number;
-    moved: boolean;
-  } | null>(null);
+  const [hover, setHover] = useState<{ id: string; side: Side } | null>(null);
+  const drag = useRef<{ id: string; sx: number; sy: number; ox: number; oy: number; bx: number; by: number; moved: boolean } | null>(null);
   const connect = useRef<{ fromId: string; fromSide: Side } | null>(null);
-  const [connecting, setConnecting] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(
-    null,
-  );
+  const edgeDrag = useRef<{ edgeId: string; end: "from" | "to"; nodeId: string } | null>(null);
+  const [rubber, setRubber] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
 
-  // Auto-seleciona o nó recém-criado (abre o inspetor). No 1º nó o overlay monta
-  // junto (sem crescimento a detectar), então tratamos o mount à parte.
+  // Auto-seleciona o nó recém-criado (abre o inspetor).
   const prevCount = useRef(graph.nodes.length);
   useEffect(() => {
     if (graph.nodes.length === 1) setSel({ kind: "node", id: graph.nodes[0].id });
@@ -115,12 +117,13 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
     prevCount.current = graph.nodes.length;
   }, [graph.nodes]);
 
-  const nodeEl = (id: string): SVGGraphicsElement | null => {
+  const nodeElOf = (id: string): SVGGraphicsElement | null => {
     const i = graph.nodes.findIndex((n) => n.id === id);
     return i < 0 ? null : (stageRef.current?.querySelector(`#s${i}`) ?? null);
   };
+  const boxOf = (id: string) => boxes.find((b) => b.id === id);
 
-  // Loop rAF que MANTÉM as alças coladas ao SVG (só setState quando muda).
+  // Loop rAF que mantém as alças coladas ao SVG (só setState quando muda).
   const boxesRef = useRef<Box[]>([]);
   useEffect(() => {
     let raf = 0;
@@ -128,14 +131,7 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
       a.length === b.length &&
       a.every((x, i) => {
         const y = b[i];
-        return (
-          y &&
-          x.id === y.id &&
-          Math.abs(x.left - y.left) < 0.5 &&
-          Math.abs(x.top - y.top) < 0.5 &&
-          Math.abs(x.w - y.w) < 0.5 &&
-          Math.abs(x.h - y.h) < 0.5
-        );
+        return y && x.id === y.id && Math.abs(x.left - y.left) < 0.5 && Math.abs(x.top - y.top) < 0.5 && Math.abs(x.w - y.w) < 0.5 && Math.abs(x.h - y.h) < 0.5;
       });
     const compute = (): Box[] => {
       const stage = stageRef.current;
@@ -155,7 +151,7 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
       return next;
     };
     const loop = () => {
-      if (!drag.current && !connect.current) {
+      if (!drag.current && !connect.current && !edgeDrag.current) {
         const next = compute();
         if (!same(next, boxesRef.current)) {
           boxesRef.current = next;
@@ -168,8 +164,6 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
     return () => cancelAnimationFrame(raf);
   }, [graph.nodes, stageRef, canvasRef]);
 
-  const boxOf = (id: string) => boxes.find((b) => b.id === id);
-
   function updateNode(id: string, patch: Partial<VNode>) {
     onChange({ ...graph, nodes: graph.nodes.map((n) => (n.id === id ? { ...n, ...patch } : n)) });
   }
@@ -179,10 +173,7 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
   function deleteSel() {
     if (!sel) return;
     if (sel.kind === "node") {
-      onChange({
-        nodes: graph.nodes.filter((n) => n.id !== sel.id),
-        edges: graph.edges.filter((e) => e.from !== sel.id && e.to !== sel.id),
-      });
+      onChange({ nodes: graph.nodes.filter((n) => n.id !== sel.id), edges: graph.edges.filter((e) => e.from !== sel.id && e.to !== sel.id) });
     } else {
       onChange({ ...graph, edges: graph.edges.filter((e) => e.id !== sel.id) });
     }
@@ -202,24 +193,35 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
     return () => window.removeEventListener("keydown", onKey);
   }, [sel, graph]);
 
-  // ── arrastar nó ── (mantém o translate no SVG até o recompile → sem fantasma)
+  const rel = (e: { clientX: number; clientY: number }): Pt => {
+    const cr = canvasRef.current!.getBoundingClientRect();
+    return { x: e.clientX - cr.left, y: e.clientY - cr.top };
+  };
+
+  // ── mover nó (mantém o translate no SVG até o recompile → sem fantasma) ──
   function onNodeDown(e: React.PointerEvent, id: string) {
     e.preventDefault();
     e.stopPropagation();
     setSel({ kind: "node", id });
     const n = graph.nodes.find((x) => x.id === id)!;
-    const base = readTranslate(nodeEl(id));
+    const base = readTranslate(nodeElOf(id));
     drag.current = { id, sx: e.clientX, sy: e.clientY, ox: n.x, oy: n.y, bx: base.x, by: base.y, moved: false };
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   }
-  function onNodeMove(e: React.PointerEvent) {
+  function onNodeMove(e: React.PointerEvent, b: Box, shape: VNode["shape"]) {
     const d = drag.current;
-    if (!d) return;
-    const dxs = e.clientX - d.sx;
-    const dys = e.clientY - d.sy;
-    if (Math.abs(dxs) + Math.abs(dys) > 2) d.moved = true;
-    (e.currentTarget as HTMLElement).style.transform = `translate(${dxs}px,${dys}px)`;
-    nodeEl(d.id)?.setAttribute("transform", `translate(${d.bx + dxs / zoom},${d.by + dys / zoom})`);
+    if (d) {
+      const dxs = e.clientX - d.sx;
+      const dys = e.clientY - d.sy;
+      if (Math.abs(dxs) + Math.abs(dys) > 2) d.moved = true;
+      (e.currentTarget as HTMLElement).style.transform = `translate(${dxs}px,${dys}px)`;
+      nodeElOf(d.id)?.setAttribute("transform", `translate(${d.bx + dxs / zoom},${d.by + dys / zoom})`);
+      return;
+    }
+    // hover: revela só a âncora mais próxima, e só quando o cursor chega perto
+    const p = rel(e);
+    const near = nearestAnchor(b, shape, p.x, p.y);
+    setHover(near.dist <= SHOW_DIST ? { id: b.id, side: near.side } : null);
   }
   function onNodeUp(e: React.PointerEvent) {
     const d = drag.current;
@@ -227,140 +229,184 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
     if (!d) return;
     const el = e.currentTarget as HTMLElement;
     el.releasePointerCapture?.(e.pointerId);
-    el.style.transform = ""; // a alça volta a seguir o box (loop); o <g> fica
-    if (d.moved) {
-      updateNode(d.id, { x: d.ox + (e.clientX - d.sx) / zoom, y: d.oy + (e.clientY - d.sy) / zoom });
-    }
+    el.style.transform = "";
+    if (d.moved) updateNode(d.id, { x: d.ox + (e.clientX - d.sx) / zoom, y: d.oy + (e.clientY - d.sy) / zoom });
   }
 
-  // ── conectar a partir de uma âncora ──
+  // ── conectar a partir de uma âncora ── (listeners de window: imunes ao
+  // remount da âncora durante o arraste, ao contrário de setPointerCapture)
   function onAnchorDown(e: React.PointerEvent, id: string, side: Side) {
     e.preventDefault();
     e.stopPropagation();
     connect.current = { fromId: id, fromSide: side };
     const b = boxOf(id);
     if (b) {
-      const a = anchorXY(side, b.w, b.h);
-      setConnecting({ x1: b.left + a.x, y1: b.top + a.y, x2: b.left + a.x, y2: b.top + a.y });
+      const w = anchorWorld(b, side);
+      setRubber({ x1: w.x, y1: w.y, x2: w.x, y2: w.y });
     }
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  }
-  function onAnchorMove(e: React.PointerEvent) {
-    if (!connect.current) return;
-    const cr = canvasRef.current!.getBoundingClientRect();
-    setConnecting((c) => (c ? { ...c, x2: e.clientX - cr.left, y2: e.clientY - cr.top } : c));
-  }
-  function onAnchorUp(e: React.PointerEvent) {
-    const c = connect.current;
-    connect.current = null;
-    setConnecting(null);
-    if (!c) return;
-    const cr = canvasRef.current!.getBoundingClientRect();
-    const px = e.clientX - cr.left;
-    const py = e.clientY - cr.top;
-    const target = boxes.find((b) => px >= b.left && px <= b.left + b.w && py >= b.top && py <= b.top + b.h);
-    if (target && target.id !== c.fromId) {
-      // âncora de destino: a mais próxima do ponto de soltura; se caiu no centro,
-      // usa o lado voltado para a origem (entrada natural no fluxograma).
-      let toSide = nearestSide(target, px, py);
-      if (toSide === "c") {
-        const src = boxOf(c.fromId);
-        if (src) toSide = nearestSide(target, src.cx, src.cy);
+    const move = (ev: PointerEvent) => {
+      const p = rel(ev);
+      setRubber((c) => (c ? { ...c, x2: p.x, y2: p.y } : c));
+    };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      const c = connect.current;
+      connect.current = null;
+      setRubber(null);
+      setHover(null);
+      if (!c) return;
+      const p = rel(ev);
+      const target = boxes.find((bx) => p.x >= bx.left && p.x <= bx.left + bx.w && p.y >= bx.top && p.y <= bx.top + bx.h);
+      if (target && target.id !== c.fromId) {
+        const shape = graph.nodes.find((n) => n.id === target.id)!.shape;
+        let na = nearestAnchor(target, shape, p.x, p.y);
+        if (na.dist > Math.min(target.w, target.h) / 2) {
+          const src = boxOf(c.fromId);
+          if (src) na = nearestAnchor(target, shape, src.cx, src.cy);
+        }
+        // id determinístico = o mesmo que `parsePic` atribui (`from-to-index`),
+        // p/ a seleção sobreviver ao round-trip pelo código.
+        const edge: VEdge = {
+          id: `${c.fromId}-${target.id}-${graph.edges.length}`,
+          from: c.fromId,
+          to: target.id,
+          arrow: true,
+          fromSide: c.fromSide,
+          toSide: na.side,
+        };
+        onChange({ ...graph, edges: [...graph.edges, edge] });
+        setSel({ kind: "edge", id: edge.id });
       }
-      const edge: VEdge = { id: newId(), from: c.fromId, to: target.id, arrow: true, fromSide: c.fromSide, toSide };
-      onChange({ ...graph, edges: [...graph.edges, edge] });
-      setSel({ kind: "edge", id: edge.id });
-    } else {
-      setSel(null);
-    }
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
+  // ── reancorar a ponta de uma aresta selecionada ── (idem, via window)
+  function onEndpointDown(e: React.PointerEvent, edgeId: string, end: "from" | "to", nodeId: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    edgeDrag.current = { edgeId, end, nodeId };
+    setRubber({ x1: rel(e).x, y1: rel(e).y, x2: rel(e).x, y2: rel(e).y });
+    const move = (ev: PointerEvent) => {
+      const p = rel(ev);
+      setRubber((c) => (c ? { ...c, x2: p.x, y2: p.y } : c));
+    };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      const d = edgeDrag.current;
+      edgeDrag.current = null;
+      setRubber(null);
+      if (!d) return;
+      const b = boxOf(d.nodeId);
+      if (!b) return;
+      const shape = graph.nodes.find((n) => n.id === d.nodeId)!.shape;
+      const p = rel(ev);
+      const s = nearestAnchor(b, shape, p.x, p.y).side;
+      updateEdge(d.edgeId, d.end === "from" ? { fromSide: s } : { toSide: s });
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  }
+
+  // Pontos das arestas (âncoras efetivas).
+  function endpoints(e: VEdge): { p1: Pt; p2: Pt; a: Box; b: Box } | null {
+    const a = boxOf(e.from);
+    const b = boxOf(e.to);
+    if (!a || !b) return null;
+    const [fs, ts] = e.fromSide && e.toSide ? [e.fromSide, e.toSide] : autoSides(a, b);
+    return { p1: anchorWorld(a, fs), p2: anchorWorld(b, ts), a, b };
   }
 
   const selNode = sel?.kind === "node" ? graph.nodes.find((n) => n.id === sel.id) : undefined;
   const selEdge = sel?.kind === "edge" ? graph.edges.find((e) => e.id === sel.id) : undefined;
+  const selEnds = selEdge ? endpoints(selEdge) : null;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10" data-testid="visual-overlay">
+      {/* Arestas: linha invisível clicável (selecionar) + realce da selecionada */}
+      <svg className="pointer-events-none absolute inset-0 h-full w-full">
+        {graph.edges.map((edge) => {
+          const ep = endpoints(edge);
+          if (!ep) return null;
+          const selected = sel?.kind === "edge" && sel.id === edge.id;
+          return (
+            <g key={edge.id}>
+              <line
+                x1={ep.p1.x}
+                y1={ep.p1.y}
+                x2={ep.p2.x}
+                y2={ep.p2.y}
+                stroke="transparent"
+                strokeWidth={14}
+                style={{ pointerEvents: "stroke", cursor: "pointer" }}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  setSel({ kind: "edge", id: edge.id });
+                }}
+                data-testid="visual-edge-hit"
+              />
+              {selected && <line x1={ep.p1.x} y1={ep.p1.y} x2={ep.p2.x} y2={ep.p2.y} stroke="var(--color-accent)" strokeWidth={2} />}
+            </g>
+          );
+        })}
+        {rubber && <line x1={rubber.x1} y1={rubber.y1} x2={rubber.x2} y2={rubber.y2} stroke="var(--color-accent)" strokeWidth={2} strokeDasharray="4 4" />}
+      </svg>
+
+      {/* Nós: box de mover + a âncora mais próxima do cursor */}
       {boxes.map((b) => {
         const node = graph.nodes.find((n) => n.id === b.id);
         if (!node) return null;
         const selected = sel?.kind === "node" && sel.id === b.id;
+        const showSide = hover?.id === b.id ? hover.side : null;
         return (
           <div
             key={b.id}
             className={cn(
-              "group pointer-events-auto absolute cursor-move rounded-sm transition-[outline] duration-100",
-              selected
-                ? "outline outline-2 outline-(--color-accent)"
-                : "outline outline-1 outline-transparent hover:outline-(--color-accent)/50",
+              "pointer-events-auto absolute cursor-move rounded-sm transition-[outline] duration-100",
+              selected ? "outline outline-2 outline-(--color-accent)" : "outline outline-1 outline-transparent hover:outline-(--color-accent)/40",
             )}
             style={{ left: b.left, top: b.top, width: b.w, height: b.h }}
             onPointerDown={(e) => onNodeDown(e, b.id)}
-            onPointerMove={onNodeMove}
+            onPointerMove={(e) => onNodeMove(e, b, node.shape)}
             onPointerUp={onNodeUp}
+            onPointerLeave={() => !drag.current && !connect.current && setHover((h) => (h?.id === b.id ? null : h))}
             data-testid="visual-handle"
           >
-            {/* Âncoras (compass points) — escondidas até o hover no nó */}
-            {sidesFor(node.shape).map((side) => {
-              const a = anchorXY(side, b.w, b.h);
+            {showSide && (() => {
+              const a = anchorXY(showSide, b.w, b.h);
               return (
                 <div
-                  key={side}
-                  title={`.${side}`}
-                  className={cn(
-                    "absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 cursor-crosshair rounded-full",
-                    "border border-(--color-surface) bg-(--color-accent) opacity-0 transition-opacity",
-                    "group-hover:opacity-100 hover:!scale-125",
-                    selected && "opacity-100",
-                  )}
+                  title={`.${showSide}`}
+                  className="absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 cursor-crosshair rounded-full border-2 border-(--color-surface) bg-(--color-accent) shadow"
                   style={{ left: a.x, top: a.y }}
-                  onPointerDown={(e) => onAnchorDown(e, b.id, side)}
-                  onPointerMove={onAnchorMove}
-                  onPointerUp={onAnchorUp}
-                  data-testid={`visual-anchor-${side}`}
+                  onPointerDown={(e) => onAnchorDown(e, b.id, showSide)}
+                  data-testid={`visual-anchor-${showSide}`}
                 />
               );
-            })}
+            })()}
           </div>
         );
       })}
 
-      {/* Marcadores de aresta (ponto médio entre os nós) */}
-      {graph.edges.map((edge) => {
-        const a = boxOf(edge.from);
-        const b = boxOf(edge.to);
-        if (!a || !b) return null;
-        const selected = sel?.kind === "edge" && sel.id === edge.id;
-        return (
-          <div
-            key={edge.id}
-            className={cn(
-              "pointer-events-auto absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full border-2",
-              selected ? "border-(--color-accent) bg-(--color-accent)" : "border-(--color-accent)/70 bg-(--color-surface)",
-            )}
-            style={{ left: (a.cx + b.cx) / 2, top: (a.cy + b.cy) / 2 }}
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              setSel({ kind: "edge", id: edge.id });
-            }}
-            data-testid="visual-edge-marker"
-          />
-        );
-      })}
-
-      {/* Linha temporária de conexão */}
-      {connecting && (
-        <svg className="pointer-events-none absolute inset-0 h-full w-full">
-          <line
-            x1={connecting.x1}
-            y1={connecting.y1}
-            x2={connecting.x2}
-            y2={connecting.y2}
-            stroke="var(--color-accent)"
-            strokeWidth={2}
-            strokeDasharray="4 4"
-          />
-        </svg>
-      )}
+      {/* Pontas da aresta selecionada — arraste p/ reancorar */}
+      {selEdge &&
+        selEnds &&
+        (["from", "to"] as const).map((end) => {
+          const p = end === "from" ? selEnds.p1 : selEnds.p2;
+          const nodeId = end === "from" ? selEdge.from : selEdge.to;
+          return (
+            <div
+              key={end}
+              className="pointer-events-auto absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full border-2 border-(--color-accent) bg-(--color-surface)"
+              style={{ left: p.x, top: p.y }}
+              onPointerDown={(e) => onEndpointDown(e, selEdge.id, end, nodeId)}
+              data-testid={`visual-endpoint-${end}`}
+            />
+          );
+        })}
 
       {/* Inspetor */}
       {(selNode || selEdge) && (
@@ -373,28 +419,14 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
           </label>
           <input
             value={selNode?.label ?? selEdge?.label ?? ""}
-            onChange={(e) =>
-              selNode ? updateNode(selNode.id, { label: e.target.value }) : updateEdge(selEdge!.id, { label: e.target.value })
-            }
+            onChange={(e) => (selNode ? updateNode(selNode.id, { label: e.target.value }) : updateEdge(selEdge!.id, { label: e.target.value }))}
             data-testid="visual-label-input"
             className="mb-3 w-full rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-2 py-1 text-sm text-(--color-text) outline-none focus:border-(--color-accent)"
           />
           {selNode && (
             <>
-              <Swatches
-                title={t("visual.inspector.fill")}
-                colors={FILL_COLORS}
-                value={selNode.fill}
-                onPick={(c) => updateNode(selNode.id, { fill: c })}
-                noneLabel={t("visual.none")}
-              />
-              <Swatches
-                title={t("visual.inspector.stroke")}
-                colors={STROKE_COLORS}
-                value={selNode.stroke}
-                onPick={(c) => updateNode(selNode.id, { stroke: c })}
-                noneLabel={t("visual.none")}
-              />
+              <Swatches title={t("visual.inspector.fill")} colors={FILL_COLORS} value={selNode.fill} onPick={(c) => updateNode(selNode.id, { fill: c })} noneLabel={t("visual.none")} />
+              <Swatches title={t("visual.inspector.stroke")} colors={STROKE_COLORS} value={selNode.stroke} onPick={(c) => updateNode(selNode.id, { stroke: c })} noneLabel={t("visual.none")} />
             </>
           )}
           {selEdge && (
@@ -405,13 +437,7 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom }: Pr
               {selEdge.arrow ? t("visual.edge.arrow") : t("visual.edge.line")}
             </button>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={deleteSel}
-            data-testid="visual-delete"
-            className="w-full justify-center text-(--color-danger)"
-          >
+          <Button variant="ghost" size="sm" onClick={deleteSel} data-testid="visual-delete" className="w-full justify-center text-(--color-danger)">
             <Trash2 size={13} /> {t("visual.delete")}
           </Button>
         </div>
@@ -435,28 +461,17 @@ function Swatches({
 }) {
   return (
     <div className="mb-3">
-      <span className="mb-1 block font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
-        {title}
-      </span>
+      <span className="mb-1 block font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">{title}</span>
       <div className="flex flex-wrap gap-1.5">
         <button
           onClick={() => onPick(undefined)}
           title={noneLabel}
-          className={cn(
-            "h-5 w-5 rounded-full border border-(--color-border) text-[9px] leading-none text-(--color-text-muted)",
-            !value && "ring-2 ring-(--color-accent)",
-          )}
+          className={cn("h-5 w-5 rounded-full border border-(--color-border) text-[9px] leading-none text-(--color-text-muted)", !value && "ring-2 ring-(--color-accent)")}
         >
           ⌀
         </button>
         {colors.map((c) => (
-          <button
-            key={c}
-            onClick={() => onPick(c)}
-            title={c}
-            style={{ background: c }}
-            className={cn("h-5 w-5 rounded-full border border-(--color-border)", value === c && "ring-2 ring-(--color-accent)")}
-          />
+          <button key={c} onClick={() => onPick(c)} title={c} style={{ background: c }} className={cn("h-5 w-5 rounded-full border border-(--color-border)", value === c && "ring-2 ring-(--color-accent)")} />
         ))}
       </div>
     </div>

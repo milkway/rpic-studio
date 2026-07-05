@@ -50,9 +50,15 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   `<g id="s{i}">` no SVG; o overlay lê a posição real via `getBoundingClientRect` num loop rAF (só
   setState quando muda) — imune a corridas de timing (injeção/crossFade/reflow). graph px == unidade
   de usuário do SVG (96/pol) → arrastar é `Δtela/zoom`; no drop MANTÉM o `translate` do `<g>` até o
-  recompile substituir o SVG (evita o "fantasma" old+new). Âncoras (compass points) só aparecem no
-  hover do nó e conectam de um lado específico; o CENTRO fica livre p/ mover/selecionar (âncora `.c`
-  NÃO é renderizada, senão intercepta o clique de seleção). Losango = `line … close shaded/outlined`.
+  recompile substituir o SVG (evita o "fantasma" old+new). No modo visual o preview alinha ao
+  TOPO-ESQUERDA (origem fixa) em vez de centralizar, senão mover/adicionar recentraliza tudo. Só a
+  âncora (compass point) MAIS PRÓXIMA do cursor aparece (dentro de `SHOW_DIST`); o centro fica livre
+  p/ mover/selecionar (âncora `.c` não é renderizada — interceptaria o clique). Conectar sai de uma
+  âncora; a aresta seleciona clicando na LINHA (não há bola) e reancora arrastando as pontas
+  (`fromSide/toSide`). Arraste de conexão/reancoragem usa listeners de WINDOW (não `setPointerCapture`
+  na âncora, que remonta no re-render e perde a captura). Ids: nós = nome pic (N1…); arestas =
+  `from-to-índice` (determinístico, IGUAL ao que `parsePic` atribui) p/ a seleção sobreviver ao
+  round-trip. Losango = `line … close shaded/outlined`.
 - **Render server-side** (`routes/render.rs`, `POST /api/render` → svg|png|pdf): pic é NÃO
   confiável (`IncludePolicy::Deny`), CPU-bound em `spawn_blocking`, math via `ensure_math()`.
   Param `google_font` restrito ao `GOOGLE_FONTS` allowlist (mitiga SSRF) e casa a fonte no

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { gsap } from "gsap";
 import { Circle, Diamond, Egg, Loader2, Minus, Plus, RotateCcw, Scan, Square } from "lucide-react";
-import { motion } from "@rpic/design-system";
+import { cn, motion } from "@rpic/design-system";
 import { useI18n } from "@/lib/i18n";
 import { animate, type Anim } from "@/lib/rpic";
 import { sanitizeSvg } from "@/lib/sanitize";
@@ -203,7 +203,14 @@ export function PreviewPane({
             {t("preview.loading")}
           </div>
         ) : (
-          <div className="flex min-h-full min-w-full items-center justify-center p-8">
+          <div
+            className={cn(
+              "flex min-h-full min-w-full p-8",
+              // No modo visual, origem fixa no topo-esquerda: mover/adicionar um
+              // nó estende o canvas em vez de recentralizar tudo.
+              graph && graph.nodes.length > 0 ? "items-start justify-start" : "items-center justify-center",
+            )}
+          >
             <div
               ref={stageRef}
               data-testid="preview-stage"
