@@ -107,6 +107,33 @@ describe("conectores livres (VLine)", () => {
   });
 });
 
+describe("texto & math (Fase 3)", () => {
+  it("rótulo multilinha vira strings empilhadas e round-trippa", () => {
+    const g: VGraph = { nodes: [node({ id: "N1", shape: "box", label: "linha 1\nlinha 2", x: 96, y: 96 })], edges: [] };
+    const pic = graphToPic(g);
+    expect(pic).toContain('box "linha 1" "linha 2" wid');
+    expect(parsePic(pic)!.nodes[0].label).toBe("linha 1\nlinha 2");
+  });
+
+  it("rótulo math vira $…$ (backslash do TeX intacto) e round-trippa", () => {
+    const g: VGraph = { nodes: [node({ id: "N1", shape: "box", label: "\\frac{T}{2}", math: true, x: 96, y: 96 })], edges: [] };
+    const pic = graphToPic(g);
+    expect(pic).toContain('box "$\\frac{T}{2}$" wid');
+    const n = parsePic(pic)!.nodes[0];
+    expect(n.label).toBe("\\frac{T}{2}");
+    expect(n.math).toBe(true);
+  });
+
+  it("objeto de texto solto round-trippa (sem forma)", () => {
+    const g: VGraph = { nodes: [node({ id: "T1", shape: "text", label: "olá\nmundo", x: 192, y: 96 })], edges: [] };
+    const pic = graphToPic(g);
+    expect(pic).toMatch(/N1: "olá" "mundo" at \(2,-1\)/);
+    const n = parsePic(pic)!.nodes[0];
+    expect(n.shape).toBe("text");
+    expect(n.label).toBe("olá\nmundo");
+  });
+});
+
 describe("estilos por objeto (Fase 2)", () => {
   it("nó com hatch/dashed/thick round-trippa e gera pic", () => {
     const g: VGraph = {

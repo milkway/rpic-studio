@@ -13,6 +13,7 @@ import {
   Scan,
   Slash,
   Square,
+  Type,
 } from "lucide-react";
 import { cn, motion } from "@rpic/design-system";
 import { useI18n } from "@/lib/i18n";
@@ -31,6 +32,7 @@ const SHAPE_TOOLS: { shape: Shape; icon: typeof Square; testid: string }[] = [
   { shape: "circle", icon: Circle, testid: "visual-add-circle" },
   { shape: "ellipse", icon: Egg, testid: "visual-add-ellipse" },
   { shape: "diamond", icon: Diamond, testid: "visual-add-diamond" },
+  { shape: "text", icon: Type, testid: "visual-add-text" },
 ];
 const DRAW_TOOLS: { tool: Tool; icon: typeof Square; testid: string }[] = [
   { tool: "line", icon: Slash, testid: "visual-tool-line" },

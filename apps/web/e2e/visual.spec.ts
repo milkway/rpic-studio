@@ -82,6 +82,21 @@ test("selecionar a seta pela linha e reancorar a ponta muda o lado", async ({ pa
   await expect(page.getByTestId("code-pane")).toContainText("arrow from N1.n to N2.w", { timeout: 5_000 });
 });
 
+test("texto: rótulo multilinha, objeto solto e toggle math", async ({ page }) => {
+  await page.getByTestId("visual-add-box").click();
+  await expect(page.getByTestId("visual-inspector")).toBeVisible({ timeout: 5_000 });
+  await page.getByTestId("visual-label-input").fill("Passo 1\nPasso 2");
+  await expect(page.getByTestId("code-pane")).toContainText('"Passo 1" "Passo 2"', { timeout: 5_000 });
+
+  // texto solto (sem forma)
+  await page.getByTestId("visual-add-text").click();
+  await page.getByTestId("visual-label-input").fill("E=mc^2");
+  await expect(page.getByTestId("code-pane")).toContainText('"E=mc^2" at', { timeout: 5_000 });
+  // math wrap
+  await page.getByTestId("visual-math-toggle").check();
+  await expect(page.getByTestId("code-pane")).toContainText('"$E=mc^2$"', { timeout: 5_000 });
+});
+
 test("estilos por objeto: hatch/dashed no nó, pontas na seta", async ({ page }) => {
   await page.getByTestId("visual-add-box").click();
   await expect(page.getByTestId("visual-inspector")).toBeVisible({ timeout: 5_000 });

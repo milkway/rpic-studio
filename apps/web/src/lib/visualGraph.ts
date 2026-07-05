@@ -11,7 +11,7 @@
 // x/y = CENTRO do nó). A conversão para polegadas pic (y p/ CIMA) acontece só na
 // geração; o parse faz a inversa (e arredonda p/ px inteiro, evitando drift).
 
-export type Shape = "box" | "circle" | "ellipse" | "diamond";
+export type Shape = "box" | "circle" | "ellipse" | "diamond" | "text";
 
 /** Âncoras pic (compass points + centro) — lados de saída/entrada das arestas. */
 export type Side = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw" | "c";
@@ -32,6 +32,7 @@ export interface Stroke {
 export interface VNode extends Stroke {
   id: string;
   shape: Shape;
+  /** rótulo; `\n` separa linhas empilhadas (strings pic). */
   label: string;
   /** centro em px (tela, y p/ baixo) */
   x: number;
@@ -39,6 +40,8 @@ export interface VNode extends Stroke {
   /** dimensões em px */
   w: number;
   h: number;
+  /** rótulo é TeX (`$…$`) — auto-liga texlabels. */
+  math?: boolean;
 }
 
 /** Traço/pontas comuns a arestas e conectores livres. */
@@ -138,6 +141,7 @@ export const DEFAULT_SIZE: Record<Shape, { w: number; h: number }> = {
   circle: { w: 0.6 * PX_PER_INCH, h: 0.6 * PX_PER_INCH },
   ellipse: { w: 0.9 * PX_PER_INCH, h: 0.55 * PX_PER_INCH },
   diamond: { w: 0.95 * PX_PER_INCH, h: 0.7 * PX_PER_INCH },
+  text: { w: 0.8 * PX_PER_INCH, h: 0.3 * PX_PER_INCH }, // nominal (auto-dimensiona)
 };
 
 /** Cores curadas (nomes X11/CSS aceitos pelo rpic) para o painel de estilo. */
@@ -166,9 +170,10 @@ function num(n: number): string {
   return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)));
 }
 
-/** Escapa aspas duplas do label (pic delimita strings com "). */
+/** Escapa só aspas (pic delimita strings com "). NÃO dobra `\` — assim o
+ *  backslash do TeX (`$\frac{}{}$`) passa intacto p/ os rótulos math. */
 function esc(label: string): string {
-  return label.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return label.replace(/"/g, '\\"');
 }
 
 /** Lado de saída/entrada de uma aresta pelo eixo dominante (coords de tela). */
@@ -214,6 +219,16 @@ function connStyleSuffix(c: ConnStyle): string {
   return s;
 }
 
+/** Rótulo(s) pic: math → um `"$…$"`; senão `\n` vira strings empilhadas. */
+function labelsPic(n: { label: string; math?: boolean }): string {
+  if (!n.label) return "";
+  if (n.math) return `"$${esc(n.label)}$"`;
+  return n.label
+    .split("\n")
+    .map((l) => `"${esc(l)}"`)
+    .join(" ");
+}
+
 function nodePic(n: VNode, name: string): string {
   // tudo em polegadas pic (centro cx,cy com y p/ cima; largura/altura ww,hh)
   const cx = toInchX(n.x);
@@ -221,9 +236,12 @@ function nodePic(n: VNode, name: string): string {
   const ww = n.w / PX_PER_INCH;
   const hh = n.h / PX_PER_INCH;
   const at = `at (${num(cx)},${num(cy)})`;
-  const label = n.label ? ` "${esc(n.label)}"` : "";
+  const labels = labelsPic(n);
+  const label = labels ? ` ${labels}` : "";
   const style = styleSuffix(n);
   switch (n.shape) {
+    case "text":
+      return `${name}: ${labels || '""'} ${at}`;
     case "circle":
       return `${name}: circle${label} diam ${num(Math.min(ww, hh))} ${at}${style}`;
     case "ellipse":
@@ -316,7 +334,7 @@ const N = `([-\\d.]+)`; // número
 const P = `\\(${N},${N}\\)`; // ponto (x,y)
 
 function unesc(s: string): string {
-  return s.replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  return s.replace(/\\"/g, '"'); // inverso de `esc` (só aspas)
 }
 function px(inch: number): number {
   return Math.round(inch * PX_PER_INCH) + 0; // `+ 0` normaliza -0 → 0
@@ -346,9 +364,24 @@ function parseConnStyle(rest: string): { dash?: Dash; thick?: number } {
   return out;
 }
 
-const RE_BOX = new RegExp(`^(\\w+):\\s*(box|ellipse)\\s+(?:${STR}\\s+)?wid\\s+${N}\\s+ht\\s+${N}\\s+at\\s+${P}(.*)$`);
-const RE_CIRCLE = new RegExp(`^(\\w+):\\s*circle\\s+(?:${STR}\\s+)?diam\\s+${N}\\s+at\\s+${P}(.*)$`);
+const STR_NG = `"(?:[^"\\\\]|\\\\.)*"`; // string pic (sem grupo de captura)
+const LABELS = `((?:${STR_NG}\\s+)*)`; // run de rótulos empilhados (pode ser vazio)
+
+/** Extrai rótulo(s) de um run de strings: junta com `\n`; um único `$…$` = math. */
+function parseLabels(run: string): { label: string; math?: boolean } {
+  const strs = run.match(new RegExp(STR_NG, "g")) ?? [];
+  const parts = strs.map((s) => unesc(s.slice(1, -1)));
+  if (parts.length === 1) {
+    const m = /^\$(.*)\$$/.exec(parts[0]);
+    if (m) return { label: m[1], math: true };
+  }
+  return { label: parts.join("\n") };
+}
+
+const RE_BOX = new RegExp(`^(\\w+):\\s*(box|ellipse)\\s+${LABELS}wid\\s+${N}\\s+ht\\s+${N}\\s+at\\s+${P}(.*)$`);
+const RE_CIRCLE = new RegExp(`^(\\w+):\\s*circle\\s+${LABELS}diam\\s+${N}\\s+at\\s+${P}(.*)$`);
 const RE_DIAMOND = new RegExp(`^(\\w+):\\s*line\\s+from\\s+${P}\\s+to\\s+${P}\\s+to\\s+${P}\\s+to\\s+${P}\\s+close(.*)$`);
+const RE_TEXT = new RegExp(`^(\\w+):\\s*((?:${STR_NG}\\s+)+)at\\s+${P}\\s*$`); // texto solto (≥1 string)
 const RE_CONN = /^(arrow|line)(\s+<->|\s+<-)?\s+from\s+(\S+)\s+to\s+(\S+)(\s.*)?$/;
 const RE_EDGE_LABEL = new RegExp(`^${STR}\\s+at\\s+${P}\\s*(?:above|below)?\\s*$`);
 
@@ -378,7 +411,7 @@ export function parsePic(source: string): VGraph | null {
     if (!line || line.startsWith("#") || line === ".PS" || line === ".PE") continue;
     let m: RegExpExecArray | null;
     if ((m = RE_BOX.exec(line))) {
-      const [, id, shape, label, w, h, x, y, rest] = m;
+      const [, id, shape, run, w, h, x, y, rest] = m;
       if (id === "PAGE") {
         page = { cx: px(+x), cy: pyf(+y), w: px(+w), h: px(+h) };
         last = null;
@@ -387,7 +420,7 @@ export function parsePic(source: string): VGraph | null {
       nodes.push({
         id,
         shape: shape as Shape,
-        label: label ? unesc(label) : "",
+        ...parseLabels(run),
         x: px(+x),
         y: pyf(+y),
         w: px(+w),
@@ -396,16 +429,28 @@ export function parsePic(source: string): VGraph | null {
       });
       last = null;
     } else if ((m = RE_CIRCLE.exec(line))) {
-      const [, id, label, d, x, y, rest] = m;
+      const [, id, run, d, x, y, rest] = m;
       nodes.push({
         id,
         shape: "circle",
-        label: label ? unesc(label) : "",
+        ...parseLabels(run),
         x: px(+x),
         y: pyf(+y),
         w: px(+d),
         h: px(+d),
         ...parseStyle(rest),
+      });
+      last = null;
+    } else if ((m = RE_TEXT.exec(line))) {
+      const [, id, run, x, y] = m;
+      nodes.push({
+        id,
+        shape: "text",
+        ...parseLabels(run),
+        x: px(+x),
+        y: pyf(+y),
+        w: DEFAULT_SIZE.text.w,
+        h: DEFAULT_SIZE.text.h,
       });
       last = null;
     } else if ((m = RE_DIAMOND.exec(line))) {
@@ -415,13 +460,13 @@ export function parsePic(source: string): VGraph | null {
       const cy = +y2;
       const wInch = 2 * (+x2 - cx);
       const hInch = 2 * (+y1 - cy);
-      const labelM = new RegExp(`${STR}\\s*$`).exec(
+      const labelM = new RegExp(`${STR_NG}\\s*$`).exec(
         rest.replace(new RegExp(`shaded\\s+${STR}`), "").replace(new RegExp(`outlined\\s+${STR}`), ""),
       );
       nodes.push({
         id,
         shape: "diamond",
-        label: labelM ? unesc(labelM[1]) : "",
+        ...parseLabels(labelM ? labelM[0] : ""),
         x: px(cx),
         y: pyf(cy),
         w: px(wInch),

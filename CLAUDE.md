@@ -65,10 +65,12 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   desloca a figura; `invis` não serviria pois não conta no bbox do rpic). `growPage` só cresce.
   Estilo por objeto (Fase 2): `fill/stroke` (cor), `hatch|crosshatch`, `dashed|dotted`, `thick`; e
   conectores com pontas `arrow`(fim)/`back`(início) → gera `arrow`/`line`/`line <-`/`line <->`. O
-  overlay tem um transform modelo↔tela (derivado de um nó ou da moldura da página) p/ posicionar
-  pontos livres sem `#s{i}`; a barra é modo-ferramenta (select/linha/seta). Roadmap "editor completo
-  de figuras": Fase 3 texto/LaTeX multilinha, Fase 4 fonte por objeto (bloqueada pela issue rpic
-  #225). Issues abertas no rpic-lang: #225 fonte por objeto, #226 canvas fixo, #227 geometria no
+  overlay tem um transform modelo↔tela (derivado de um nó DIMENSIONADO — texto tem w/h nominal — ou
+  da moldura da página) p/ posicionar pontos livres sem `#s{i}`; a barra é modo-ferramenta
+  (select/linha/seta). Texto (Fase 3): `shape:"text"` (objeto solto `Nx: "…" at (x,y)`), rótulo
+  MULTILINHA (`\n` → strings empilhadas), e `math:true` → `"$…$"` (o `esc`/`unesc` só mexem em aspas,
+  NÃO dobram `\`, p/ o backslash do TeX passar). Roadmap: Fase 4 fonte por objeto (bloqueada pela
+  issue rpic #225). Issues abertas no rpic-lang: #225 fonte por objeto, #226 canvas fixo, #227 geometria no
   compile, #228 texto girado + rgb/hex.
 - **Render server-side** (`routes/render.rs`, `POST /api/render` → svg|png|pdf): pic é NÃO
   confiável (`IncludePolicy::Deny`), CPU-bound em `spawn_blocking`, math via `ensure_math()`.

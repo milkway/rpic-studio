@@ -218,7 +218,8 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
     const stage = stageRef.current;
     const canvas = canvasRef.current;
     if (!stage || !canvas) return null;
-    const n0 = graph.nodes[0];
+    // usa um nó dimensionado (texto tem w/h nominal ≠ renderizado)
+    const n0 = graph.nodes.find((n) => n.shape !== "text");
     const b0 = n0 && boxOf(n0.id);
     if (n0 && b0) {
       const s = b0.w / n0.w;
@@ -605,7 +606,8 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
           <label className="mb-1 block font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
             {t("visual.inspector.label")}
           </label>
-          <input
+          <textarea
+            rows={selNode ? 2 : 1}
             value={selNode?.label ?? selEdge?.label ?? selLine?.label ?? ""}
             onChange={(e) =>
               selNode
@@ -614,9 +616,21 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
                   ? updateEdge(selEdge.id, { label: e.target.value })
                   : updateLine(selLine!.id, { label: e.target.value })
             }
+            placeholder={selNode ? t("visual.inspector.multiline") : undefined}
             data-testid="visual-label-input"
-            className="mb-3 w-full rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-2 py-1 text-sm text-(--color-text) outline-none focus:border-(--color-accent)"
+            className="mb-2 w-full resize-none rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-2 py-1 text-sm text-(--color-text) outline-none focus:border-(--color-accent)"
           />
+          {selNode && (
+            <label className="mb-3 flex cursor-pointer items-center gap-2 text-xs text-(--color-text-body)">
+              <input
+                type="checkbox"
+                checked={!!selNode.math}
+                onChange={(e) => updateNode(selNode.id, { math: e.target.checked || undefined })}
+                data-testid="visual-math-toggle"
+              />
+              {t("visual.inspector.math")}
+            </label>
+          )}
           {selNode && (
             <>
               <Swatches title={t("visual.inspector.fill")} colors={FILL_COLORS} value={selNode.fill} onPick={(c) => updateNode(selNode.id, { fill: c })} noneLabel={t("visual.none")} />
