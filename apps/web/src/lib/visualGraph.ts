@@ -314,15 +314,16 @@ export function graphToPic(g: VGraph): string {
     if (line) body.push(line);
   }
   for (const ln of g.lines ?? []) body.push(linePic(ln, byId, name));
-  // Moldura da página POR ÚLTIMO (não desloca os índices `s{i}` dos objetos):
-  // branca → invisível no papel; fixa o bbox (`invis` não contaria — o rpic só
-  // soma ao bbox formas visíveis).
+  // Página fixa via `canvas from … to …` (v0.7.0): fixa o viewBox → mover um
+  // objeto não desloca a figura. É diretiva (não gera `s{i}`), então a ordem
+  // não afeta os índices dos objetos. Substitui a antiga moldura branca.
   if (g.page) {
     const { cx, cy, w, h } = g.page;
-    body.push(
-      `PAGE: box wid ${num(w / PX_PER_INCH)} ht ${num(h / PX_PER_INCH)} ` +
-        `at (${num(toInchX(cx))},${num(toInchY(cy))}) outlined "#ffffff"`,
-    );
+    const x0 = num(toInchX(cx - w / 2));
+    const x1 = num(toInchX(cx + w / 2));
+    const yBot = num(toInchY(cy + h / 2)); // px maior (baixo) → pic menor
+    const yTop = num(toInchY(cy - h / 2));
+    body.push(`canvas from (${x0},${yBot}) to (${x1},${yTop})`);
   }
   return `.PS\n${body.join("\n")}\n.PE\n`;
 }
@@ -382,6 +383,7 @@ const RE_BOX = new RegExp(`^(\\w+):\\s*(box|ellipse)\\s+${LABELS}wid\\s+${N}\\s+
 const RE_CIRCLE = new RegExp(`^(\\w+):\\s*circle\\s+${LABELS}diam\\s+${N}\\s+at\\s+${P}(.*)$`);
 const RE_DIAMOND = new RegExp(`^(\\w+):\\s*line\\s+from\\s+${P}\\s+to\\s+${P}\\s+to\\s+${P}\\s+to\\s+${P}\\s+close(.*)$`);
 const RE_TEXT = new RegExp(`^(\\w+):\\s*((?:${STR_NG}\\s+)+)at\\s+${P}\\s*$`); // texto solto (≥1 string)
+const RE_CANVAS = new RegExp(`^canvas\\s+from\\s+${P}\\s+to\\s+${P}\\s*$`);
 const RE_CONN = /^(arrow|line)(\s+<->|\s+<-)?\s+from\s+(\S+)\s+to\s+(\S+)(\s.*)?$/;
 const RE_EDGE_LABEL = new RegExp(`^${STR}\\s+at\\s+${P}\\s*(?:above|below)?\\s*$`);
 
@@ -452,6 +454,18 @@ export function parsePic(source: string): VGraph | null {
         w: DEFAULT_SIZE.text.w,
         h: DEFAULT_SIZE.text.h,
       });
+      last = null;
+    } else if ((m = RE_CANVAS.exec(line))) {
+      const [, x0, y0, x1c, y1c] = m;
+      const X0 = px(+x0);
+      const X1 = px(+x1c);
+      const Y0 = pyf(+y0);
+      const Y1 = pyf(+y1c);
+      const left = Math.min(X0, X1);
+      const right = Math.max(X0, X1);
+      const top = Math.min(Y0, Y1);
+      const bottom = Math.max(Y0, Y1);
+      page = { cx: (left + right) / 2, cy: (top + bottom) / 2, w: right - left, h: bottom - top };
       last = null;
     } else if ((m = RE_DIAMOND.exec(line))) {
       const [, id, x1, y1, x2, y2, , , , , rest] = m;

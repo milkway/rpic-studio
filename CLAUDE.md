@@ -60,9 +60,10 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   `from-to-índice` (determinístico, IGUAL ao que `parsePic` atribui) p/ a seleção sobreviver ao
   round-trip. Losango = `line … close shaded/outlined`.
 - **Editor visual — modelo e roadmap** (`lib/visualGraph.ts`): além de nós+arestas, tem `VLine`
-  (conectores LIVRES: pontas `{x,y}` livres ou `{node,side}` ancoradas) e uma `Page` (moldura
-  `PAGE: box … outlined "#ffffff"` emitida por ÚLTIMO que FIXA o viewBox → mover um objeto não
-  desloca a figura; `invis` não serviria pois não conta no bbox do rpic). `growPage` só cresce.
+  (conectores LIVRES: pontas `{x,y}` livres ou `{node,side}` ancoradas) e uma `Page` emitida como
+  `canvas from … to …` (v0.7.0, diretiva que NÃO gera `s{i}`) que FIXA o viewBox → mover um objeto
+  não desloca a figura. Rascunhos antigos com a moldura branca `PAGE: box … outlined "#ffffff"`
+  ainda são lidos. `growPage` só cresce.
   Estilo por objeto (Fase 2): `fill/stroke` (cor), `hatch|crosshatch`, `dashed|dotted`, `thick`; e
   conectores com pontas `arrow`(fim)/`back`(início) → gera `arrow`/`line`/`line <-`/`line <->`. O
   overlay tem um transform modelo↔tela (derivado de um nó DIMENSIONADO — texto tem w/h nominal — ou

@@ -225,19 +225,19 @@ export function VisualOverlay({ graph, onChange, stageRef, canvasRef, zoom, tool
       const s = b0.w / n0.w;
       return { s, ox: b0.cx - s * n0.x, oy: b0.cy - s * n0.y };
     }
-    if (graph.page) {
-      const gs = stage.querySelectorAll('g[id^="s"]');
-      const frame = gs[gs.length - 1] as SVGGraphicsElement | undefined;
-      if (frame) {
-        const r = frame.getBoundingClientRect();
-        const cr = canvas.getBoundingClientRect();
-        const s = r.width / graph.page.w;
-        return {
-          s,
-          ox: r.left - cr.left - s * (graph.page.cx - graph.page.w / 2),
-          oy: r.top - cr.top - s * (graph.page.cy - graph.page.h / 2),
-        };
-      }
+    // sem nós dimensionados: deriva do <svg> (viewBox ≈ canvas + pad) e da página.
+    const svg = stage.querySelector("svg");
+    const vb = svg?.getAttribute("viewBox")?.split(/\s+/).map(Number);
+    if (svg && vb && vb.length === 4 && graph.page) {
+      const r = svg.getBoundingClientRect();
+      const cr = canvas.getBoundingClientRect();
+      const s = r.width / vb[2]; // px de tela por unidade SVG (= px do modelo)
+      const pad = (vb[2] - graph.page.w) / 2; // ~1.6px em cada lado do canvas
+      return {
+        s,
+        ox: r.left - cr.left + s * (pad - (graph.page.cx - graph.page.w / 2)),
+        oy: r.top - cr.top + s * (pad - (graph.page.cy - graph.page.h / 2)),
+      };
     }
     return null;
   }

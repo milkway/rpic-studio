@@ -175,13 +175,19 @@ describe("página (fixa o viewBox)", () => {
     expect(back.w).toBe(wider.w); // não encolheu
   });
 
-  it("a moldura PAGE round-trippa e NÃO vira nó", () => {
+  it("emite `canvas from…to…` (v0.7.0) e round-trippa a página", () => {
     const withPage: VGraph = { ...graph, page: growPage(graph.nodes) };
     const pic = graphToPic(withPage);
-    expect(pic).toMatch(/PAGE: box wid [\d.]+ ht [\d.]+ at \([-\d.]+,[-\d.]+\) outlined "#ffffff"/);
-    const back = parsePic(pic)!;
-    expect(back.nodes.map((n) => n.id)).not.toContain("PAGE"); // não é objeto
-    expect(back.page).toEqual(withPage.page);
+    expect(pic).toMatch(/canvas from \([-\d.]+,[-\d.]+\) to \([-\d.]+,[-\d.]+\)/);
+    expect(pic).not.toContain("PAGE:"); // não usa mais a moldura branca
+    expect(parsePic(pic)!.page).toEqual(withPage.page);
+  });
+
+  it("ainda lê a antiga moldura `PAGE: box` (rascunhos salvos)", () => {
+    const legacy = '.PS\nN1: box "a" wid 0.75 ht 0.5 at (1,-1)\nPAGE: box wid 3 ht 2 at (1.5,-1) outlined "#ffffff"\n.PE';
+    const back = parsePic(legacy)!;
+    expect(back.nodes.map((n) => n.id)).not.toContain("PAGE");
+    expect(back.page).toEqual({ cx: 144, cy: 96, w: 288, h: 192 });
   });
 });
 
