@@ -1,15 +1,24 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { gsap } from "gsap";
-import { Loader2, Minus, Plus, RotateCcw, Scan } from "lucide-react";
+import { Circle, Diamond, Egg, Loader2, Minus, Plus, RotateCcw, Scan, Square } from "lucide-react";
 import { motion } from "@rpic/design-system";
 import { useI18n } from "@/lib/i18n";
 import { animate, type Anim } from "@/lib/rpic";
 import { sanitizeSvg } from "@/lib/sanitize";
 import { type CanvasSettings } from "@/lib/storage";
+import { type Shape, type VGraph } from "@/lib/visualGraph";
+import { VisualOverlay } from "@/components/visual/VisualOverlay";
 import { CanvasSettingsPopover } from "./CanvasSettingsPopover";
 import { canvasBackground } from "./canvasStyle";
 import { Button } from "@/components/ui/Button";
 import { Tip } from "@/components/ui/Tooltip";
+
+const SHAPE_TOOLS: { shape: Shape; icon: typeof Square; testid: string }[] = [
+  { shape: "box", icon: Square, testid: "visual-add-box" },
+  { shape: "circle", icon: Circle, testid: "visual-add-circle" },
+  { shape: "ellipse", icon: Egg, testid: "visual-add-ellipse" },
+  { shape: "diamond", icon: Diamond, testid: "visual-add-diamond" },
+];
 
 interface PreviewPaneProps {
   /** SVG já "assado" com a fonte escolhida. */
@@ -25,6 +34,10 @@ interface PreviewPaneProps {
   onCanvasChange: (next: CanvasSettings) => void;
   /** Slot para as abas (Imagem/SVG/Markdown) no cabeçalho. */
   tabs?: ReactNode;
+  /** Edição visual sobre o render: grafo embutido + callbacks (null = sem grafo). */
+  graph?: VGraph | null;
+  onGraphChange?: (g: VGraph) => void;
+  onAddShape?: (shape: Shape) => void;
 }
 
 /** Papel técnico: SVG ao vivo com zoom, replay de animação e status. */
@@ -38,6 +51,9 @@ export function PreviewPane({
   canvas,
   onCanvasChange,
   tabs,
+  graph,
+  onGraphChange,
+  onAddShape,
 }: PreviewPaneProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -104,6 +120,27 @@ export function PreviewPane({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-10 shrink-0 items-center gap-1.5 border-b border-(--color-border) bg-(--color-surface) px-3">
         {tabs}
+        {onAddShape && (
+          <div
+            className="ml-2 flex items-center gap-0.5 border-l border-(--color-border) pl-2"
+            role="group"
+            aria-label={t("visual.add")}
+          >
+            {SHAPE_TOOLS.map(({ shape, icon: Icon, testid }) => (
+              <Tip key={shape} label={t(`visual.shape.${shape}`)}>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  data-testid={testid}
+                  aria-label={t(`visual.shape.${shape}`)}
+                  onClick={() => onAddShape(shape)}
+                >
+                  <Icon size={15} />
+                </Button>
+              </Tip>
+            ))}
+          </div>
+        )}
         <div className="ml-auto flex items-center gap-0.5">
           {animations.length > 0 && (
             <Tip label={t("preview.replayTip")}>
@@ -185,6 +222,15 @@ export function PreviewPane({
               {t("preview.fixing")}
             </span>
           </div>
+        )}
+        {graph && graph.nodes.length > 0 && onGraphChange && !loading && (
+          <VisualOverlay
+            graph={graph}
+            onChange={onGraphChange}
+            stageRef={stageRef}
+            canvasRef={canvasRef}
+            zoom={zoom}
+          />
         )}
       </div>
 

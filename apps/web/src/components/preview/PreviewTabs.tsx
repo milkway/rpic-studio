@@ -4,6 +4,7 @@ import { Copy } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import type { Anim } from "@/lib/rpic";
 import type { CanvasSettings } from "@/lib/storage";
+import type { Shape, VGraph } from "@/lib/visualGraph";
 import { copyText, formatXml, toMarkdownSnippet } from "@/lib/exports";
 import { toPythonSnippet, toRSnippet } from "@/lib/bindings";
 import { useI18n } from "@/lib/i18n";
@@ -36,6 +37,10 @@ interface PreviewTabsProps {
   compileMs: number | null;
   canvas: CanvasSettings;
   onCanvasChange: (next: CanvasSettings) => void;
+  /** Edição visual sobre o render (aba imagem). */
+  graph?: VGraph | null;
+  onGraphChange?: (g: VGraph) => void;
+  onAddShape?: (shape: Shape) => void;
 }
 
 const MD_LABELS = {

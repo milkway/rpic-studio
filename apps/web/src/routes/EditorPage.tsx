@@ -10,8 +10,8 @@ import { DiagnosticsPanel } from "@/components/preview/DiagnosticsPanel";
 import { PreviewTabs } from "@/components/preview/PreviewTabs";
 import { SaveDialog } from "@/components/dialogs/SaveDialog";
 import { DefaultsBar } from "@/components/editor/DefaultsBar";
-import { VisualCanvas } from "@/components/visual/VisualCanvas";
-import { graphToPic, readGraph, hasVisualGraph, EMPTY_GRAPH } from "@/lib/visualGraph";
+import { DEFAULT_SIZE, graphToPic, readGraph, type Shape, type VGraph } from "@/lib/visualGraph";
+import { applyDefaults, readDefaults } from "@/lib/picDefaults";
 import { Button } from "@/components/ui/Button";
 import {
   DropdownMenu,
@@ -71,7 +71,6 @@ export function EditorPage() {
   const [initial] = useState(() => initialDoc(locale));
   const [doc, setDoc] = useState<DocState>({ source: initial.source });
   const [layout, setLayout] = useState(() => loadSettings().layout);
-  const [mode, setMode] = useState<"code" | "visual">(() => loadSettings().mode);
   const [split, setSplit] = useState(0.42);
   const [saveOpen, setSaveOpen] = useState(false);
   const [defaultsOpen, setDefaultsOpen] = useState(false);
@@ -239,24 +238,36 @@ export function EditorPage() {
     return () => window.removeEventListener(PREFS_EVENT, onPrefs);
   }, []);
 
-  // Alterna código ↔ visual. Ao entrar no visual sobre um código pic próprio
-  // (sem grafo embutido) confirma, pois o construtor regenera o source.
-  const toggleMode = useCallback(() => {
-    setMode((m) => {
-      if (m === "code") {
-        const src = doc.source;
-        if (!hasVisualGraph(src) && src.trim() !== "") {
-          if (!window.confirm(t("visual.replaceConfirm"))) return m;
-          setDoc((d) => ({ ...d, source: "" }));
-        }
-        saveSettings({ mode: "visual" });
-        return "visual";
-      }
-      saveSettings({ mode: "code" });
-      return "code";
-    });
-    pushPrefsSoon();
-  }, [doc.source, t]);
+  // Grafo do editor visual embutido no source (null = diagrama sem grafo).
+  const graph = useMemo(() => readGraph(doc.source), [doc.source]);
+
+  // Aplica um grafo: regenera o pic PRESERVANDO o bloco de padrões do usuário.
+  const applyGraph = useCallback((g: VGraph) => {
+    setDoc((d) => ({ ...d, source: applyDefaults(graphToPic(g), readDefaults(d.source)) }));
+  }, []);
+
+  // Adiciona uma forma (barra de ícones no preview). Sobre um pic próprio sem
+  // grafo, confirma — o construtor passa a reger o source.
+  const addShape = useCallback(
+    (shape: Shape) => {
+      const base = graph;
+      if (!base && doc.source.trim() !== "" && !window.confirm(t("visual.replaceConfirm"))) return;
+      const nodes = base?.nodes ?? [];
+      const i = nodes.length;
+      const size = DEFAULT_SIZE[shape];
+      const node = {
+        id: crypto.randomUUID?.() ?? `n-${i}-${nodes.length}`,
+        shape,
+        label: shape === "diamond" ? "?" : t("visual.newNode"),
+        x: 80 + (i % 4) * 170,
+        y: 70 + Math.floor(i / 4) * 120,
+        w: size.w,
+        h: size.h,
+      };
+      applyGraph({ nodes: [...nodes, node], edges: base?.edges ?? [] });
+    },
+    [graph, doc.source, applyGraph, t],
+  );
 
   // Divisor arrastável entre os painéis.
   const onDividerPointerDown = useCallback(
@@ -292,8 +303,6 @@ export function EditorPage() {
           circuits={circuits}
           texlabels={texlabels}
           googleFont={googleFamilyOf(canvas.fontFamily) ?? undefined}
-          mode={mode}
-          onToggleMode={toggleMode}
           layout={layout}
           onToggleLayout={toggleLayout}
           exportName={diagram.data?.title ?? (locale === "pt" ? "diagrama" : "diagram")}
@@ -329,91 +338,68 @@ export function EditorPage() {
               {savedMode ? (diagram.data?.title ?? "…") : t("editor.draft")}
               {savedMode && dirty && <span className="ml-1 text-(--color-accent)">●</span>}
             </span>
-            {mode === "code" && (
-              <>
-                <DropdownMenu>
-                  <DropdownTrigger asChild>
-                    <Button variant="ink-ghost" size="sm" data-testid="examples-menu">
-                      <BookOpen size={13} />
-                      {t("editor.examples")}
-                      <ChevronDown size={12} />
-                    </Button>
-                  </DropdownTrigger>
-                  <DropdownContent align="start">
-                    <DropdownLabel>{t("editor.loadExample")}</DropdownLabel>
-                    {examples.map((ex) => (
-                      <DropdownItem key={ex.id} onSelect={() => setDoc({ source: ex.source })}>
-                        {ex.title[locale]}
-                      </DropdownItem>
-                    ))}
-                  </DropdownContent>
-                </DropdownMenu>
-                <Tip label={t("defaults.tip")}>
-                  <Button
-                    variant="ink-ghost"
-                    size="sm"
-                    data-testid="defaults-button"
-                    onClick={() => setDefaultsOpen((v) => !v)}
-                    className={cn(defaultsOpen && "bg-(--color-ink-raised) text-(--color-ink-text)")}
-                  >
-                    <SlidersHorizontal size={13} />
-                    {t("defaults.button")}
-                  </Button>
-                </Tip>
-                <div className="ml-auto flex items-center gap-3">
-                  <Tip label={t("editor.clear")}>
-                    <Button
-                      variant="ink-ghost"
-                      size="icon-sm"
-                      aria-label={t("editor.clear")}
-                      onClick={() => setDoc((d) => ({ ...d, source: "" }))}
-                    >
-                      <Eraser size={14} />
-                    </Button>
-                  </Tip>
-                </div>
-              </>
-            )}
-          </div>
-          {mode === "visual" ? (
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <VisualCanvas
-                initialGraph={readGraph(doc.source) ?? EMPTY_GRAPH}
-                onChange={(g) => setSource(graphToPic(g))}
-              />
-            </div>
-          ) : (
-            <>
-              {hasVisualGraph(doc.source) && (
-                <div
-                  className="shrink-0 border-b border-(--color-ink-border) bg-(--color-accent-soft)/10 px-3 py-1.5 text-[11px] text-(--color-accent)"
-                  data-testid="visual-code-banner"
+            <DropdownMenu>
+              <DropdownTrigger asChild>
+                <Button variant="ink-ghost" size="sm" data-testid="examples-menu">
+                  <BookOpen size={13} />
+                  {t("editor.examples")}
+                  <ChevronDown size={12} />
+                </Button>
+              </DropdownTrigger>
+              <DropdownContent align="start">
+                <DropdownLabel>{t("editor.loadExample")}</DropdownLabel>
+                {examples.map((ex) => (
+                  <DropdownItem key={ex.id} onSelect={() => setDoc({ source: ex.source })}>
+                    {ex.title[locale]}
+                  </DropdownItem>
+                ))}
+              </DropdownContent>
+            </DropdownMenu>
+            <Tip label={t("defaults.tip")}>
+              <Button
+                variant="ink-ghost"
+                size="sm"
+                data-testid="defaults-button"
+                onClick={() => setDefaultsOpen((v) => !v)}
+                className={cn(defaultsOpen && "bg-(--color-ink-raised) text-(--color-ink-text)")}
+              >
+                <SlidersHorizontal size={13} />
+                {t("defaults.button")}
+              </Button>
+            </Tip>
+            <div className="ml-auto flex items-center gap-3">
+              <Tip label={t("editor.clear")}>
+                <Button
+                  variant="ink-ghost"
+                  size="icon-sm"
+                  aria-label={t("editor.clear")}
+                  onClick={() => setDoc((d) => ({ ...d, source: "" }))}
                 >
-                  {t("visual.codeBanner")}
-                </div>
-              )}
-              <div className="min-h-0 flex-1 overflow-hidden">
-                <CodePane
-                  ref={codeRef}
-                  value={doc.source}
-                  onChange={setSource}
-                  diagnostics={allDiagnostics}
-                  dark={dark}
-                  autoFocus
-                />
-              </div>
-              <DefaultsBar
-                open={defaultsOpen}
-                source={doc.source}
-                onApply={setSource}
-                onClose={() => setDefaultsOpen(false)}
-                fontFamily={canvas.fontFamily}
-                onFontChange={(fontFamily) => changeCanvas({ ...canvas, fontFamily })}
-                circuits={circuits}
-                texlabels={texlabels}
-              />
-            </>
-          )}
+                  <Eraser size={14} />
+                </Button>
+              </Tip>
+            </div>
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <CodePane
+              ref={codeRef}
+              value={doc.source}
+              onChange={setSource}
+              diagnostics={allDiagnostics}
+              dark={dark}
+              autoFocus
+            />
+          </div>
+          <DefaultsBar
+            open={defaultsOpen}
+            source={doc.source}
+            onApply={setSource}
+            onClose={() => setDefaultsOpen(false)}
+            fontFamily={canvas.fontFamily}
+            onFontChange={(fontFamily) => changeCanvas({ ...canvas, fontFamily })}
+            circuits={circuits}
+            texlabels={texlabels}
+          />
           <DiagnosticsPanel
             error={errorInfo}
             warnings={warningInfos}
@@ -453,6 +439,9 @@ export function EditorPage() {
             compileMs={rpic.compileMs}
             canvas={canvas}
             onCanvasChange={changeCanvas}
+            graph={graph}
+            onGraphChange={applyGraph}
+            onAddShape={addShape}
           />
         </section>
       </div>

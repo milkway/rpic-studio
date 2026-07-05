@@ -9,8 +9,6 @@ export interface Draft {
 
 export interface Settings {
   layout: "horizontal" | "vertical";
-  /** Editor de código ou construtor visual (grafo → pic). */
-  mode: "code" | "visual";
 }
 
 /** Aparência do papel e da fonte do diagrama (não altera a geometria). */
@@ -62,7 +60,7 @@ export function saveDraft(source: string, circuits: boolean): void {
 }
 
 export function loadSettings(): Settings {
-  return { layout: "horizontal", mode: "code", ...read<Partial<Settings>>(SETTINGS_KEY) };
+  return { layout: "horizontal", ...read<Partial<Settings>>(SETTINGS_KEY) };
 }
 
 /** Grava mesclando (não zera as outras chaves ao salvar uma só). */
