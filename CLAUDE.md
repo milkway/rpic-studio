@@ -22,8 +22,12 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   subpath (`/tokens.css`) resolvem pelos exports do package, não pelo alias.
 - **WASM**: inicializar via `ensureRpic()` (`apps/web/src/lib/rpic.ts`); os `.wasm` entram como
   assets com `?url`. DOIS builds: lean (padrão) e math (RaTeX p/ texlabels, ~3 MB, lazy). A
-  escolha é FIXADA no primeiro `ready()` (wasm-bindgen) — flag `rpic:math.v1` decide na carga;
-  `$…$` digitado com lean ativo só mostra o aviso de reload. Em Node/Vitest, passar bytes:
+  escolha é FIXADA no primeiro `ready()` (wasm-bindgen) — a carga decide pela flag `rpic:math.v1`
+  OU pelo `mathHint` de `ensureRpic()`. **Math é AUTOMÁTICO**: `useRpic` fareja `$…$` no documento
+  inicial (`detectTexLabels`) e passa `mathHint` → abrir/recarregar/compartilhar TeX sobe o build math
+  SEM reload. Digitar `$…$` com lean ativo não troca ao vivo (limite do wasm-bindgen): em RASCUNHO o
+  `EditorPage` persiste o draft e recarrega SOZINHO (na volta o farejador sobe o math); em modo SALVO
+  só avisa (reload perderia edições não salvas). Em Node/Vitest, passar bytes:
   `ready(readFileSync(...), { math? })` — teste math em ARQUIVO separado (isolamento do Vitest).
 - **Releases do rpic**: o workflow `.github/workflows/rpic-release-watch.yml` abre uma issue
   com checklist de investigação quando o rpic-lang taggeia versão nova (compara com a versão
@@ -92,6 +96,16 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   (`useRpic().objects[]`, alinhada a `s{i}`) — usada p/ **duplo-clique no objeto → pula pra linha do
   código** (`objects[nodeIndex].line` → `codeRef.focusAt`). O overlay AINDA se posiciona via
   `getBoundingClientRect` do `#s{i}` (funciona bem); migrar p/ `objects[].bbox` é robustez futura.
+  **Arco/spline** = `VLine` com `kind` (ver bullet acima). **Alinhamento de rótulo**: `align?`
+  (ljust/rjust) e `vpos?` (above/below) — mais atributos por-string em `fontAttrs`/`parseLabelSeg`.
+  **Duplicar** nó: botão do inspetor + ⌘D (copia +16px, seleciona; a cópia cobre o centro da
+  original — nos e2e, clicar `.last()`).
+- **Paleta de circuitos** (`components/editor/CircuitPalette.tsx` + `lib/circuitCatalog.ts`): menu no
+  header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — 14
+  macros circuit_macros com sintaxe de DOIS pontos nomeados (`resistor(A,B)`; centrados `ground(P)`),
+  garante `copy "circuits"` idempotente (`ensureCircuitsCopy`) e nomes de ponto `Ckt{n}` sem colisão.
+  O `detectCircuits` já liga o flag sozinho. Inserir código foge do formato do `parsePic` → sem
+  overlay visual junto (esperado). O Popover fecha ao inserir.
 - **Render server-side** (`routes/render.rs`, `POST /api/render` → svg|png|pdf): pic é NÃO
   confiável (`IncludePolicy::Deny`), CPU-bound em `spawn_blocking`, math via `ensure_math()`.
   Param `google_font` restrito ao `GOOGLE_FONTS` allowlist (mitiga SSRF) e casa a fonte no
