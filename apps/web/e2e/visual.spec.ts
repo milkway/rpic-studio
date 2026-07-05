@@ -64,6 +64,28 @@ test("overlay universal: pic à mão (fora do formato) fica selecionável e pula
     .toBe("5");
 });
 
+test("overlay universal: estilizar por-linha escreve o atributo na linha do objeto", async ({
+  page,
+}) => {
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "rpic:draft.v1",
+      JSON.stringify({ source: 'box "A"\ncircle "B"', circuits: false, savedAt: "" }),
+    ),
+  );
+  await page.reload();
+  await page.waitForSelector('[data-testid="objects-handle"]', { timeout: 20_000 });
+  await expect(page.getByTestId("objects-handle")).toHaveCount(2, { timeout: 5_000 });
+  await page.getByTestId("objects-handle").nth(1).click(); // circle "B" (linha 2)
+  await expect(page.getByTestId("objects-inspector")).toBeVisible({ timeout: 5_000 });
+  await page.getByTestId("objects-inspector").getByTitle("lightblue", { exact: true }).click();
+  // escreveu `shaded` só na linha 2; a linha 1 (box "A") fica intacta
+  await expect(page.getByTestId("code-pane")).toContainText('circle "B" shaded "lightblue"', {
+    timeout: 5_000,
+  });
+  await expect(page.getByTestId("code-pane")).toContainText('box "A"');
+});
+
 test("conectar da âncora .e do nó A ao nó B cria a seta N1.e -> N2.w", async ({ page }) => {
   await page.getByTestId("visual-add-box").click();
   await page.getByTestId("visual-add-box").click();
@@ -174,8 +196,10 @@ test("texto: rótulo multilinha, objeto solto e toggle math", async ({ page }) =
   await page.getByTestId("visual-label-input").fill("Passo 1\nPasso 2");
   await expect(page.getByTestId("code-pane")).toContainText('"Passo 1" "Passo 2"', { timeout: 5_000 });
 
-  // texto solto (sem forma)
+  // texto solto (sem forma) — espera o novo objeto virar a seleção ativa
+  // (o inspetor rebinda ao rótulo padrão "Text") antes de digitar.
   await page.getByTestId("visual-add-text").click();
+  await expect(page.getByTestId("visual-label-input")).toHaveValue("Text", { timeout: 5_000 });
   await page.getByTestId("visual-label-input").fill("E=mc^2");
   await expect(page.getByTestId("code-pane")).toContainText('"E=mc^2" at', { timeout: 5_000 });
   // math wrap

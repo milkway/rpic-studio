@@ -474,6 +474,7 @@ export function EditorPage() {
             onSetTool={setTool}
             objects={rpic.objects}
             onJumpToLine={(line, col) => codeRef.current?.focusAt(line, col ?? 1)}
+            onSourceChange={setSource}
           />
         </section>
       </div>

@@ -46,6 +46,7 @@ interface PreviewTabsProps {
   onSetTool?: (t: Tool) => void;
   objects?: ObjectGeometry[];
   onJumpToLine?: (line: number, col?: number) => void;
+  onSourceChange?: (s: string) => void;
 }
 
 const MD_LABELS = {
@@ -120,6 +121,7 @@ export function PreviewTabs({ source, circuits, canvas, onCanvasChange, ...props
         {tab === "imagem" ? (
           <PreviewPane
             {...props}
+            source={source}
             canvas={canvas}
             onCanvasChange={onCanvasChange}
             tabs={tabsList}

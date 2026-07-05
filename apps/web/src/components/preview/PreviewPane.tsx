@@ -69,6 +69,9 @@ interface PreviewPaneProps {
   /** Geometria por objeto (v0.7.0) + pular pra linha do código. */
   objects?: ObjectGeometry[];
   onJumpToLine?: (line: number, col?: number) => void;
+  /** Código-fonte + escrita — estilizar por-linha no overlay universal. */
+  source?: string;
+  onSourceChange?: (s: string) => void;
 }
 
 /** Papel técnico: SVG ao vivo com zoom, replay de animação e status. */
@@ -89,6 +92,8 @@ export function PreviewPane({
   onSetTool,
   objects,
   onJumpToLine,
+  source,
+  onSourceChange,
 }: PreviewPaneProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -323,6 +328,8 @@ export function PreviewPane({
               stageRef={stageRef}
               canvasRef={canvasRef}
               onJumpToLine={onJumpToLine}
+              source={source}
+              onSourceChange={onSourceChange}
             />
           )}
       </div>

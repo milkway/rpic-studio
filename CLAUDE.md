@@ -59,8 +59,13 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   estilizar), mas aí entra o **overlay universal** (`components/visual/ObjectsOverlay.tsx`): sobre
   QUALQUER pic que compile, usa `useRpic().objects[]` (bbox por `#s{i}`, `line/col`, `file`) p/ dar
   caixa selecionável por objeto + duplo-clique→linha do código. Só objetos do próprio input (`file`
-  ausente) são interativos. É a base p/ editar pic pronto; estilo-por-linha e ampliar o `parsePic` são
-  os próximos incrementos. O PreviewPane escolhe: `VisualOverlay` (grafo) OU `ObjectsOverlay` (resto).
+  ausente) são interativos. **Estilo-por-linha** (`lib/objectEdit.ts`): o objeto selecionado ganha um
+  inspetor (fill/stroke/hatch/dash/thick) que escreve o atributo NA STATEMENT daquele objeto —
+  `setObjectAttr(source, line, col, kind, value)` acha o fim da statement (próximo `;` fora de aspas ou
+  fim de linha) e substitui/anexa; `readObjectAttrs` lê o estado atual. NÃO move/redimensiona (posição
+  pode ser relativa). Falta ampliar o `parsePic` (próximo incremento). `Seg`/`Swatches` viraram
+  `visual/inspectorControls.tsx` (compartilhados com o `VisualOverlay`). O PreviewPane escolhe:
+  `VisualOverlay` (grafo) OU `ObjectsOverlay` (resto).
   Arredonda px
   no parse p/ evitar drift no round-trip px→pol(3 casas)→px. Cada nó vira, em ORDEM, um
   `<g id="s{i}">` no SVG; o overlay lê a posição real via `getBoundingClientRect` num loop rAF (só
