@@ -19,6 +19,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@strategicprojects/rpic": "^0.7.0"
+    "@strategicprojects/rpic": "^0.7.1"
   }
 }

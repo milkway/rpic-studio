@@ -13,6 +13,8 @@ function group(labels: string[], type: string, detail: string): Completion[] {
 const STATIC: Completion[] = [
   ...group(["box", "circle", "ellipse", "line", "arrow", "spline", "arc", "move", "dot", "text"], "keyword", "forma"),
   ...group(["right", "left", "up", "down", "then", "same"], "keyword", "direção"),
+  // pikchr-compat (rpic 0.7.1)
+  ...group(["previous", "aligned", "big", "small"], "keyword", "pikchr-compat"),
   ...group(["wid", "ht", "rad", "diam", "at", "from", "to", "with", "chop", "fit", "invis"], "property", "atributo"),
   ...group(
     ["shaded", "outlined", "colored", "color", "fill", "hatch", "crosshatch", "hatchangle", "hatchsep", "hatchcolor", "hatchwid", "dashed", "dotted", "thick", "opacity"],

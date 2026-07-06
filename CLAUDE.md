@@ -32,7 +32,10 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
 - **Releases do rpic**: o workflow `.github/workflows/rpic-release-watch.yml` abre uma issue
   com checklist de investigação quando o rpic-lang taggeia versão nova (compara com a versão
   do lockfile). Ao atualizar a dependência, rodar a suíte completa — `compile.test.ts` valida
-  todos os exemplos no WASM real e pega drift de comportamento.
+  todos os exemplos no WASM real e pega drift de comportamento. **Atual: v0.7.1** (pikchr-compat:
+  `.start`/`.end` com âncoras, `previous`, `aligned`, `big`/`small`). O pin fica em TRÊS lugares:
+  `apps/web/package.json` E a raiz `package.json` (web WASM `@strategicprojects/rpic`), e a git-dep
+  da API em `apps/api/Cargo.toml` (`rpic-core`/`rpic-render` na `tag = "v0.7.1"`).
 - **Erros do compilador**: formato `"linha:coluna: mensagem"` — parse em `errorPosition()`.
 - **SVG no DOM**: sempre via `sanitizeSvg()` (DOMPurify) — o código pode ter vindo de link de
   terceiros (`#pic=`).
