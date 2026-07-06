@@ -43,4 +43,14 @@ describe("customCss", () => {
     const svg = "<svg><rect/></svg>";
     expect(injectCss(svg, "  ")).toBe(svg);
   });
+
+  it("neutraliza quebra do <style> (XSS) — `</style>` e comentários HTML", () => {
+    const evil = 'x {}</style><img src=x onerror="alert(1)"><!-- -->';
+    const out = injectCss("<svg><rect/></svg>", evil);
+    // não deve existir uma tag de fechamento </style> real além da nossa final
+    expect((out.match(/<\/style>/gi) ?? []).length).toBe(1);
+    expect(out).not.toMatch(/<\/style><img/i); // a quebra foi escapada
+    expect(out).not.toContain("<!--");
+    expect(out).not.toContain("-->");
+  });
 });

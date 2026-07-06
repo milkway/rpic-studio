@@ -38,9 +38,19 @@ export function applyCss(source: string, css: string): string {
 }
 
 /** Injeta o CSS como `<style>` logo após a tag `<svg …>` (scoped ao SVG, viaja
- *  nos exports). No-op quando não há CSS. */
+ *  nos exports). No-op quando não há CSS.
+ *  SEGURANÇA: o CSS pode ser NÃO confiável (diagrama vindo de link `#pic=`) e o
+ *  SVG assado é usado CRU nos exports/clipboard (sem passar pelo DOMPurify do
+ *  preview). Um `</style>` no CSS fecharia o elemento e injetaria HTML (XSS).
+ *  Neutralizamos a tag de fechamento e os delimitadores de comentário HTML — o
+ *  CSS legítimo nunca precisa deles (o parser CSS ignora CDO/CDC de qualquer
+ *  forma; `\/` é um escape válido). É o ÚNICO ponto que constrói o `<style>`. */
 export function injectCss(svg: string, css: string): string {
   const c = css.trim();
   if (!c || !svg) return svg;
-  return svg.replace(/(<svg\b[^>]*>)/, `$1<style>${c}</style>`);
+  const safe = c
+    .replace(/<\/(style)/gi, "<\\/$1")
+    .replace(/<!--/g, "")
+    .replace(/-->/g, "");
+  return svg.replace(/(<svg\b[^>]*>)/, `$1<style>${safe}</style>`);
 }
