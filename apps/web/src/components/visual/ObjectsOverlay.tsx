@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { cn } from "@rpic/design-system";
 import { useI18n } from "@/lib/i18n";
 import { type ObjectGeometry } from "@/lib/rpic";
@@ -198,70 +198,151 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
               { v: 3, el: <div className="h-1 w-5 rounded-full bg-current" /> },
             ]}
           />
-          {/* Texto: negrito/itálico/tamanho/família/alinhamento (atributos por
-              string do rpic — escritos na linha do objeto). */}
-          {selBox.kind === "text" && (
-            <div className="mt-1 border-t border-(--color-border) pt-2">
-              <span className="mb-1 block font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
-                {t("visual.inspector.font")}
-              </span>
-              <div className="mb-2 flex gap-1">
-                <button
-                  onClick={() => setAttr("bold", attrs.bold ? undefined : "bold")}
-                  data-testid="objects-bold"
-                  className={cn("h-7 flex-1 rounded-(--radius-sm) border font-bold", attrs.bold ? "border-(--color-accent) bg-(--color-accent-soft) text-(--color-accent)" : "border-(--color-border) text-(--color-text-muted) hover:text-(--color-text)")}
-                >
-                  B
-                </button>
-                <button
-                  onClick={() => setAttr("italic", attrs.italic ? undefined : "italic")}
-                  data-testid="objects-italic"
-                  className={cn("h-7 flex-1 rounded-(--radius-sm) border italic", attrs.italic ? "border-(--color-accent) bg-(--color-accent-soft) text-(--color-accent)" : "border-(--color-border) text-(--color-text-muted) hover:text-(--color-text)")}
-                >
-                  I
-                </button>
-                <select
-                  value={attrs.fontsize ?? ""}
-                  onChange={(e) => setAttr("fontsize", e.target.value ? Number(e.target.value) : undefined)}
-                  data-testid="objects-fontsize"
-                  className="h-7 rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-1 text-xs text-(--color-text)"
-                >
-                  <option value="">pt</option>
-                  {FONT_SIZES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <select
-                value={attrs.font ?? ""}
-                onChange={(e) => setAttr("font", e.target.value || undefined)}
-                data-testid="objects-font"
-                className="mb-2 w-full rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-2 py-1 text-xs text-(--color-text)"
-                style={{ fontFamily: attrs.font || undefined }}
+          {/* Rotação + opacidade (qualquer elemento) */}
+          <Seg
+            title={t("visual.inspector.rotate")}
+            value={attrs.rotated}
+            onPick={(v) => setAttr("rotated", v)}
+            options={[
+              { v: undefined, el: "0°" },
+              { v: 45, el: "45°" },
+              { v: 90, el: "90°" },
+              { v: -45, el: "−45°" },
+            ]}
+          />
+          <Seg
+            title={t("visual.inspector.opacity")}
+            value={attrs.opacity}
+            onPick={(v) => setAttr("opacity", v)}
+            options={[
+              { v: undefined, el: "100" },
+              { v: 0.7, el: "70" },
+              { v: 0.4, el: "40" },
+              { v: 0.15, el: "15" },
+            ]}
+          />
+          {/* Dimensões (em polegadas; vazio = automático). Box/ellipse: larg×alt;
+              círculo: raio. Escritas como wid/ht/rad na linha do objeto. */}
+          {(selBox.kind === "box" || selBox.kind === "ellipse") && (
+            <Dimensions>
+              <NumInput label="L" title={t("visual.inspector.width")} value={attrs.wid} onSet={(v) => setAttr("wid", v)} testid="objects-wid" />
+              <NumInput label="A" title={t("visual.inspector.height")} value={attrs.ht} onSet={(v) => setAttr("ht", v)} testid="objects-ht" />
+            </Dimensions>
+          )}
+          {selBox.kind === "circle" && (
+            <Dimensions>
+              <NumInput label="R" title={t("visual.inspector.radius")} value={attrs.rad} onSet={(v) => setAttr("rad", v)} testid="objects-rad" />
+            </Dimensions>
+          )}
+          {/* Fonte (qualquer elemento com rótulo) + alinhamento (texto) */}
+          <div className="mt-1 border-t border-(--color-border) pt-2">
+            <span className="mb-1 block font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
+              {t("visual.inspector.font")}
+            </span>
+            <div className="mb-2 flex gap-1">
+              <button
+                onClick={() => setAttr("bold", attrs.bold ? undefined : "bold")}
+                data-testid="objects-bold"
+                className={cn("h-7 flex-1 rounded-(--radius-sm) border font-bold", attrs.bold ? "border-(--color-accent) bg-(--color-accent-soft) text-(--color-accent)" : "border-(--color-border) text-(--color-text-muted) hover:text-(--color-text)")}
               >
-                <option value="">{t("visual.inspector.fontDefault")}</option>
-                {FONT_FAMILIES.map((f) => (
-                  <option key={f} value={f} style={{ fontFamily: f }}>
-                    {f}
+                B
+              </button>
+              <button
+                onClick={() => setAttr("italic", attrs.italic ? undefined : "italic")}
+                data-testid="objects-italic"
+                className={cn("h-7 flex-1 rounded-(--radius-sm) border italic", attrs.italic ? "border-(--color-accent) bg-(--color-accent-soft) text-(--color-accent)" : "border-(--color-border) text-(--color-text-muted) hover:text-(--color-text)")}
+              >
+                I
+              </button>
+              <select
+                value={attrs.fontsize ?? ""}
+                onChange={(e) => setAttr("fontsize", e.target.value ? Number(e.target.value) : undefined)}
+                data-testid="objects-fontsize"
+                className="h-7 rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-1 text-xs text-(--color-text)"
+              >
+                <option value="">pt</option>
+                {FONT_SIZES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
                   </option>
                 ))}
               </select>
-              <Seg
-                title={t("visual.inspector.align")}
-                value={attrs.align}
-                onPick={(v) => setAttr("align", v)}
-                options={[
-                  { v: "ljust" as const, el: "⟸" },
-                  { v: undefined, el: "≡" },
-                  { v: "rjust" as const, el: "⟹" },
-                ]}
-              />
             </div>
-          )}
+            <select
+              value={attrs.font ?? ""}
+              onChange={(e) => setAttr("font", e.target.value || undefined)}
+              data-testid="objects-font"
+              className="w-full rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-2 py-1 text-xs text-(--color-text)"
+              style={{ fontFamily: attrs.font || undefined }}
+            >
+              <option value="">{t("visual.inspector.fontDefault")}</option>
+              {FONT_FAMILIES.map((f) => (
+                <option key={f} value={f} style={{ fontFamily: f }}>
+                  {f}
+                </option>
+              ))}
+            </select>
+            {selBox.kind === "text" && (
+              <div className="mt-2">
+                <Seg
+                  title={t("visual.inspector.align")}
+                  value={attrs.align}
+                  onPick={(v) => setAttr("align", v)}
+                  options={[
+                    { v: "ljust" as const, el: "⟸" },
+                    { v: undefined, el: "≡" },
+                    { v: "rjust" as const, el: "⟹" },
+                  ]}
+                />
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+/** Linha de dimensões (título + campos numéricos em polegadas). */
+function Dimensions({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
+  return (
+    <div className="mb-3">
+      <span className="mb-1 block font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
+        {t("visual.inspector.size")}
+      </span>
+      <div className="flex gap-1">{children}</div>
+    </div>
+  );
+}
+
+/** Campo numérico rotulado (polegadas; vazio = automático). */
+function NumInput({
+  label,
+  title,
+  value,
+  onSet,
+  testid,
+}: {
+  label: string;
+  title: string;
+  value?: number;
+  onSet: (v: number | undefined) => void;
+  testid: string;
+}) {
+  return (
+    <label title={title} className="flex flex-1 items-center gap-1 rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-1.5">
+      <span className="font-mono text-[10px] text-(--color-text-muted)">{label}</span>
+      <input
+        type="number"
+        step={0.05}
+        min={0}
+        value={value ?? ""}
+        onChange={(e) => onSet(e.target.value ? Number(e.target.value) : undefined)}
+        placeholder="auto"
+        data-testid={testid}
+        className="h-7 w-full min-w-0 bg-transparent text-xs text-(--color-text) outline-none"
+      />
+    </label>
   );
 }

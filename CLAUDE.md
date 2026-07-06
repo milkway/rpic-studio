@@ -59,12 +59,14 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   (`objects-deselect`). O inspetor escreve o atributo NA STATEMENT do objeto via
   `setObjectAttr(source, line, col, kind, value)` (`lib/objectEdit.ts`): acha o fim da statement
   (próximo `;` fora de aspas ou fim de linha) e SUBSTITUI/ANEXA; `readObjectAttrs` lê o estado atual.
-  Atributos: `fill`/`stroke` (`shaded`/`outlined "…"` + cor livre `#rrggbb`), `hatch|crosshatch` (+
-  `hatchangle`/`hatchsep`/`hatchcolor`), `dashed|dotted`, `thick`; e p/ `kind==="text"`: `bold`,
-  `italic`, `font "…"`, `fontsize`, `ljust|rjust` (alinhamento) — todos atributos POR-STRING do rpic,
-  anexados no fim da statement. `source`+`onSourceChange` fluem EditorPage→PreviewTabs→PreviewPane→
-  overlay. `Seg`/`Swatches` em `visual/inspectorControls.tsx`. Cores/fontes curadas em `lib/palette.ts`.
-  NÃO move/redimensiona (posição em pic pode ser relativa) — isso fica no código.
+  Atributos (o inspetor expõe TUDO que dá por elemento): `fill`/`stroke` (`shaded`/`outlined "…"` +
+  cor livre `#rrggbb`), `hatch|crosshatch` (+ `hatchangle`/`hatchsep`/`hatchcolor`), `dashed|dotted`,
+  `thick`, `rotated`, `opacity`, **dimensões** (`wid`/`ht` p/ box/ellipse, `rad` p/ círculo — campos
+  numéricos em POLEGADAS; vazio = auto), **fonte** p/ qualquer rótulo (`bold`/`italic`/`font "…"`/
+  `fontsize`) e `ljust|rjust` (texto). Tudo escrito na statement (por-string p/ os de fonte).
+  `source`+`onSourceChange` fluem EditorPage→PreviewTabs→PreviewPane→overlay. `Seg`/`Swatches` em
+  `visual/inspectorControls.tsx`; cores/fontes em `lib/palette.ts`. NÃO move nem REPOSICIONA (posição
+  em pic pode ser relativa) — criar/posicionar fica no código, com **autocomplete** (`rpicCompletions`).
 - **Paleta de circuitos** (`components/editor/CircuitPalette.tsx` + `lib/circuitCatalog.ts`): menu no
   header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — 14
   macros circuit_macros com sintaxe de DOIS pontos nomeados (`resistor(A,B)`; centrados `ground(P)`),

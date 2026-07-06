@@ -20,7 +20,13 @@ export type AttrKind =
   | "font"
   | "fontsize"
   | "align"
-  | "vpos";
+  | "vpos"
+  | "wid"
+  | "ht"
+  | "rad"
+  | "diam"
+  | "rotated"
+  | "opacity";
 
 function fmtNum(n: number): string {
   return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)));
@@ -59,6 +65,18 @@ function attrSpec(kind: AttrKind, value: string | number | undefined): { re: Reg
       return { re: /\s*\b(?:ljust|rjust)\b/g, add: value ? String(value) : "" };
     case "vpos":
       return { re: /\s*\b(?:above|below)\b/g, add: value ? String(value) : "" };
+    case "wid":
+      return { re: /\s*\bwid\s+[\d.]+/g, add: value != null && value !== "" ? `wid ${fmtNum(Number(value))}` : "" };
+    case "ht":
+      return { re: /\s*\bht\s+[\d.]+/g, add: value != null && value !== "" ? `ht ${fmtNum(Number(value))}` : "" };
+    case "rad":
+      return { re: /\s*\brad\s+[\d.]+/g, add: value != null && value !== "" ? `rad ${fmtNum(Number(value))}` : "" };
+    case "diam":
+      return { re: /\s*\bdiam\s+[\d.]+/g, add: value != null && value !== "" ? `diam ${fmtNum(Number(value))}` : "" };
+    case "rotated":
+      return { re: /\s*\brotated\s+-?[\d.]+/g, add: value != null && value !== "" ? `rotated ${fmtNum(Number(value))}` : "" };
+    case "opacity":
+      return { re: /\s*\bopacity\s+[\d.]+/g, add: value != null && value !== "" ? `opacity ${fmtNum(Number(value))}` : "" };
   }
 }
 
@@ -118,6 +136,12 @@ export interface ObjectAttrs {
   fontsize?: number;
   align?: "ljust" | "rjust";
   vpos?: "above" | "below";
+  wid?: number;
+  ht?: number;
+  rad?: number;
+  diam?: number;
+  rotated?: number;
+  opacity?: number;
 }
 
 /** Lê os atributos GERENCIÁVEIS da statement em (line, col) — p/ o inspetor do
@@ -157,5 +181,17 @@ export function readObjectAttrs(source: string, line: number, col: number | unde
   if (align) out.align = align[1] as "ljust" | "rjust";
   const vpos = /\b(above|below)\b/.exec(stmt);
   if (vpos) out.vpos = vpos[1] as "above" | "below";
+  const wid = /\bwid\s+([\d.]+)/.exec(stmt);
+  if (wid) out.wid = +wid[1];
+  const ht = /\bht\s+([\d.]+)/.exec(stmt);
+  if (ht) out.ht = +ht[1];
+  const rad = /\brad\s+([\d.]+)/.exec(stmt);
+  if (rad) out.rad = +rad[1];
+  const diam = /\bdiam\s+([\d.]+)/.exec(stmt);
+  if (diam) out.diam = +diam[1];
+  const rotated = /\brotated\s+(-?[\d.]+)/.exec(stmt);
+  if (rotated) out.rotated = +rotated[1];
+  const opacity = /\bopacity\s+([\d.]+)/.exec(stmt);
+  if (opacity) out.opacity = +opacity[1];
   return out;
 }

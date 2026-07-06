@@ -30,9 +30,24 @@ test("hatch + parâmetros (ângulo) escrevem na linha do objeto", async ({ page 
   await expect(page.getByTestId("objects-inspector")).toBeVisible({ timeout: 5_000 });
   await page.getByTestId("objects-inspector").getByText("▧", { exact: true }).click();
   await expect(page.getByTestId("code-pane")).toContainText("hatch", { timeout: 5_000 });
-  // os parâmetros só aparecem com hachura ativa
-  await page.getByTestId("objects-inspector").getByText("90°", { exact: true }).click();
-  await expect(page.getByTestId("code-pane")).toContainText("hatchangle 90", { timeout: 5_000 });
+  // os parâmetros só aparecem com hachura ativa; 135° só existe na hatchAngle
+  // (a ROTATE tem 0/45/90/−45), evitando ambiguidade de texto no e2e
+  await page.getByTestId("objects-inspector").getByText("135°", { exact: true }).click();
+  await expect(page.getByTestId("code-pane")).toContainText("hatchangle 135", { timeout: 5_000 });
+  await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok");
+});
+
+test("dimensões, rotação e fonte de um box escrevem na sua linha", async ({ page }) => {
+  await loadDraft(page, 'box "Hi"');
+  await page.getByTestId("objects-handle").first().click();
+  await expect(page.getByTestId("objects-inspector")).toBeVisible({ timeout: 5_000 });
+  await page.getByTestId("objects-wid").fill("1.5");
+  await page.getByTestId("objects-wid").blur();
+  await page.getByTestId("objects-inspector").getByText("45°", { exact: true }).click();
+  await page.getByTestId("objects-bold").click();
+  await expect(page.getByTestId("code-pane")).toContainText("wid 1.5", { timeout: 5_000 });
+  await expect(page.getByTestId("code-pane")).toContainText("rotated 45");
+  await expect(page.getByTestId("code-pane")).toContainText("bold");
   await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok");
 });
 
