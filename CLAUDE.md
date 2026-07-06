@@ -100,6 +100,13 @@ topbar; escolha em `rpic:locale.v1`. Conteúdo estruturado (exemplos, ajuda) car
 - **Google Fonts** (`appearance.ts`): catálogo curado, valor guardado como `g:Família`, carregado
   sob demanda pelo endpoint CSS keyless (`fonts.googleapis.com/css2`) via `ensureGoogleFont`. Em
   produção com CSP, liberar `fonts.googleapis.com` (style-src) e `fonts.gstatic.com` (font-src).
+  **Por objeto**: o inspetor de estilo lista as Google Fonts e grava a família crua em `font "Família"`
+  na linha; `useEnsureObjectFonts(source)` (hook) fareja os `font "…"` do código e carrega no browser
+  (senão o `<text font-family>` cai na genérica). Métrica é best-effort (o WASM não conhece a webfont
+  → largura aproximada, pode cortar); o render server-side (`google_font`) tem métrica exata.
+- **Variáveis GLOBAIS** (`picDefaults.ts`, menu Defaults): `box/ellipse/circle/arc` dims, `linewid/
+  linethick/fillval`, e o tamanho da **arrowhead** (`arrowwid`/`arrowht`) — que NÃO é per-objeto no
+  rpic (setar `arrowht` numa seta é ignorado), então mora só no Defaults.
 - **PNG export**: fontes web em SVG-dentro-de-`<img>` são best-effort (o browser pode cair na
   genérica); preview, .svg e clipboard-SVG carregam a fonte com fidelidade.
 - **Variáveis pic** (`scale`, `boxwid`, `linethick`…) NÃO são aparência — mudam geometria. Vão no

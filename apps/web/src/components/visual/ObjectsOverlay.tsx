@@ -3,6 +3,7 @@ import { cn } from "@rpic/design-system";
 import { useI18n } from "@/lib/i18n";
 import { type ObjectGeometry } from "@/lib/rpic";
 import { FILL_COLORS, FONT_FAMILIES, FONT_SIZES, STROKE_COLORS } from "@/lib/palette";
+import { GOOGLE_FONTS } from "@/lib/appearance";
 import { readObjectAttrs, setObjectAttr, type AttrKind } from "@/lib/objectEdit";
 import { Seg, Swatches } from "./inspectorControls";
 
@@ -276,11 +277,20 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
               style={{ fontFamily: attrs.font || undefined }}
             >
               <option value="">{t("visual.inspector.fontDefault")}</option>
-              {FONT_FAMILIES.map((f) => (
-                <option key={f} value={f} style={{ fontFamily: f }}>
-                  {f}
-                </option>
-              ))}
+              <optgroup label={t("visual.inspector.fontSystem")}>
+                {FONT_FAMILIES.map((f) => (
+                  <option key={f} value={f} style={{ fontFamily: f }}>
+                    {f}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Google Fonts">
+                {GOOGLE_FONTS.map((f) => (
+                  <option key={f.family} value={f.family}>
+                    {f.family}
+                  </option>
+                ))}
+              </optgroup>
             </select>
             {selBox.kind === "text" && (
               <div className="mt-2">

@@ -36,7 +36,7 @@ import {
   type CanvasSettings,
 } from "@/lib/storage";
 import { bakeAppearance, googleFamilyOf } from "@/lib/appearance";
-import { useEnsureFont } from "@/hooks/useEnsureFont";
+import { useEnsureFont, useEnsureObjectFonts } from "@/hooks/useEnsureFont";
 import { examples, WELCOME_SOURCES } from "@/lib/examples";
 import { useDiagram, useMe, useUpdateDiagram } from "@/lib/queries";
 import { useI18n, type Locale } from "@/lib/i18n";
@@ -92,8 +92,10 @@ export function EditorPage() {
   const rpic = useRpic(doc.source, { circuits, texlabels });
   const codeRef = useRef<CodePaneHandle>(null);
 
-  // Carrega a Google Font escolhida (no-op para builtin) e assa no SVG.
+  // Carrega a Google Font do canvas (no-op para builtin) e as fontes por-objeto
+  // referenciadas no código (`font "…"`), depois assa a do canvas no SVG.
   useEnsureFont(canvas.fontFamily);
+  useEnsureObjectFonts(doc.source);
   const bakedSvg = useMemo(
     () => bakeAppearance(rpic.svg, canvas.fontFamily),
     [rpic.svg, canvas.fontFamily],
