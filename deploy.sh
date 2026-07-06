@@ -28,7 +28,11 @@ if [ "${1:-}" != "--no-gates" ]; then
 fi
 
 echo "-> Enviando o codigo ($(git rev-parse --short HEAD)) para ${HOST}:~/${REMOTE_DIR}"
-git archive --format=tar HEAD | ssh "${HOST}" "mkdir -p ~/${REMOTE_DIR} && tar -x -C ~/${REMOTE_DIR}"
+# `tar -x` NAO remove arquivos deletados no git → fontes stale (ex.: componentes
+# removidos) permaneceriam e QUEBRARIAM o build (tsc). Limpa as arvores 100%
+# versionadas antes de extrair; `infra/` fica (guarda o .env.prod nao versionado).
+ssh "${HOST}" "mkdir -p ~/${REMOTE_DIR} && cd ~/${REMOTE_DIR} && rm -rf apps packages db"
+git archive --format=tar HEAD | ssh "${HOST}" "tar -x -C ~/${REMOTE_DIR}"
 
 echo "-> Rebuild + up (stack isolada; postgres/api internos)"
 ssh "${HOST}" "cd ~/${REMOTE_DIR} && ${COMPOSE} up -d --build" 2>&1 | grep -vi "warning" | tail -8
