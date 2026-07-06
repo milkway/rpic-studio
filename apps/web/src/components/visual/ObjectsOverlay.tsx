@@ -147,7 +147,7 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
           relativa). */}
       {selBox && selBox.line && (
         <div
-          className="pointer-events-auto absolute top-2 right-2 w-52 rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) p-3 shadow-lg"
+          className="pointer-events-auto absolute top-2 right-2 max-h-[calc(100%-1rem)] w-60 overflow-auto rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) p-3 shadow-lg"
           data-testid="objects-inspector"
         >
           <div className="mb-2 flex items-baseline justify-between">
@@ -250,15 +250,15 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
               círculo: raio. Escritas como wid/ht/rad na linha do objeto. */}
           {selBox.kind === "box" && (
             <Dimensions>
-              <NumInput label="L" title={t("visual.inspector.width")} value={attrs.wid} onSet={(v) => setAttr("wid", v)} testid="objects-wid" />
-              <NumInput label="A" title={t("visual.inspector.height")} value={attrs.ht} onSet={(v) => setAttr("ht", v)} testid="objects-ht" />
+              <NumInput label="↔" title={t("visual.inspector.width")} value={attrs.wid} onSet={(v) => setAttr("wid", v)} testid="objects-wid" />
+              <NumInput label="↕" title={t("visual.inspector.height")} value={attrs.ht} onSet={(v) => setAttr("ht", v)} testid="objects-ht" />
               <NumInput label="⌜" title={t("visual.inspector.corner")} value={attrs.rad} onSet={(v) => setAttr("rad", v)} testid="objects-rad" />
             </Dimensions>
           )}
           {selBox.kind === "ellipse" && (
             <Dimensions>
-              <NumInput label="L" title={t("visual.inspector.width")} value={attrs.wid} onSet={(v) => setAttr("wid", v)} testid="objects-wid" />
-              <NumInput label="A" title={t("visual.inspector.height")} value={attrs.ht} onSet={(v) => setAttr("ht", v)} testid="objects-ht" />
+              <NumInput label="↔" title={t("visual.inspector.width")} value={attrs.wid} onSet={(v) => setAttr("wid", v)} testid="objects-wid" />
+              <NumInput label="↕" title={t("visual.inspector.height")} value={attrs.ht} onSet={(v) => setAttr("ht", v)} testid="objects-ht" />
             </Dimensions>
           )}
           {selBox.kind === "circle" && (
@@ -332,12 +332,13 @@ function Dimensions({ children }: { children: ReactNode }) {
       <span className="mb-1 block font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
         {t("visual.inspector.size")}
       </span>
-      <div className="flex gap-1">{children}</div>
+      <div className="grid grid-cols-2 gap-1.5">{children}</div>
     </div>
   );
 }
 
-/** Campo numérico rotulado (polegadas; vazio = automático). */
+/** Campo numérico rotulado (polegadas; vazio = automático). Rótulo em cima do
+ *  campo (não apertado ao lado) — o `title` traz a descrição completa. */
 function NumInput({
   label,
   title,
@@ -352,8 +353,8 @@ function NumInput({
   testid: string;
 }) {
   return (
-    <label title={title} className="flex flex-1 items-center gap-1 rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-1.5">
-      <span className="font-mono text-[10px] text-(--color-text-muted)">{label}</span>
+    <label title={title} className="flex min-w-0 flex-col gap-0.5">
+      <span className="px-0.5 font-mono text-[9px] tracking-wide text-(--color-text-muted) uppercase">{label}</span>
       <input
         type="number"
         step={0.05}
@@ -362,7 +363,7 @@ function NumInput({
         onChange={(e) => onSet(e.target.value ? Number(e.target.value) : undefined)}
         placeholder="auto"
         data-testid={testid}
-        className="h-7 w-full min-w-0 bg-transparent text-xs text-(--color-text) outline-none"
+        className="h-7 w-full min-w-0 rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-2 text-xs text-(--color-text) outline-none focus:border-(--color-accent)"
       />
     </label>
   );
