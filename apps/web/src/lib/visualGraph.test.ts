@@ -7,6 +7,7 @@ import {
   PX_PER_INCH,
   type LooseObject,
   type VGraph,
+  type VLine,
   type VNode,
 } from "@/lib/visualGraph";
 
@@ -358,6 +359,20 @@ describe("página (fixa o viewBox)", () => {
     expect(wider.w).toBeGreaterThan(p1.w);
     const back = growPage(graph.nodes, wider)!;
     expect(back.w).toBe(wider.w); // não encolheu
+  });
+
+  it("engloba pontas livres e pontos de controle de conectores (senão o spline recorta)", () => {
+    const nodesOnly = growPage(graph.nodes)!;
+    // um spline com pontas/controle bem à direita/abaixo dos nós
+    const lines: VLine[] = [
+      { id: "L0", arrow: false, kind: "spline", a: { x: 1000, y: 1000 }, b: { x: 1200, y: 1400 }, pts: [{ x: 1100, y: 1600 }] },
+    ];
+    const withLine = growPage(graph.nodes, undefined, lines)!;
+    expect(withLine.w).toBeGreaterThan(nodesOnly.w); // cresceu p/ englobar o spline
+    // a moldura cobre o ponto de controle mais extremo (y=1600)
+    expect(withLine.cy + withLine.h / 2).toBeGreaterThanOrEqual(1600);
+    // só conectores (sem nós) ainda produz uma página
+    expect(growPage([], undefined, lines)).not.toBeUndefined();
   });
 
   it("emite `canvas from…to…` (v0.7.0) e round-trippa a página", () => {

@@ -95,7 +95,10 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   (conectores LIVRES: pontas `{x,y}` livres ou `{node,side}` ancoradas) e uma `Page` emitida como
   `canvas from … to …` (v0.7.0, diretiva que NÃO gera `s{i}`) que FIXA o viewBox → mover um objeto
   não desloca a figura. Rascunhos antigos com a moldura branca `PAGE: box … outlined "#ffffff"`
-  ainda são lidos. `growPage` só cresce.
+  ainda são lidos. `growPage(nodes, prev?, lines?)` só cresce e engloba os cantos dos nós MAIS as
+  pontas LIVRES e pontos de controle dos conectores (`lines`) — sem isso, uma linha/spline/arco
+  desenhado FORA dos nós ficaria fora da `canvas` e seria RECORTADO (invisível). `applyGraph` passa
+  `g.lines`.
   Estilo por objeto (Fase 2): `fill/stroke` (cor), `hatch|crosshatch` (+ params `hatchAngle`/`hatchSep`/
   `hatchColor` → `hatchangle`/`hatchsep`/`hatchcolor`; inspetor mostra os controles só quando há
   hachura), `dashed|dotted`, `thick`; e

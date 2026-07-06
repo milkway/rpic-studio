@@ -134,17 +134,29 @@ const PAGE_MARGIN = 48;
 
 /** Página que ENVOLVE os nós (+margem), unida à anterior — só cresce, nunca
  *  encolhe, então arrastar/adicionar um objeto não recentraliza os demais. */
-export function growPage(nodes: VNode[], prev?: Page): Page | undefined {
-  if (nodes.length === 0) return prev;
+export function growPage(nodes: VNode[], prev?: Page, lines?: VLine[]): Page | undefined {
+  // Pontos a cobrir: cantos dos nós + pontas LIVRES e pontos de controle dos
+  // conectores livres (âncoras já entram pelos nós). Sem isso, uma linha/spline/
+  // arco desenhado FORA dos nós ficaria fora da `canvas` e seria recortado.
+  const pts: { x: number; y: number }[] = [];
+  for (const n of nodes) {
+    pts.push({ x: n.x - n.w / 2, y: n.y - n.h / 2 }, { x: n.x + n.w / 2, y: n.y + n.h / 2 });
+  }
+  for (const ln of lines ?? []) {
+    for (const ep of [ln.a, ln.b, ...(ln.pts ?? [])]) {
+      if (ep.x !== undefined && ep.y !== undefined) pts.push({ x: ep.x, y: ep.y });
+    }
+  }
+  if (pts.length === 0) return prev;
   let l = Infinity;
   let t = Infinity;
   let r = -Infinity;
   let b = -Infinity;
-  for (const n of nodes) {
-    l = Math.min(l, n.x - n.w / 2);
-    t = Math.min(t, n.y - n.h / 2);
-    r = Math.max(r, n.x + n.w / 2);
-    b = Math.max(b, n.y + n.h / 2);
+  for (const p of pts) {
+    l = Math.min(l, p.x);
+    t = Math.min(t, p.y);
+    r = Math.max(r, p.x);
+    b = Math.max(b, p.y);
   }
   l -= PAGE_MARGIN;
   t -= PAGE_MARGIN;

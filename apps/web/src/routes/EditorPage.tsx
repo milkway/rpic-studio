@@ -269,7 +269,7 @@ export function EditorPage() {
   // Aplica um grafo: cresce a página (fixa o viewBox → sem reflow) e regenera o
   // pic PRESERVANDO o bloco de padrões do usuário.
   const applyGraph = useCallback((g: VGraph) => {
-    const page = growPage(g.nodes, g.page);
+    const page = growPage(g.nodes, g.page, g.lines);
     setDoc((d) => ({ ...d, source: applyDefaults(graphToPic({ ...g, page }), readDefaults(d.source)) }));
   }, []);
 

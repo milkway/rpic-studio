@@ -294,6 +294,26 @@ test("desenhar arco ponto-a-ponto gera `arc` no código", async ({ page }) => {
   await expect(page.getByTestId("visual-draw-layer")).toHaveCount(0);
 });
 
+test("desenhar spline gera `spline` e ele fica VISÍVEL (a canvas cresce p/ englobá-lo)", async ({
+  page,
+}) => {
+  await page.getByTestId("visual-add-box").click();
+  await expect(page.getByTestId("visual-handle")).toHaveCount(1, { timeout: 5_000 });
+  await page.waitForTimeout(400);
+  await page.getByTestId("visual-tool-spline").click();
+  const cv = (await page.getByTestId("preview-canvas").boundingBox())!;
+  // desenha bem à direita/abaixo do nó — se a canvas não crescer, seria recortado
+  await page.mouse.move(cv.x + cv.width * 0.45, cv.y + cv.height * 0.35);
+  await page.mouse.down();
+  await page.mouse.move(cv.x + cv.width * 0.75, cv.y + cv.height * 0.6, { steps: 10 });
+  await page.mouse.up();
+  await expect(page.getByTestId("code-pane")).toContainText(/spline from \(/, { timeout: 5_000 });
+  // o spline vira um <path> DENTRO do render (não recortado pela canvas)
+  await expect(page.locator('[data-testid="preview-stage"] svg path').first()).toBeVisible({
+    timeout: 5_000,
+  });
+});
+
 test("mover um objeto NÃO desloca os outros (página fixa)", async ({ page }) => {
   await page.getByTestId("visual-add-box").click();
   await page.getByTestId("visual-add-box").click();
