@@ -122,6 +122,13 @@ topbar; escolha em `rpic:locale.v1`. Conteúdo estruturado (exemplos, ajuda) car
 - **Variáveis GLOBAIS** (`picDefaults.ts`, menu Defaults): `box/ellipse/circle/arc` dims, `linewid/
   linethick/fillval`, e o tamanho da **arrowhead** (`arrowwid`/`arrowht`) — que NÃO é per-objeto no
   rpic (setar `arrowht` numa seta é ignorado), então mora só no Defaults.
+- **CSS custom** (`lib/customCss.ts` + `components/editor/CssPanel.tsx`, botão `{} CSS`): faz o
+  keyword `class "…"` do rpic virar estilo real. O CSS mora NO PRÓPRIO pic (bloco de comentário `#`
+  com marcadores idempotentes, ignorado pelo compilador) → viaja de graça em save/share/reload (tudo
+  carrega só `source`). `readCss`/`applyCss` leem/escrevem o bloco; `injectCss` insere um `<style>`
+  após o `<svg>` (o DOMPurify preserva `class` E `<style>`). Aplicado no `bakedSvg` → preview + exports
+  .svg/clipboard/png-cliente (o render SERVER-SIDE não reflete, usa o pic cru + resvg). Seletores: box
+  = `.cls rect`/`.cls text`; conector = `.cls path`/`.cls polygon`. Exemplo "CSS classes (pulsing)".
 - **PNG export**: fontes web em SVG-dentro-de-`<img>` são best-effort (o browser pode cair na
   genérica); preview, .svg e clipboard-SVG carregam a fonte com fidelidade.
 - **Variáveis pic** (`scale`, `boxwid`, `linethick`…) NÃO são aparência — mudam geometria. Vão no

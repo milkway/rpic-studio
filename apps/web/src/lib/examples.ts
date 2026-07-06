@@ -330,25 +330,29 @@ brace from A.sw - (0,gap) to C.se - (0,gap) down "regression tests" wid .18 thic
   },
   {
     id: "classes",
-    title: { en: "CSS classes", pt: "Classes CSS" },
+    title: { en: "CSS classes (pulsing)", pt: "Classes CSS (pulsando)" },
     description: {
-      en: "The class extension hooks shapes to host CSS — the studio ships storage, critical, dataflow and pulse (hover “web” and “db”!).",
-      pt: "A extensão class liga formas ao CSS do host — o studio traz storage, critical, dataflow e pulse (passe o mouse em “web” e “db”!).",
+      en: "The class extension + the diagram's CSS: color the services and make a box pulse. Edit the CSS block below (or the {} CSS button).",
+      pt: "A extensão class + o CSS do diagrama: colore os serviços e faz um box pulsar. Edite o bloco CSS abaixo (ou o botão {} CSS).",
     },
     tags: ["extensions"],
     circuits: false,
     source: `.PS
-# A extensão class marca os grupos SVG para o CSS do host estilizar.
-# O studio já estiliza: storage, critical, dataflow e pulse.
-W: box "web" wid 0.6 ht 0.45
-D: circle "db" rad 0.28 at W + (1.25, 0)
-A: box "ALERT" wid 0.7 ht 0.45 at D + (1.35, 0)
-arrow from W.e to D.w class "dataflow"
-arrow from D.e to A.w class "dataflow"
-class W "storage"
-class D "storage"
-class A "critical pulse"
-.PE`,
+right; boxwid = 0.8; boxht = 0.5
+Q: box "queue" class "svc"
+arrow class "flow"
+W: box "worker" class "svc pulse"
+arrow class "flow"
+D: box "done" class "svc ok"
+.PE
+# ── css (rpic studio) ──
+# @keyframes pulse { 0%, 100% { opacity: 1 } 50% { opacity: .3 } }
+# .svc rect { fill: #eef3ff; stroke: #4372e0; stroke-width: 1.4 }
+# .ok rect { fill: #d9f0df; stroke: #3aa564 }
+# .flow path { stroke: #4372e0; stroke-width: 1.6 }
+# .flow polygon { fill: #4372e0 }
+# .pulse { animation: pulse 1.2s ease-in-out infinite }
+# ───────────────────────`,
   },
   {
     id: "hatch",

@@ -36,6 +36,8 @@ import {
   type CanvasSettings,
 } from "@/lib/storage";
 import { bakeAppearance, googleFamilyOf } from "@/lib/appearance";
+import { injectCss, readCss } from "@/lib/customCss";
+import { CssPanel } from "@/components/editor/CssPanel";
 import { useEnsureFont, useEnsureObjectFonts } from "@/hooks/useEnsureFont";
 import { examples, WELCOME_SOURCES } from "@/lib/examples";
 import { useDiagram, useMe, useUpdateDiagram } from "@/lib/queries";
@@ -96,9 +98,11 @@ export function EditorPage() {
   // referenciadas no código (`font "…"`), depois assa a do canvas no SVG.
   useEnsureFont(canvas.fontFamily);
   useEnsureObjectFonts(doc.source);
+  // Assa a fonte do canvas e injeta o CSS custom do diagrama (`class "…"` do
+  // rpic vira estilo real no preview e nos exports .svg/clipboard).
   const bakedSvg = useMemo(
-    () => bakeAppearance(rpic.svg, canvas.fontFamily),
-    [rpic.svg, canvas.fontFamily],
+    () => injectCss(bakeAppearance(rpic.svg, canvas.fontFamily), readCss(doc.source)),
+    [rpic.svg, canvas.fontFamily, doc.source],
   );
 
   const changeCanvas = useCallback((next: CanvasSettings) => {
@@ -360,6 +364,7 @@ export function EditorPage() {
               </Button>
             </Tip>
             <CircuitPalette onInsert={insertCircuit} />
+            <CssPanel source={doc.source} onSourceChange={setSource} />
             <div className="ml-auto flex items-center gap-3">
               <Tip label={t("editor.clear")}>
                 <Button

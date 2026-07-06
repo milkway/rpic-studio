@@ -39,6 +39,10 @@ const en = {
   "circuitPalette.group.semiconductor": "Semiconductors",
   "circuitPalette.group.connector": "Connectors",
 
+  // CSS custom
+  "css.title": "Diagram CSS",
+  "css.hint": "Style elements tagged with `class \"…\"`. Saved with the diagram; applies in the preview and .svg exports.",
+
   // bindings
   "bindings.title": "Bindings",
   "bindings.subtitle":
@@ -320,6 +324,10 @@ const pt: Record<MessageKey, string> = {
   "circuitPalette.group.source": "Fontes",
   "circuitPalette.group.semiconductor": "Semicondutores",
   "circuitPalette.group.connector": "Conectores",
+
+  // CSS custom
+  "css.title": "CSS do diagrama",
+  "css.hint": "Estilize os elementos marcados com `class \"…\"`. Guardado no diagrama; vale no preview e nos exports .svg.",
 
   "bindings.title": "Bindings",
   "bindings.subtitle":
