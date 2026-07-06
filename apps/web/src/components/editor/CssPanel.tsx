@@ -28,7 +28,7 @@ export function CssPanel({
           CSS
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80" data-testid="css-panel">
+      <PopoverContent className="w-[28rem] max-w-[calc(100vw-2rem)]" data-testid="css-panel">
         <p className="mb-1 font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
           {t("css.title")}
         </p>

@@ -115,6 +115,14 @@ const darkHighlight = HighlightStyle.define([
   { tag: t.quote, color: "#b3c98f", fontStyle: "italic" },
   { tag: t.processingInstruction, color: "#6f8274" },
   { tag: t.blockComment, color: "#6f8274", fontStyle: "italic" },
+  // CSS (painel de classes) — tags do @codemirror/lang-css
+  { tag: t.propertyName, color: "#9ccc65" },
+  { tag: t.className, color: "#c8e6c9", fontWeight: "bold" },
+  { tag: t.keyword, color: "#81c784" },
+  { tag: t.atom, color: "#aed581" },
+  { tag: t.unit, color: "#dce775" },
+  { tag: t.color, color: "#4db6ac" },
+  { tag: t.definitionKeyword, color: "#81c784", fontWeight: "bold" },
 ]);
 
 // ---- rpic-forest-light (fundo #f7faf7, dado pelo painel via --color-ink) ----
@@ -163,6 +171,14 @@ const lightHighlight = HighlightStyle.define([
   { tag: t.quote, color: "#4e6e33", fontStyle: "italic" },
   { tag: t.processingInstruction, color: "#8a9a8d" },
   { tag: t.blockComment, color: "#8a9a8d", fontStyle: "italic" },
+  // CSS (painel de classes) — tags do @codemirror/lang-css
+  { tag: t.propertyName, color: "#33691e" },
+  { tag: t.className, color: "#194d33", fontWeight: "bold" },
+  { tag: t.keyword, color: "#1b5e20" },
+  { tag: t.atom, color: "#558b2f" },
+  { tag: t.unit, color: "#827717" },
+  { tag: t.color, color: "#00695c" },
+  { tag: t.definitionKeyword, color: "#1b5e20", fontWeight: "bold" },
 ]);
 
 /** Extensão de tema conforme o modo do app. */
