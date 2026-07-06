@@ -2,7 +2,9 @@ import { Braces } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/Popover";
 import { useI18n } from "@/lib/i18n";
+import { useTheme } from "@/lib/theme";
 import { applyCss, readCss } from "@/lib/customCss";
+import { CssEditor } from "./CssEditor";
 
 /** Painel de CSS custom por diagrama: o `class "…"` do rpic vira estilo real.
  *  O CSS é guardado NO PRÓPRIO pic (bloco de comentário) — o studio injeta um
@@ -15,6 +17,7 @@ export function CssPanel({
   onSourceChange: (s: string) => void;
 }) {
   const { t } = useI18n();
+  const { dark } = useTheme();
   const css = readCss(source);
 
   return (
@@ -30,15 +33,7 @@ export function CssPanel({
           {t("css.title")}
         </p>
         <p className="mb-2 text-[11px] leading-tight text-(--color-text-muted)">{t("css.hint")}</p>
-        <textarea
-          value={css}
-          onChange={(e) => onSourceChange(applyCss(source, e.target.value))}
-          spellCheck={false}
-          rows={7}
-          placeholder={".critical { stroke: #d33; stroke-width: 2 }\n.storage text { font-weight: 700 }"}
-          data-testid="css-textarea"
-          className="w-full resize-y rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-2 py-1.5 font-mono text-xs text-(--color-text) outline-none focus:border-(--color-accent)"
-        />
+        <CssEditor value={css} onChange={(v) => onSourceChange(applyCss(source, v))} dark={dark} />
       </PopoverContent>
     </Popover>
   );

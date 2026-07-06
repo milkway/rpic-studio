@@ -15,7 +15,9 @@ test("painel de CSS custom estiliza elementos com `class` no preview", async ({ 
   await page.waitForSelector('[data-testid="preview-stage"] svg', { timeout: 20_000 });
 
   await page.getByTestId("css-panel-trigger").click();
-  await page.getByTestId("css-textarea").fill(".critical { stroke: rgb(221, 51, 51); stroke-width: 3 }");
+  const editor = page.locator('[data-testid="css-editor"] .cm-content');
+  await editor.click();
+  await editor.pressSequentially(".critical { stroke: rgb(221, 51, 51); stroke-width: 3 }");
 
   // o <style> é injetado e o elemento com class="critical" fica vermelho
   await expect

@@ -122,7 +122,8 @@ topbar; escolha em `rpic:locale.v1`. Conteúdo estruturado (exemplos, ajuda) car
 - **Variáveis GLOBAIS** (`picDefaults.ts`, menu Defaults): `box/ellipse/circle/arc` dims, `linewid/
   linethick/fillval`, e o tamanho da **arrowhead** (`arrowwid`/`arrowht`) — que NÃO é per-objeto no
   rpic (setar `arrowht` numa seta é ignorado), então mora só no Defaults.
-- **CSS custom** (`lib/customCss.ts` + `components/editor/CssPanel.tsx`, botão `{} CSS`): faz o
+- **CSS custom** (`lib/customCss.ts` + `CssPanel.tsx` com editor CodeMirror `CssEditor` — highlight de
+  CSS via `@codemirror/lang-css`, dep DIRETA; botão `{} CSS`): faz o
   keyword `class "…"` do rpic virar estilo real. O CSS mora NO PRÓPRIO pic (bloco de comentário `#`
   com marcadores idempotentes, ignorado pelo compilador) → viaja de graça em save/share/reload (tudo
   carrega só `source`). `readCss`/`applyCss` leem/escrevem o bloco; `injectCss` insere um `<style>`
