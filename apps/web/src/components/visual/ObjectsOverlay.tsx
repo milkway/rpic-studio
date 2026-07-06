@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { cn } from "@rpic/design-system";
 import { useI18n } from "@/lib/i18n";
 import { type ObjectGeometry } from "@/lib/rpic";
-import { FILL_COLORS, STROKE_COLORS } from "@/lib/visualGraph";
+import { FILL_COLORS, FONT_FAMILIES, FONT_SIZES, STROKE_COLORS } from "@/lib/palette";
 import { readObjectAttrs, setObjectAttr, type AttrKind } from "@/lib/objectEdit";
 import { Seg, Swatches } from "./inspectorControls";
 
@@ -152,6 +152,32 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
           <Swatches title={t("visual.inspector.fill")} colors={FILL_COLORS} value={attrs.fill} onPick={(c) => setAttr("fill", c)} noneLabel={t("visual.none")} />
           <Swatches title={t("visual.inspector.stroke")} colors={STROKE_COLORS} value={attrs.stroke} onPick={(c) => setAttr("stroke", c)} noneLabel={t("visual.none")} />
           <Seg title={t("visual.inspector.hatch")} value={attrs.hatch} onPick={(v) => setAttr("hatch", v)} options={[{ v: undefined, el: "∅" }, { v: "hatch" as const, el: "▧" }, { v: "crosshatch" as const, el: "▦" }]} />
+          {attrs.hatch && (
+            <>
+              <Seg
+                title={t("visual.inspector.hatchAngle")}
+                value={attrs.hatchAngle}
+                onPick={(v) => setAttr("hatchAngle", v)}
+                options={[
+                  { v: 0, el: "0°" },
+                  { v: undefined, el: "45°" },
+                  { v: 90, el: "90°" },
+                  { v: 135, el: "135°" },
+                ]}
+              />
+              <Seg
+                title={t("visual.inspector.hatchSep")}
+                value={attrs.hatchSep}
+                onPick={(v) => setAttr("hatchSep", v)}
+                options={[
+                  { v: 0.04, el: "≣" },
+                  { v: undefined, el: "≡" },
+                  { v: 0.15, el: "═" },
+                ]}
+              />
+              <Swatches title={t("visual.inspector.hatchColor")} colors={STROKE_COLORS} value={attrs.hatchColor} onPick={(c) => setAttr("hatchColor", c)} noneLabel={t("visual.none")} />
+            </>
+          )}
           <Seg
             title={t("visual.inspector.line")}
             value={attrs.dash}
@@ -172,6 +198,68 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
               { v: 3, el: <div className="h-1 w-5 rounded-full bg-current" /> },
             ]}
           />
+          {/* Texto: negrito/itálico/tamanho/família/alinhamento (atributos por
+              string do rpic — escritos na linha do objeto). */}
+          {selBox.kind === "text" && (
+            <div className="mt-1 border-t border-(--color-border) pt-2">
+              <span className="mb-1 block font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
+                {t("visual.inspector.font")}
+              </span>
+              <div className="mb-2 flex gap-1">
+                <button
+                  onClick={() => setAttr("bold", attrs.bold ? undefined : "bold")}
+                  data-testid="objects-bold"
+                  className={cn("h-7 flex-1 rounded-(--radius-sm) border font-bold", attrs.bold ? "border-(--color-accent) bg-(--color-accent-soft) text-(--color-accent)" : "border-(--color-border) text-(--color-text-muted) hover:text-(--color-text)")}
+                >
+                  B
+                </button>
+                <button
+                  onClick={() => setAttr("italic", attrs.italic ? undefined : "italic")}
+                  data-testid="objects-italic"
+                  className={cn("h-7 flex-1 rounded-(--radius-sm) border italic", attrs.italic ? "border-(--color-accent) bg-(--color-accent-soft) text-(--color-accent)" : "border-(--color-border) text-(--color-text-muted) hover:text-(--color-text)")}
+                >
+                  I
+                </button>
+                <select
+                  value={attrs.fontsize ?? ""}
+                  onChange={(e) => setAttr("fontsize", e.target.value ? Number(e.target.value) : undefined)}
+                  data-testid="objects-fontsize"
+                  className="h-7 rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-1 text-xs text-(--color-text)"
+                >
+                  <option value="">pt</option>
+                  {FONT_SIZES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <select
+                value={attrs.font ?? ""}
+                onChange={(e) => setAttr("font", e.target.value || undefined)}
+                data-testid="objects-font"
+                className="mb-2 w-full rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-2 py-1 text-xs text-(--color-text)"
+                style={{ fontFamily: attrs.font || undefined }}
+              >
+                <option value="">{t("visual.inspector.fontDefault")}</option>
+                {FONT_FAMILIES.map((f) => (
+                  <option key={f} value={f} style={{ fontFamily: f }}>
+                    {f}
+                  </option>
+                ))}
+              </select>
+              <Seg
+                title={t("visual.inspector.align")}
+                value={attrs.align}
+                onPick={(v) => setAttr("align", v)}
+                options={[
+                  { v: "ljust" as const, el: "⟸" },
+                  { v: undefined, el: "≡" },
+                  { v: "rjust" as const, el: "⟹" },
+                ]}
+              />
+            </div>
+          )}
         </div>
       )}
     </div>

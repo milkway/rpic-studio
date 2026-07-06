@@ -4,8 +4,6 @@ import { Copy } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import type { Anim, ObjectGeometry } from "@/lib/rpic";
 import type { CanvasSettings } from "@/lib/storage";
-import type { Shape, VGraph } from "@/lib/visualGraph";
-import type { Tool } from "@/components/visual/VisualOverlay";
 import { copyText, formatXml, toMarkdownSnippet } from "@/lib/exports";
 import { toPythonSnippet, toRSnippet } from "@/lib/bindings";
 import { useI18n } from "@/lib/i18n";
@@ -38,12 +36,8 @@ interface PreviewTabsProps {
   compileMs: number | null;
   canvas: CanvasSettings;
   onCanvasChange: (next: CanvasSettings) => void;
-  /** Edição visual sobre o render (aba imagem). */
-  graph?: VGraph | null;
-  onGraphChange?: (g: VGraph) => void;
-  onAddShape?: (shape: Shape) => void;
-  tool?: Tool;
-  onSetTool?: (t: Tool) => void;
+  /** Edição visual de ESTILO sobre o render (aba imagem): clicar num objeto →
+   *  cores/hatch/… escritos na sua linha de código. */
   objects?: ObjectGeometry[];
   onJumpToLine?: (line: number, col?: number) => void;
   onSourceChange?: (s: string) => void;

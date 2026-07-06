@@ -49,84 +49,22 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   p/ admin, e `GET /api/users` (`ApiError::Forbidden`=403 p/ não-admin) lista e-mail/nome/criado/
   último-login + total + sessões ativas. **Sem `ADMIN_EMAILS` no `.env.prod`, ninguém é admin** (a
   página fica 403). Definir `ADMIN_EMAILS=` no servidor em `~/rpic-app/infra/.env.prod`.
-- **Editor visual** (`components/visual/VisualOverlay.tsx` + `lib/visualGraph.ts`): o código pic fica
-  SEMPRE ao vivo à esquerda; à direita, uma barra de ícones (no header do `PreviewPane`) adiciona
-  formas e um OVERLAY sobre o render real do rpic dá alças p/ mover/conectar/estilizar clicando no
-  diagrama. O modelo é um grafo nós/arestas que **gera pic** (`graphToPic`, formato REGULAR:
-  `N1: box "…" at (x,y)`, `arrow from N1.e to N2.w`). NÃO há blob embutido: o grafo é **reconstruído
-  lendo o próprio pic** (`parsePic`) — código limpo, e sobrevive a draft/save/share/reload de graça.
-  `parsePic` retorna null para pic escrito à mão (fora do formato). Aí um 2º nível, `parseLoose(source,
-  objects)`, tenta reconstruir o GRAFO editável (arrastar) via GEOMETRIA do compilador: só vale p/
-  diagramas **só-de-formas** (box/circle/ellipse/text) SEM conector/move — é all-or-nothing e alinhado
-  a `s{i}` (qualquer `path`/`arc`/objeto de `copy`/bbox-nulo → null, pois a direção de uma linha não é
-  recuperável do bbox e dropar algo corromperia o round-trip). Posições vêm do bbox (relativo ao
-  conteúdo — o rpic re-recorta, o absoluto não importa; o layout relativo é exato). A 1ª edição
-  converte o pic à mão pro formato canônico. `EditorPage`: `parsePic(src) ?? parseLoose(src,
-  rpic.objects)`. Se AMBOS falham (tem conector, macro, etc.), entra o **overlay universal**
-  (`components/visual/ObjectsOverlay.tsx`): sobre
-  QUALQUER pic que compile, usa `useRpic().objects[]` (bbox por `#s{i}`, `line/col`, `file`) p/ dar
-  caixa selecionável por objeto + duplo-clique→linha do código. Só objetos do próprio input (`file`
-  ausente) são interativos. **Estilo-por-linha** (`lib/objectEdit.ts`): o objeto selecionado ganha um
-  inspetor (fill/stroke/hatch/dash/thick) que escreve o atributo NA STATEMENT daquele objeto —
-  `setObjectAttr(source, line, col, kind, value)` acha o fim da statement (próximo `;` fora de aspas ou
-  fim de linha) e substitui/anexa; `readObjectAttrs` lê o estado atual. NÃO move/redimensiona (posição
-  pode ser relativa). Falta ampliar o `parsePic` (próximo incremento). `Seg`/`Swatches` viraram
-  `visual/inspectorControls.tsx` (compartilhados com o `VisualOverlay`). O PreviewPane escolhe:
-  `VisualOverlay` (grafo) OU `ObjectsOverlay` (resto).
-  Arredonda px
-  no parse p/ evitar drift no round-trip px→pol(3 casas)→px. Cada nó vira, em ORDEM, um
-  `<g id="s{i}">` no SVG; o overlay lê a posição real via `getBoundingClientRect` num loop rAF (só
-  setState quando muda) — imune a corridas de timing (injeção/crossFade/reflow). graph px == unidade
-  de usuário do SVG (96/pol) → arrastar é `Δtela/zoom`; no drop MANTÉM o `translate` do `<g>` até o
-  recompile substituir o SVG (evita o "fantasma" old+new). No modo visual o preview alinha ao
-  TOPO-ESQUERDA (origem fixa) em vez de centralizar, senão mover/adicionar recentraliza tudo. No nó
-  SELECIONADO aparecem TODAS as âncoras (descoberta/consistência com as pontas de conector); em
-  não-selecionados, só a âncora MAIS PRÓXIMA do cursor (dentro de `SHOW_DIST`). CUIDADO nos e2e: o
-  testid `visual-anchor-{side}` deixa de ser único (o selecionado mostra todas) → escopar ao handle do
-  nó. A **marca de seleção do nó segue o FORMATO** (SVG: ellipse/polígono/rect, não retângulo fixo).
-  Clicar no VAZIO deselecciona (layer `visual-deselect`, primeiro filho do overlay, por baixo das
-  alças; só no modo select). O centro fica livre p/ mover (âncora `.c` não é renderizada). Conectar sai de uma
-  âncora; a aresta seleciona clicando na LINHA (não há bola) e reancora arrastando as pontas
-  (`fromSide/toSide`). Arraste de conexão/reancoragem usa listeners de WINDOW (não `setPointerCapture`
-  na âncora, que remonta no re-render e perde a captura). Ids: nós = nome pic (N1…); arestas =
-  `from-to-índice` (determinístico, IGUAL ao que `parsePic` atribui) p/ a seleção sobreviver ao
-  round-trip. Losango = `line … close shaded/outlined`.
-- **Editor visual — modelo e roadmap** (`lib/visualGraph.ts`): além de nós+arestas, tem `VLine`
-  (conectores LIVRES: pontas `{x,y}` livres ou `{node,side}` ancoradas) e uma `Page` emitida como
-  `canvas from … to …` (v0.7.0, diretiva que NÃO gera `s{i}`) que FIXA o viewBox → mover um objeto
-  não desloca a figura. Rascunhos antigos com a moldura branca `PAGE: box … outlined "#ffffff"`
-  ainda são lidos. `growPage(nodes, prev?, lines?)` só cresce e engloba os cantos dos nós MAIS as
-  pontas LIVRES e pontos de controle dos conectores (`lines`) — sem isso, uma linha/spline/arco
-  desenhado FORA dos nós ficaria fora da `canvas` e seria RECORTADO (invisível). `applyGraph` passa
-  `g.lines`.
-  Estilo por objeto (Fase 2): `fill/stroke` (cor), `hatch|crosshatch` (+ params `hatchAngle`/`hatchSep`/
-  `hatchColor` → `hatchangle`/`hatchsep`/`hatchcolor`; inspetor mostra os controles só quando há
-  hachura), `dashed|dotted`, `thick`; e
-  conectores com pontas `arrow`(fim)/`back`(início) → gera `arrow`/`line`/`line <-`/`line <->`. O
-  overlay tem um transform modelo↔tela (derivado de um nó DIMENSIONADO — texto tem w/h nominal — ou
-  da moldura da página) p/ posicionar pontos livres sem `#s{i}`; a barra é modo-ferramenta
-  (select/linha/seta/arco/spline). **Arco e spline** são `VLine` com `kind:"arc"|"spline"`: arco tem
-  `cw?` (sentido; ausente = anti-horário, o default do rpic) e spline tem `pts?` (pontos
-  INTERMEDIÁRIOS entre `a`/`b`). CUIDADO: o rpic NÃO aceita o atalho `arrow` com `cw`/múltiplos `to` —
-  então pontas de arco/spline usam sempre o sufixo verbal `arc -> `/`<- `/`<->` (nunca o primitivo
-  `arrow`); ver `curveVerb`. Parse: `RE_CURVE` + `splitCurvePoints` (múltiplos `to`). No overlay o
-  arco/spline é desenhado como `<polyline>` (curva real só no render do rpic); spline tem alça de
-  ponto de controle (`visual-linemid-{i}`) e o inspetor do arco tem toggle de sentido ↺/↻. Texto (Fase 3): `shape:"text"` (objeto solto `Nx: "…" at (x,y)`), rótulo
-  MULTILINHA (`\n` → strings empilhadas), e `math:true` → `"$…$"` (o `esc`/`unesc` só mexem em aspas,
-  NÃO dobram `\`, p/ o backslash do TeX passar). Fonte por objeto (Fase 4, rpic 0.7.0): `bold`,
-  `italic`, `font "…"`, `fontsize` — atributos POR-STRING do rpic (o gerador repete em cada linha do
-  rótulo; `parseLabelSeg` lê rótulos+fonte distinguindo valores de cor). **studio inteiro na rpic
-  0.7.0** (web WASM `@strategicprojects/rpic@^0.7.0` — CUIDADO: o pin fica em `apps/web/package.json`,
-  não só na raiz; e a git-dep da API em `apps/api/Cargo.toml` na tag `v0.7.0`). Todas as 4 issues do
-  rpic-lang (#225–#228 / PRs #229–#232) TODAS adotadas: fonte por objeto, canvas fixo, cor livre
-  (color picker → `shaded "#rrggbb"`), rótulo girado (`rotated`), e a geometria do bundle
-  (`useRpic().objects[]`, alinhada a `s{i}`) — usada p/ **duplo-clique no objeto → pula pra linha do
-  código** (`objects[nodeIndex].line` → `codeRef.focusAt`). O overlay AINDA se posiciona via
-  `getBoundingClientRect` do `#s{i}` (funciona bem); migrar p/ `objects[].bbox` é robustez futura.
-  **Arco/spline** = `VLine` com `kind` (ver bullet acima). **Alinhamento de rótulo**: `align?`
-  (ljust/rjust) e `vpos?` (above/below) — mais atributos por-string em `fontAttrs`/`parseLabelSeg`.
-  **Duplicar** nó: botão do inspetor + ⌘D (copia +16px, seleciona; a cópia cobre o centro da
-  original — nos e2e, clicar `.last()`).
+- **Editor visual = SÓ ESTILO** (`components/visual/ObjectsOverlay.tsx`): o código pic é a fonte da
+  verdade e o ÚNICO jeito de criar/posicionar objetos (o antigo editor de grafo — criar formas,
+  arrastar, conectar — foi REMOVIDO por decisão de produto: era passo largo e frágil). O visual só
+  ESTILIZA: sobre QUALQUER pic que compile, o overlay lê `useRpic().objects[]` (bbox por `#s{i}` via
+  `getBoundingClientRect` num loop rAF; `kind`/`line`/`col`/`file`) e dá uma caixa selecionável por
+  objeto. Só objetos do próprio input (`file` ausente — exclui `copy`/circuitos) são interativos.
+  Clicar → inspetor; duplo-clique → pula pra linha (`onJumpToLine`); clicar no VAZIO desseleciona
+  (`objects-deselect`). O inspetor escreve o atributo NA STATEMENT do objeto via
+  `setObjectAttr(source, line, col, kind, value)` (`lib/objectEdit.ts`): acha o fim da statement
+  (próximo `;` fora de aspas ou fim de linha) e SUBSTITUI/ANEXA; `readObjectAttrs` lê o estado atual.
+  Atributos: `fill`/`stroke` (`shaded`/`outlined "…"` + cor livre `#rrggbb`), `hatch|crosshatch` (+
+  `hatchangle`/`hatchsep`/`hatchcolor`), `dashed|dotted`, `thick`; e p/ `kind==="text"`: `bold`,
+  `italic`, `font "…"`, `fontsize`, `ljust|rjust` (alinhamento) — todos atributos POR-STRING do rpic,
+  anexados no fim da statement. `source`+`onSourceChange` fluem EditorPage→PreviewTabs→PreviewPane→
+  overlay. `Seg`/`Swatches` em `visual/inspectorControls.tsx`. Cores/fontes curadas em `lib/palette.ts`.
+  NÃO move/redimensiona (posição em pic pode ser relativa) — isso fica no código.
 - **Paleta de circuitos** (`components/editor/CircuitPalette.tsx` + `lib/circuitCatalog.ts`): menu no
   header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — 14
   macros circuit_macros com sintaxe de DOIS pontos nomeados (`resistor(A,B)`; centrados `ground(P)`),

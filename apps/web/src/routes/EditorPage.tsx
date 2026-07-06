@@ -11,9 +11,6 @@ import { PreviewTabs } from "@/components/preview/PreviewTabs";
 import { SaveDialog } from "@/components/dialogs/SaveDialog";
 import { DefaultsBar } from "@/components/editor/DefaultsBar";
 import { CircuitPalette } from "@/components/editor/CircuitPalette";
-import { DEFAULT_SIZE, graphToPic, growPage, parseLoose, parsePic, type Shape, type VGraph } from "@/lib/visualGraph";
-import { type Tool } from "@/components/visual/VisualOverlay";
-import { applyDefaults, readDefaults } from "@/lib/picDefaults";
 import { insertCircuitElement, type CircuitElement } from "@/lib/circuitCatalog";
 import { Button } from "@/components/ui/Button";
 import {
@@ -74,7 +71,6 @@ export function EditorPage() {
   const [initial] = useState(() => initialDoc(locale));
   const [doc, setDoc] = useState<DocState>({ source: initial.source });
   const [layout, setLayout] = useState(() => loadSettings().layout);
-  const [tool, setTool] = useState<Tool>("select");
   const [split, setSplit] = useState(0.42);
   const [saveOpen, setSaveOpen] = useState(false);
   const [defaultsOpen, setDefaultsOpen] = useState(false);
@@ -257,45 +253,6 @@ export function EditorPage() {
     return () => window.removeEventListener(PREFS_EVENT, onPrefs);
   }, []);
 
-  // Grafo do editor visual, reconstruído do pic gerado (null = pic à mão).
-  // Estrito primeiro (formato do editor); senão, reconstrução frouxa via
-  // geometria (diagramas só-de-formas fora do formato). `rpic.objects` (e o
-  // graph) atualizam juntos após o compile — a 1ª edição converte pro canônico.
-  const graph = useMemo(
-    () => parsePic(doc.source) ?? parseLoose(doc.source, rpic.objects),
-    [doc.source, rpic.objects],
-  );
-
-  // Aplica um grafo: cresce a página (fixa o viewBox → sem reflow) e regenera o
-  // pic PRESERVANDO o bloco de padrões do usuário.
-  const applyGraph = useCallback((g: VGraph) => {
-    const page = growPage(g.nodes, g.page, g.lines);
-    setDoc((d) => ({ ...d, source: applyDefaults(graphToPic({ ...g, page }), readDefaults(d.source)) }));
-  }, []);
-
-  // Adiciona uma forma (barra de ícones no preview). Sobre um pic próprio sem
-  // grafo, confirma — o construtor passa a reger o source.
-  const addShape = useCallback(
-    (shape: Shape) => {
-      const base = graph;
-      if (!base && doc.source.trim() !== "" && !window.confirm(t("visual.replaceConfirm"))) return;
-      const nodes = base?.nodes ?? [];
-      const i = nodes.length;
-      const size = DEFAULT_SIZE[shape];
-      const node = {
-        id: crypto.randomUUID?.() ?? `n-${i}-${nodes.length}`,
-        shape,
-        label: shape === "diamond" ? "?" : t("visual.newNode"),
-        x: 80 + (i % 4) * 170,
-        y: 70 + Math.floor(i / 4) * 120,
-        w: size.w,
-        h: size.h,
-      };
-      applyGraph({ nodes: [...nodes, node], edges: base?.edges ?? [] });
-    },
-    [graph, doc.source, applyGraph, t],
-  );
-
   // Divisor arrastável entre os painéis.
   const onDividerPointerDown = useCallback(
     (down: React.PointerEvent) => {
@@ -473,11 +430,6 @@ export function EditorPage() {
             compileMs={rpic.compileMs}
             canvas={canvas}
             onCanvasChange={changeCanvas}
-            graph={graph}
-            onGraphChange={applyGraph}
-            onAddShape={addShape}
-            tool={tool}
-            onSetTool={setTool}
             objects={rpic.objects}
             onJumpToLine={(line, col) => codeRef.current?.focusAt(line, col ?? 1)}
             onSourceChange={setSource}

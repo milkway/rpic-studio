@@ -1,49 +1,16 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { gsap } from "gsap";
-import {
-  ArrowUpRight,
-  Circle,
-  Diamond,
-  Egg,
-  Loader2,
-  Minus,
-  MousePointer2,
-  Plus,
-  RotateCcw,
-  Scan,
-  Slash,
-  Spline,
-  Square,
-  Type,
-  Waypoints,
-} from "lucide-react";
-import { cn, motion } from "@rpic/design-system";
+import { Loader2, Minus, Plus, RotateCcw, Scan } from "lucide-react";
+import { motion } from "@rpic/design-system";
 import { useI18n } from "@/lib/i18n";
-import { animate, type Anim } from "@/lib/rpic";
+import { animate, type Anim, type ObjectGeometry } from "@/lib/rpic";
 import { sanitizeSvg } from "@/lib/sanitize";
 import { type CanvasSettings } from "@/lib/storage";
-import { type Shape, type VGraph } from "@/lib/visualGraph";
-import { type ObjectGeometry } from "@/lib/rpic";
-import { VisualOverlay, type Tool } from "@/components/visual/VisualOverlay";
 import { ObjectsOverlay } from "@/components/visual/ObjectsOverlay";
 import { CanvasSettingsPopover } from "./CanvasSettingsPopover";
 import { canvasBackground } from "./canvasStyle";
 import { Button } from "@/components/ui/Button";
 import { Tip } from "@/components/ui/Tooltip";
-
-const SHAPE_TOOLS: { shape: Shape; icon: typeof Square; testid: string }[] = [
-  { shape: "box", icon: Square, testid: "visual-add-box" },
-  { shape: "circle", icon: Circle, testid: "visual-add-circle" },
-  { shape: "ellipse", icon: Egg, testid: "visual-add-ellipse" },
-  { shape: "diamond", icon: Diamond, testid: "visual-add-diamond" },
-  { shape: "text", icon: Type, testid: "visual-add-text" },
-];
-const DRAW_TOOLS: { tool: Tool; icon: typeof Square; testid: string }[] = [
-  { tool: "line", icon: Slash, testid: "visual-tool-line" },
-  { tool: "arrow", icon: ArrowUpRight, testid: "visual-tool-arrow" },
-  { tool: "arc", icon: Spline, testid: "visual-tool-arc" },
-  { tool: "spline", icon: Waypoints, testid: "visual-tool-spline" },
-];
 
 interface PreviewPaneProps {
   /** SVG já "assado" com a fonte escolhida. */
@@ -59,14 +26,7 @@ interface PreviewPaneProps {
   onCanvasChange: (next: CanvasSettings) => void;
   /** Slot para as abas (Imagem/SVG/Markdown) no cabeçalho. */
   tabs?: ReactNode;
-  /** Edição visual sobre o render: grafo embutido + callbacks (null = sem grafo). */
-  graph?: VGraph | null;
-  onGraphChange?: (g: VGraph) => void;
-  onAddShape?: (shape: Shape) => void;
-  /** Ferramenta ativa (select / desenhar linha/seta). */
-  tool?: Tool;
-  onSetTool?: (t: Tool) => void;
-  /** Geometria por objeto (v0.7.0) + pular pra linha do código. */
+  /** Geometria por objeto (v0.7.0): estilizar clicando + pular pra linha. */
   objects?: ObjectGeometry[];
   onJumpToLine?: (line: number, col?: number) => void;
   /** Código-fonte + escrita — estilizar por-linha no overlay universal. */
@@ -85,11 +45,6 @@ export function PreviewPane({
   canvas,
   onCanvasChange,
   tabs,
-  graph,
-  onGraphChange,
-  onAddShape,
-  tool = "select",
-  onSetTool,
   objects,
   onJumpToLine,
   source,
@@ -160,59 +115,6 @@ export function PreviewPane({
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-10 shrink-0 items-center gap-1.5 border-b border-(--color-border) bg-(--color-surface) px-3">
         {tabs}
-        {onAddShape && (
-          <div
-            className="ml-2 flex items-center gap-0.5 border-l border-(--color-border) pl-2"
-            role="group"
-            aria-label={t("visual.add")}
-          >
-            {onSetTool && (
-              <Tip label={t("visual.tool.select")}>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  data-testid="visual-tool-select"
-                  aria-label={t("visual.tool.select")}
-                  className={cn(tool === "select" && "bg-(--color-surface-muted) text-(--color-accent)")}
-                  onClick={() => onSetTool("select")}
-                >
-                  <MousePointer2 size={15} />
-                </Button>
-              </Tip>
-            )}
-            {SHAPE_TOOLS.map(({ shape, icon: Icon, testid }) => (
-              <Tip key={shape} label={t(`visual.shape.${shape}`)}>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  data-testid={testid}
-                  aria-label={t(`visual.shape.${shape}`)}
-                  onClick={() => {
-                    onSetTool?.("select");
-                    onAddShape(shape);
-                  }}
-                >
-                  <Icon size={15} />
-                </Button>
-              </Tip>
-            ))}
-            {onSetTool &&
-              DRAW_TOOLS.map(({ tool: tl, icon: Icon, testid }) => (
-                <Tip key={tl} label={t(`visual.tool.${tl}`)}>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    data-testid={testid}
-                    aria-label={t(`visual.tool.${tl}`)}
-                    className={cn(tool === tl && "bg-(--color-surface-muted) text-(--color-accent)")}
-                    onClick={() => onSetTool(tl)}
-                  >
-                    <Icon size={15} />
-                  </Button>
-                </Tip>
-              ))}
-          </div>
-        )}
         <div className="ml-auto flex items-center gap-0.5">
           {animations.length > 0 && (
             <Tip label={t("preview.replayTip")}>
@@ -275,16 +177,7 @@ export function PreviewPane({
             {t("preview.loading")}
           </div>
         ) : (
-          <div
-            className={cn(
-              "flex min-h-full min-w-full p-8",
-              // No modo visual, origem fixa no topo-esquerda: mover/adicionar um
-              // nó estende o canvas em vez de recentralizar tudo.
-              graph && (graph.nodes.length > 0 || (graph.lines?.length ?? 0) > 0)
-                ? "items-start justify-start"
-                : "items-center justify-center",
-            )}
-          >
+          <div className="flex min-h-full min-w-full items-center justify-center p-8">
             <div
               ref={stageRef}
               data-testid="preview-stage"
@@ -304,34 +197,18 @@ export function PreviewPane({
             </span>
           </div>
         )}
-        {graph && (graph.nodes.length > 0 || (graph.lines?.length ?? 0) > 0) && onGraphChange && !loading && (
-          <VisualOverlay
-            graph={graph}
-            onChange={onGraphChange}
+        {/* Edição visual de ESTILO: clicar num objeto do render → cores/hatch/…
+            escritos na sua linha de código (funciona em QUALQUER pic). */}
+        {!loading && objects && objects.length > 0 && (
+          <ObjectsOverlay
+            objects={objects}
             stageRef={stageRef}
             canvasRef={canvasRef}
-            zoom={zoom}
-            tool={tool}
-            onToolDone={() => onSetTool?.("select")}
-            objects={objects}
             onJumpToLine={onJumpToLine}
+            source={source}
+            onSourceChange={onSourceChange}
           />
         )}
-        {/* Sem cena editável (pic fora do formato do editor), mas o diagrama
-            compila: overlay UNIVERSAL — seleciona objetos e pula pro código. */}
-        {!(graph && (graph.nodes.length > 0 || (graph.lines?.length ?? 0) > 0)) &&
-          !loading &&
-          objects &&
-          objects.length > 0 && (
-            <ObjectsOverlay
-              objects={objects}
-              stageRef={stageRef}
-              canvasRef={canvasRef}
-              onJumpToLine={onJumpToLine}
-              source={source}
-              onSourceChange={onSourceChange}
-            />
-          )}
       </div>
 
       <div className="flex h-7 shrink-0 items-center gap-3 border-t border-(--color-border) bg-(--color-surface) px-3 font-mono text-[11px] text-(--color-text-muted)">

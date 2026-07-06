@@ -6,7 +6,21 @@
 // LIMITE: assume que a statement cabe numa linha (o caso comum). Statements que
 // se estendem por várias linhas físicas não são cobertas neste incremento.
 
-export type AttrKind = "fill" | "stroke" | "hatch" | "dash" | "thick";
+export type AttrKind =
+  | "fill"
+  | "stroke"
+  | "hatch"
+  | "hatchAngle"
+  | "hatchSep"
+  | "hatchColor"
+  | "dash"
+  | "thick"
+  | "bold"
+  | "italic"
+  | "font"
+  | "fontsize"
+  | "align"
+  | "vpos";
 
 function fmtNum(n: number): string {
   return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)));
@@ -23,10 +37,28 @@ function attrSpec(kind: AttrKind, value: string | number | undefined): { re: Reg
       return { re: /\s*\boutlined\s+"(?:[^"\\]|\\.)*"/g, add: value ? `outlined "${value}"` : "" };
     case "hatch":
       return { re: /\s*\b(?:crosshatch|hatch)\b/g, add: value ? String(value) : "" };
+    case "hatchAngle":
+      return { re: /\s*\bhatchangle\s+-?[\d.]+/g, add: value != null && value !== "" ? `hatchangle ${fmtNum(Number(value))}` : "" };
+    case "hatchSep":
+      return { re: /\s*\bhatchsep\s+[\d.]+/g, add: value != null && value !== "" ? `hatchsep ${fmtNum(Number(value))}` : "" };
+    case "hatchColor":
+      return { re: /\s*\bhatchcolor\s+"(?:[^"\\]|\\.)*"/g, add: value ? `hatchcolor "${value}"` : "" };
     case "dash":
       return { re: /\s*\b(?:dashed|dotted)\b/g, add: value ? String(value) : "" };
     case "thick":
       return { re: /\s*\bthick\s+[\d.]+/g, add: value != null && value !== "" ? `thick ${fmtNum(Number(value))}` : "" };
+    case "bold":
+      return { re: /\s*\bbold\b/g, add: value ? "bold" : "" };
+    case "italic":
+      return { re: /\s*\bitalic\b/g, add: value ? "italic" : "" };
+    case "font":
+      return { re: /\s*\bfont\s+"(?:[^"\\]|\\.)*"/g, add: value ? `font "${value}"` : "" };
+    case "fontsize":
+      return { re: /\s*\bfontsize\s+[\d.]+/g, add: value != null && value !== "" ? `fontsize ${fmtNum(Number(value))}` : "" };
+    case "align":
+      return { re: /\s*\b(?:ljust|rjust)\b/g, add: value ? String(value) : "" };
+    case "vpos":
+      return { re: /\s*\b(?:above|below)\b/g, add: value ? String(value) : "" };
   }
 }
 
@@ -75,8 +107,17 @@ export interface ObjectAttrs {
   fill?: string;
   stroke?: string;
   hatch?: "hatch" | "crosshatch";
+  hatchAngle?: number;
+  hatchSep?: number;
+  hatchColor?: string;
   dash?: "dashed" | "dotted";
   thick?: number;
+  bold?: boolean;
+  italic?: boolean;
+  font?: string;
+  fontsize?: number;
+  align?: "ljust" | "rjust";
+  vpos?: "above" | "below";
 }
 
 /** Lê os atributos GERENCIÁVEIS da statement em (line, col) — p/ o inspetor do
@@ -100,5 +141,21 @@ export function readObjectAttrs(source: string, line: number, col: number | unde
   if (dash) out.dash = dash[1] as "dashed" | "dotted";
   const thick = /\bthick\s+([\d.]+)/.exec(stmt);
   if (thick) out.thick = +thick[1];
+  const hAngle = /\bhatchangle\s+(-?[\d.]+)/.exec(stmt);
+  if (hAngle) out.hatchAngle = +hAngle[1];
+  const hSep = /\bhatchsep\s+([\d.]+)/.exec(stmt);
+  if (hSep) out.hatchSep = +hSep[1];
+  const hColor = /\bhatchcolor\s+"((?:[^"\\]|\\.)*)"/.exec(stmt);
+  if (hColor) out.hatchColor = hColor[1];
+  if (/\bbold\b/.test(stmt)) out.bold = true;
+  if (/\bitalic\b/.test(stmt)) out.italic = true;
+  const font = /\bfont\s+"((?:[^"\\]|\\.)*)"/.exec(stmt);
+  if (font) out.font = font[1];
+  const fsize = /\bfontsize\s+([\d.]+)/.exec(stmt);
+  if (fsize) out.fontsize = +fsize[1];
+  const align = /\b(ljust|rjust)\b/.exec(stmt);
+  if (align) out.align = align[1] as "ljust" | "rjust";
+  const vpos = /\b(above|below)\b/.exec(stmt);
+  if (vpos) out.vpos = vpos[1] as "above" | "below";
   return out;
 }
