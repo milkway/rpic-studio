@@ -107,8 +107,10 @@ topbar; escolha em `rpic:locale.v1`. Conteúdo estruturado (exemplos, ajuda) car
 - **Google Fonts** (`appearance.ts`): catálogo curado, valor guardado como `g:Família`, carregado
   sob demanda pelo endpoint CSS keyless (`fonts.googleapis.com/css2`) via `ensureGoogleFont`. Em
   produção com CSP, liberar `fonts.googleapis.com` (style-src) e `fonts.gstatic.com` (font-src).
-  **Por objeto**: o inspetor de estilo lista as Google Fonts e grava a família crua em `font "Família"`
-  na linha; `useEnsureObjectFonts(source)` (hook) fareja os `font "…"` do código e carrega no browser
+  **Por objeto**: o inspetor de estilo usa o `ObjectFontPicker` (Popover com busca + cada nome
+  RENDERIZADO na própria fonte, lazy-load das Google via IntersectionObserver — mesma UX do
+  `TypefacePicker` do Defaults) e grava a família crua em `font "Família"` na linha;
+  `useEnsureObjectFonts(source)` (hook) fareja os `font "…"` do código e carrega no browser
   (senão o `<text font-family>` cai na genérica). Métrica é best-effort (o WASM não conhece a webfont
   → largura aproximada, pode cortar); o render server-side (`google_font`) tem métrica exata.
 - **Variáveis GLOBAIS** (`picDefaults.ts`, menu Defaults): `box/ellipse/circle/arc` dims, `linewid/

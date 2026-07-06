@@ -64,7 +64,9 @@ test("Google Font por objeto: escreve `font \"…\"` e aplica no SVG", async ({ 
   await loadDraft(page, '"Hello" at (1,-1)');
   await page.getByTestId("objects-handle").first().click();
   await expect(page.getByTestId("objects-font")).toBeVisible({ timeout: 5_000 });
-  await page.getByTestId("objects-font").selectOption("Pacifico");
+  await page.getByTestId("objects-font").click(); // abre o picker (nomes na própria fonte)
+  await page.getByTestId("objects-font-search").fill("Pacifico");
+  await page.getByTestId("objects-font-Pacifico").click();
   await expect(page.getByTestId("code-pane")).toContainText('font "Pacifico"', { timeout: 5_000 });
   // a família é aplicada no <text> do SVG e a Google Font é carregada no browser
   await expect(page.locator('[data-testid="preview-stage"] svg text[font-family="Pacifico"]')).toBeVisible({ timeout: 5_000 });
