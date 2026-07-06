@@ -51,6 +51,18 @@ describe("setObjectAttr", () => {
     expect(setObjectAttr(src, 2, 1, "fill", "gray")).toBe('box "A"\ncircle "B" shaded "gray"\nellipse "C"');
   });
 
+  it("escreve DENTRO do bloco de um define (antes do }) — não corrompe", () => {
+    const src = "define node { circle rad 0.18 $1 }";
+    // col 15 (1-based) = a palavra `circle` dentro do bloco
+    expect(setObjectAttr(src, 1, 15, "hatch", "hatch")).toBe("define node { circle rad 0.18 $1 hatch}");
+  });
+
+  it("no corpo de um for, para no `;` (não vaza pra próxima statement)", () => {
+    const src = "for i = 1 to 4 do { arrow wid 0.4; node(i) }";
+    // col 21 (1-based) = `arrow`
+    expect(setObjectAttr(src, 1, 21, "fill", "red")).toBe('for i = 1 to 4 do { arrow wid 0.4 shaded "red"; node(i) }');
+  });
+
   it("não altera nada com linha inválida", () => {
     expect(setObjectAttr("box", 9, 1, "fill", "red")).toBe("box");
   });

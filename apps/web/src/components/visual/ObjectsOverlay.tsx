@@ -44,22 +44,20 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
   const [sel, setSel] = useState<string | null>(null);
   const boxesRef = useRef<OBox[]>([]);
   const selBox = boxes.find((b) => b.id === sel);
-  // Um objeto só é estilizável COM SEGURANÇA se a sua (line,col) for ÚNICA e a
-  // linha NÃO fizer parte de um bloco `{…}`. Macros (`define`) e laços (`for`)
-  // expandem UMA statement em VÁRIOS objetos — todos apontando pra mesma posição,
-  // dentro do bloco; escrever o atributo ali corromperia o código (ex.: anexar
-  // `hatch` depois do `}` do define → erro de sintaxe). Nesse caso só deixa
-  // SELECIONAR + pular pro código (editar de fato fica no editor).
-  const editable = (() => {
+  // Estiliza escrevendo o atributo NA STATEMENT do objeto (`setObjectAttr` acha o
+  // fim, agora respeitando `}` de bloco). Macros (`define`)/laços (`for`) expandem
+  // UMA statement em VÁRIOS objetos, todos na MESMA (line,col) dentro do bloco →
+  // o atributo entra no bloco e vale p/ TODAS as instâncias: nesse caso mostra um
+  // AVISO. Detecção: (line,col) compartilhada por >1 objeto, ou a linha tem `{`/`}`.
+  const canStyle = !!(onSourceChange && source && selBox?.line);
+  const affectsAll = (() => {
     if (!source || !selBox?.line) return false;
     const key = `${selBox.line}:${selBox.col ?? ""}`;
     let count = 0;
     for (const o of objects) if (!o.file && o.bbox && `${o.line}:${o.col ?? ""}` === key) count++;
-    if (count !== 1) return false;
-    const lineText = source.split("\n")[selBox.line - 1] ?? "";
-    return !/[{}]/.test(lineText);
+    if (count > 1) return true;
+    return /[{}]/.test(source.split("\n")[selBox.line - 1] ?? "");
   })();
-  const canStyle = !!(onSourceChange && source && selBox?.line && editable);
   const attrs = canStyle ? readObjectAttrs(source!, selBox!.line!, selBox!.col) : {};
   const setAttr = (kind: AttrKind, value: string | number | undefined) => {
     if (!canStyle) return;
@@ -152,7 +150,7 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
           className="pointer-events-auto absolute top-2 right-2 w-52 rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) p-3 shadow-lg"
           data-testid="objects-inspector"
         >
-          <div className={cn("flex items-baseline justify-between", canStyle && "mb-2")}>
+          <div className="mb-2 flex items-baseline justify-between">
             <span className="font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
               {selBox.kind}
             </span>
@@ -164,10 +162,13 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
               {t("visual.objectsLine", { line: String(selBox.line) })} ↦
             </button>
           </div>
-          {/* Objeto de macro/loop: não dá pra estilizar sem corromper — orienta. */}
-          {!canStyle && (
-            <p className="mt-1 text-xs text-(--color-text-body)" data-testid="objects-macro-note">
-              {t("visual.inspector.macroNote")}
+          {/* Macro/laço: o estilo entra no bloco e vale p/ TODAS as instâncias. */}
+          {affectsAll && (
+            <p
+              className="mb-2 rounded-(--radius-sm) bg-(--color-surface-muted) px-2 py-1 text-[11px] leading-tight text-(--color-warning)"
+              data-testid="objects-affects-all"
+            >
+              {t("visual.inspector.affectsAll")}
             </p>
           )}
           {canStyle && (
@@ -244,9 +245,17 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
               { v: 0.15, el: "15" },
             ]}
           />
-          {/* Dimensões (em polegadas; vazio = automático). Box/ellipse: larg×alt;
+          {/* Dimensões (em polegadas; vazio = automático). Box: larg×alt + raio
+              dos CANTOS (`box rad N` = cantos arredondados); ellipse: larg×alt;
               círculo: raio. Escritas como wid/ht/rad na linha do objeto. */}
-          {(selBox.kind === "box" || selBox.kind === "ellipse") && (
+          {selBox.kind === "box" && (
+            <Dimensions>
+              <NumInput label="L" title={t("visual.inspector.width")} value={attrs.wid} onSet={(v) => setAttr("wid", v)} testid="objects-wid" />
+              <NumInput label="A" title={t("visual.inspector.height")} value={attrs.ht} onSet={(v) => setAttr("ht", v)} testid="objects-ht" />
+              <NumInput label="⌜" title={t("visual.inspector.corner")} value={attrs.rad} onSet={(v) => setAttr("rad", v)} testid="objects-rad" />
+            </Dimensions>
+          )}
+          {selBox.kind === "ellipse" && (
             <Dimensions>
               <NumInput label="L" title={t("visual.inspector.width")} value={attrs.wid} onSet={(v) => setAttr("wid", v)} testid="objects-wid" />
               <NumInput label="A" title={t("visual.inspector.height")} value={attrs.ht} onSet={(v) => setAttr("ht", v)} testid="objects-ht" />

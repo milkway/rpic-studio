@@ -81,13 +81,16 @@ function attrSpec(kind: AttrKind, value: string | number | undefined): { re: Reg
 }
 
 /** Fim (exclusivo) da statement que começa em `start` na linha: o próximo `;`
- *  fora de aspas, ou o fim da linha. */
+ *  OU `}` (fim de bloco `define`/`for`/`if`) fora de aspas, ou o fim da linha.
+ *  Parar no `}` é o que permite escrever DENTRO do bloco de um macro/laço (o
+ *  atributo entra antes do `}`, aplicando a todas as instâncias) em vez de
+ *  depois dele (que seria erro de sintaxe). */
 function statementEnd(text: string, start: number): number {
   let inQuote = false;
   for (let i = start; i < text.length; i++) {
     const c = text[i];
     if (c === '"' && text[i - 1] !== "\\") inQuote = !inQuote;
-    else if (c === ";" && !inQuote) return i;
+    else if ((c === ";" || c === "}") && !inQuote) return i;
   }
   return text.length;
 }

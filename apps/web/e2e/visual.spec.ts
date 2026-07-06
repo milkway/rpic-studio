@@ -75,21 +75,23 @@ test("Google Font por objeto: escreve `font \"…\"` e aplica no SVG", async ({ 
     .toBe(true);
 });
 
-test("objeto de macro/loop: não estiliza (avisa p/ editar no código, sem corromper)", async ({
+test("objeto de macro/loop: estiliza DENTRO do bloco (avisa que vale p/ todas)", async ({
   page,
 }) => {
-  // O `circle` do macro é expandido em vários objetos, todos apontando pra
-  // MESMA (line,col) dentro do bloco `define { … }` → estilizar corromperia.
+  // O `circle` do macro vira vários objetos na MESMA (line,col) dentro do bloco
+  // `define { … }` → estilizar escreve no bloco e vale p/ TODAS as instâncias.
   await loadDraft(
     page,
     '.PS\ndefine node { circle rad 0.18 $1 }\nnode("A")\nfor i = 1 to 4 do { arrow wid 0.4; node(sprintf("%g", i)) }\n.PE',
   );
   await page.getByTestId("objects-handle").first().click();
   await expect(page.getByTestId("objects-inspector")).toBeVisible({ timeout: 5_000 });
-  // mostra o aviso, e NÃO os controles de estilo (nada de FILL)
-  await expect(page.getByTestId("objects-macro-note")).toBeVisible();
-  await expect(page.getByTestId("objects-inspector").getByText("FILL")).toHaveCount(0);
-  // o código segue compilando (nada foi escrito no bloco do define)
+  // mostra o AVISO de que afeta todas + os controles de estilo (FILL presente)
+  await expect(page.getByTestId("objects-affects-all")).toBeVisible();
+  await expect(page.getByTestId("objects-inspector").getByText("FILL")).toBeVisible();
+  // aplicar hatch entra no bloco do define (antes do `}`) e segue compilando
+  await page.getByTestId("objects-inspector").getByText("▧", { exact: true }).click();
+  await expect(page.getByTestId("code-pane")).toContainText("circle rad 0.18 $1 hatch}", { timeout: 5_000 });
   await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok");
 });
 

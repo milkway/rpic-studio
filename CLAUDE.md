@@ -62,10 +62,12 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   (`objects-deselect`). O inspetor escreve o atributo NA STATEMENT do objeto via
   `setObjectAttr(source, line, col, kind, value)` (`lib/objectEdit.ts`): acha o fim da statement
   (próximo `;` fora de aspas ou fim de linha) e SUBSTITUI/ANEXA; `readObjectAttrs` lê o estado atual.
-  GUARD: objetos de **macro (`define`)/laço (`for`)** apontam vários p/ a MESMA `(line,col)` DENTRO de
-  um bloco `{…}` — escrever ali corromperia o código (ex.: `hatch` depois do `}` → erro). O inspetor
-  só estiliza quando a `(line,col)` é ÚNICA e a linha não tem `{`/`}`; senão mostra
-  `objects-macro-note` (seleção + pular-pro-código seguem, editar é no código).
+  `statementEnd` para no `;` OU no `}` (fim de bloco) — por isso o atributo de um objeto de **macro
+  (`define`)/laço (`for`)** entra DENTRO do bloco (antes do `}`), valendo p/ TODAS as instâncias, em
+  vez de depois do `}` (que seria erro). Detecção (`affectsAll`): a `(line,col)` é compartilhada por
+  >1 objeto OU a linha tem `{`/`}` → o inspetor mostra o aviso `objects-affects-all` mas ESTILIZA
+  normalmente. Dimensões: box tem larg/alt + **raio dos CANTOS** (`box rad N`, controle `⌜`); círculo
+  tem raio; elipse larg/alt.
   Atributos (o inspetor expõe TUDO que dá por elemento): `fill`/`stroke` (`shaded`/`outlined "…"` +
   cor livre `#rrggbb`), `hatch|crosshatch` (+ `hatchangle`/`hatchsep`/`hatchcolor`), `dashed|dotted`,
   `thick`, `rotated`, `opacity`, **dimensões** (`wid`/`ht` p/ box/ellipse, `rad` p/ círculo — campos
