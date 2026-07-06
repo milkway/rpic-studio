@@ -70,12 +70,16 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   `source`+`onSourceChange` fluem EditorPage→PreviewTabs→PreviewPane→overlay. `Seg`/`Swatches` em
   `visual/inspectorControls.tsx`; cores/fontes em `lib/palette.ts`. NÃO move nem REPOSICIONA (posição
   em pic pode ser relativa) — criar/posicionar fica no código, com **autocomplete** (`rpicCompletions`).
+- **Autocomplete do PIC** (`components/editor/rpicCompletions.ts`, ligado no `CodePane` via
+  `autocompletion({override})`): primitivas, direções, atributos, cores, variáveis, diretivas,
+  keywords pikchr-compat (0.7.1), NOMES de objetos já rotulados no doc (`from N1.e`) e macros de
+  circuito quando `copy "circuits"` está presente. Disparo por prefixo de palavra.
 - **Paleta de circuitos** (`components/editor/CircuitPalette.tsx` + `lib/circuitCatalog.ts`): menu no
   header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — 14
   macros circuit_macros com sintaxe de DOIS pontos nomeados (`resistor(A,B)`; centrados `ground(P)`),
   garante `copy "circuits"` idempotente (`ensureCircuitsCopy`) e nomes de ponto `Ckt{n}` sem colisão.
-  O `detectCircuits` já liga o flag sozinho. Inserir código foge do formato do `parsePic` → sem
-  overlay visual junto (esperado). O Popover fecha ao inserir.
+  O `detectCircuits` já liga o flag sozinho. O `ObjectsOverlay` (estilo) fica por cima do render dos
+  circuitos como de qualquer pic. O Popover fecha ao inserir.
 - **Render server-side** (`routes/render.rs`, `POST /api/render` → svg|png|pdf): pic é NÃO
   confiável (`IncludePolicy::Deny`), CPU-bound em `spawn_blocking`, math via `ensure_math()`.
   Param `google_font` restrito ao `GOOGLE_FONTS` allowlist (mitiga SSRF) e casa a fonte no
@@ -120,10 +124,15 @@ topbar; escolha em `rpic:locale.v1`. Conteúdo estruturado (exemplos, ajuda) car
 - **GitHub**: `milkway/rpic-studio` (PRIVADO). CI e `rpic-release-watch` ativos. Fazer `git push`
   junto de cada deploy para manter GitHub e produção alinhados.
 - **Produção**: studio.rpic.dev, via `./deploy.sh` (envia `git archive HEAD` por SSH — só o
-  versionado, INDEPENDENTE do GitHub; commitar antes de publicar). Stack isolada `rpic-studio`
-  (postgres/api internos, web em `127.0.0.1:8091`; `infra/docker-compose.prod.yml`), atrás de
-  nginx+certbot no host. O deploy roda gates, smoke e confirma que o `iqt-etl`/`explorer-iqt-etl`
-  e o painel-eleitoral-pe seguem `Up` — NÃO perturbar esses containers do servidor.
+  versionado, INDEPENDENTE do GitHub; commitar antes de publicar). Como `tar -x` NÃO apaga arquivos
+  deletados no git, o deploy `rm -rf apps packages db` no servidor ANTES de extrair (senão fontes
+  stale de componentes removidos quebram o `tsc`); `infra/` fica (guarda o `.env.prod`). Stack
+  isolada `rpic-studio` (postgres/api internos, web em `127.0.0.1:8091`;
+  `infra/docker-compose.prod.yml`), atrás de nginx+certbot no host. O deploy roda gates, smoke e
+  confirma que o `iqt-etl`/`explorer-iqt-etl` e o painel-eleitoral-pe seguem `Up` — NÃO perturbar
+  esses containers. CUIDADO: mudar a tag do rpic em `apps/api/Cargo.toml` faz a API RECOMPILAR o
+  `rpic-core`/`render` do zero (Rust, vários min > timeout do SSH) — rodar o `up --build` DESTACADO
+  (`nohup … &`) no servidor e monitorar até o container recriar.
 - Segredos (`GOOGLE_CLIENT_SECRET`) vivem só em `~/rpic-app/infra/.env.prod` no servidor; nada
   de segredo versionado (só `.env.example` com placeholders). Scripts que pedem sudo vão em
   `~/config-studio-rpic/` para o usuário rodar.
