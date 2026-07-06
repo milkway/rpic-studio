@@ -75,6 +75,24 @@ test("Google Font por objeto: escreve `font \"…\"` e aplica no SVG", async ({ 
     .toBe(true);
 });
 
+test("objeto de macro/loop: não estiliza (avisa p/ editar no código, sem corromper)", async ({
+  page,
+}) => {
+  // O `circle` do macro é expandido em vários objetos, todos apontando pra
+  // MESMA (line,col) dentro do bloco `define { … }` → estilizar corromperia.
+  await loadDraft(
+    page,
+    '.PS\ndefine node { circle rad 0.18 $1 }\nnode("A")\nfor i = 1 to 4 do { arrow wid 0.4; node(sprintf("%g", i)) }\n.PE',
+  );
+  await page.getByTestId("objects-handle").first().click();
+  await expect(page.getByTestId("objects-inspector")).toBeVisible({ timeout: 5_000 });
+  // mostra o aviso, e NÃO os controles de estilo (nada de FILL)
+  await expect(page.getByTestId("objects-macro-note")).toBeVisible();
+  await expect(page.getByTestId("objects-inspector").getByText("FILL")).toHaveCount(0);
+  // o código segue compilando (nada foi escrito no bloco do define)
+  await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok");
+});
+
 test("clicar no vazio deseleciona (fecha o inspetor)", async ({ page }) => {
   await loadDraft(page, 'box "A"');
   await page.getByTestId("objects-handle").first().click();

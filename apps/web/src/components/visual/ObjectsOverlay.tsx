@@ -44,8 +44,22 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
   const [sel, setSel] = useState<string | null>(null);
   const boxesRef = useRef<OBox[]>([]);
   const selBox = boxes.find((b) => b.id === sel);
-  // Estiliza a statement do objeto selecionado escrevendo o atributo na sua linha.
-  const canStyle = !!(onSourceChange && source && selBox?.line);
+  // Um objeto só é estilizável COM SEGURANÇA se a sua (line,col) for ÚNICA e a
+  // linha NÃO fizer parte de um bloco `{…}`. Macros (`define`) e laços (`for`)
+  // expandem UMA statement em VÁRIOS objetos — todos apontando pra mesma posição,
+  // dentro do bloco; escrever o atributo ali corromperia o código (ex.: anexar
+  // `hatch` depois do `}` do define → erro de sintaxe). Nesse caso só deixa
+  // SELECIONAR + pular pro código (editar de fato fica no editor).
+  const editable = (() => {
+    if (!source || !selBox?.line) return false;
+    const key = `${selBox.line}:${selBox.col ?? ""}`;
+    let count = 0;
+    for (const o of objects) if (!o.file && o.bbox && `${o.line}:${o.col ?? ""}` === key) count++;
+    if (count !== 1) return false;
+    const lineText = source.split("\n")[selBox.line - 1] ?? "";
+    return !/[{}]/.test(lineText);
+  })();
+  const canStyle = !!(onSourceChange && source && selBox?.line && editable);
   const attrs = canStyle ? readObjectAttrs(source!, selBox!.line!, selBox!.col) : {};
   const setAttr = (kind: AttrKind, value: string | number | undefined) => {
     if (!canStyle) return;
@@ -133,12 +147,12 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
       {/* Inspetor de ESTILO por-linha: escreve o atributo na statement do objeto
           (funciona sobre qualquer pic; não move/redimensiona — posição pode ser
           relativa). */}
-      {selBox && canStyle && (
+      {selBox && selBox.line && (
         <div
           className="pointer-events-auto absolute top-2 right-2 w-52 rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) p-3 shadow-lg"
           data-testid="objects-inspector"
         >
-          <div className="mb-2 flex items-baseline justify-between">
+          <div className={cn("flex items-baseline justify-between", canStyle && "mb-2")}>
             <span className="font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
               {selBox.kind}
             </span>
@@ -150,6 +164,14 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
               {t("visual.objectsLine", { line: String(selBox.line) })} ↦
             </button>
           </div>
+          {/* Objeto de macro/loop: não dá pra estilizar sem corromper — orienta. */}
+          {!canStyle && (
+            <p className="mt-1 text-xs text-(--color-text-body)" data-testid="objects-macro-note">
+              {t("visual.inspector.macroNote")}
+            </p>
+          )}
+          {canStyle && (
+          <>
           <Swatches title={t("visual.inspector.fill")} colors={FILL_COLORS} value={attrs.fill} onPick={(c) => setAttr("fill", c)} noneLabel={t("visual.none")} />
           <Swatches title={t("visual.inspector.stroke")} colors={STROKE_COLORS} value={attrs.stroke} onPick={(c) => setAttr("stroke", c)} noneLabel={t("visual.none")} />
           <Seg title={t("visual.inspector.hatch")} value={attrs.hatch} onPick={(v) => setAttr("hatch", v)} options={[{ v: undefined, el: "∅" }, { v: "hatch" as const, el: "▧" }, { v: "crosshatch" as const, el: "▦" }]} />
@@ -285,6 +307,8 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
               </div>
             )}
           </div>
+          </>
+          )}
         </div>
       )}
     </div>
