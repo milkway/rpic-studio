@@ -37,9 +37,8 @@ test("clicar no vazio deseleciona (fecha o inspetor)", async ({ page }) => {
   await page.getByTestId("visual-add-box").click();
   await page.getByTestId("visual-handle").first().click();
   await expect(page.getByTestId("visual-inspector")).toBeVisible({ timeout: 5_000 });
-  // clica numa área vazia do canvas (canto inferior esquerdo, longe do nó)
-  const canvas = (await page.getByTestId("preview-canvas").boundingBox())!;
-  await page.mouse.click(canvas.x + 24, canvas.y + canvas.height - 24);
+  // clica na camada de deselect (centro do canvas = vazio; o nó fica no topo-esq)
+  await page.getByTestId("visual-deselect").click();
   await expect(page.getByTestId("visual-inspector")).toHaveCount(0, { timeout: 5_000 });
 });
 
@@ -67,16 +66,18 @@ test("overlay universal: pic à mão (fora do formato) fica selecionável e pula
 test("overlay universal: estilizar por-linha escreve o atributo na linha do objeto", async ({
   page,
 }) => {
+  // COM um `move` (path invisível) → parseLoose rejeita → overlay universal
+  // (objects[]); o move tem altura 0, então o overlay não desenha alça pra ele.
   await page.evaluate(() =>
     localStorage.setItem(
       "rpic:draft.v1",
-      JSON.stringify({ source: 'box "A"\ncircle "B"', circuits: false, savedAt: "" }),
+      JSON.stringify({ source: 'box "A"\nmove\ncircle "B"', circuits: false, savedAt: "" }),
     ),
   );
   await page.reload();
   await page.waitForSelector('[data-testid="objects-handle"]', { timeout: 20_000 });
   await expect(page.getByTestId("objects-handle")).toHaveCount(2, { timeout: 5_000 });
-  await page.getByTestId("objects-handle").nth(1).click(); // circle "B" (linha 2)
+  await page.getByTestId("objects-handle").nth(1).click(); // circle "B" (linha 3)
   await expect(page.getByTestId("objects-inspector")).toBeVisible({ timeout: 5_000 });
   await page.getByTestId("objects-inspector").getByTitle("lightblue", { exact: true }).click();
   // escreveu `shaded` só na linha 2; a linha 1 (box "A") fica intacta
@@ -84,6 +85,24 @@ test("overlay universal: estilizar por-linha escreve o atributo na linha do obje
     timeout: 5_000,
   });
   await expect(page.getByTestId("code-pane")).toContainText('box "A"');
+});
+
+test("parseLoose: diagrama só-de-formas (fora do formato) vira grafo editável", async ({ page }) => {
+  // auto-fluxo, sem move/conector → parsePic estrito falha, mas parseLoose
+  // reconstrói via geometria → alças do GRAFO (arrastáveis), não o universal.
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "rpic:draft.v1",
+      JSON.stringify({ source: 'box "A"\ncircle "B"', circuits: false, savedAt: "" }),
+    ),
+  );
+  await page.reload();
+  await page.waitForSelector('[data-testid="visual-handle"]', { timeout: 20_000 });
+  await expect(page.getByTestId("visual-handle")).toHaveCount(2, { timeout: 5_000 });
+  // editar converte pro formato canônico (N1: box …) — agora é totalmente editável
+  await page.getByTestId("visual-handle").first().click();
+  await page.getByTestId("visual-label-input").fill("Alpha");
+  await expect(page.getByTestId("code-pane")).toContainText("N1: box", { timeout: 5_000 });
 });
 
 test("conectar da âncora .e do nó A ao nó B cria a seta N1.e -> N2.w", async ({ page }) => {

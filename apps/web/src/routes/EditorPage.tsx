@@ -11,7 +11,7 @@ import { PreviewTabs } from "@/components/preview/PreviewTabs";
 import { SaveDialog } from "@/components/dialogs/SaveDialog";
 import { DefaultsBar } from "@/components/editor/DefaultsBar";
 import { CircuitPalette } from "@/components/editor/CircuitPalette";
-import { DEFAULT_SIZE, graphToPic, growPage, parsePic, type Shape, type VGraph } from "@/lib/visualGraph";
+import { DEFAULT_SIZE, graphToPic, growPage, parseLoose, parsePic, type Shape, type VGraph } from "@/lib/visualGraph";
 import { type Tool } from "@/components/visual/VisualOverlay";
 import { applyDefaults, readDefaults } from "@/lib/picDefaults";
 import { insertCircuitElement, type CircuitElement } from "@/lib/circuitCatalog";
@@ -258,7 +258,13 @@ export function EditorPage() {
   }, []);
 
   // Grafo do editor visual, reconstruído do pic gerado (null = pic à mão).
-  const graph = useMemo(() => parsePic(doc.source), [doc.source]);
+  // Estrito primeiro (formato do editor); senão, reconstrução frouxa via
+  // geometria (diagramas só-de-formas fora do formato). `rpic.objects` (e o
+  // graph) atualizam juntos após o compile — a 1ª edição converte pro canônico.
+  const graph = useMemo(
+    () => parsePic(doc.source) ?? parseLoose(doc.source, rpic.objects),
+    [doc.source, rpic.objects],
+  );
 
   // Aplica um grafo: cresce a página (fixa o viewBox → sem reflow) e regenera o
   // pic PRESERVANDO o bloco de padrões do usuário.

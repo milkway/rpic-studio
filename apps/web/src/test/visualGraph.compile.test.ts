@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { ready } from "@strategicprojects/rpic";
 import { compile } from "@/lib/rpic";
-import { graphToPic, type VGraph } from "@/lib/visualGraph";
+import { graphToPic, parseLoose, type VGraph } from "@/lib/visualGraph";
 
 const require = createRequire(import.meta.url);
 
@@ -65,6 +65,25 @@ describe("alinhamento de rótulo (ljust/rjust/above/below) compila no WASM real"
     expect(out.svg).toMatch(/text-anchor="start"[^>]*>Left</);
     expect(out.svg).toMatch(/text-anchor="end"[^>]*>Right</);
     expect(out.svg).toMatch(/text-anchor="start"[^>]*>Combo</);
+  });
+
+  it("parseLoose: fluxo pic à mão → geometria real → grafo editável que recompila igual", () => {
+    // pic em AUTO-FLUXO (formas adjacentes, sem move/conector) — fora do formato
+    // do parsePic, mas só-de-formas → parseLoose reconstrói via geometria.
+    const src = '.PS\nbox "A"\ncircle "B"\nellipse "C"\n.PE';
+    const objects = (compile(src) as unknown as { objects: import("@/lib/visualGraph").LooseObject[] }).objects;
+    const g = parseLoose(src, objects)!;
+    expect(g).not.toBeNull();
+    expect(g.nodes.map((n) => n.shape)).toEqual(["box", "circle", "ellipse"]);
+    expect(g.nodes.map((n) => n.label)).toEqual(["A", "B", "C"]);
+    // layout relativo preservado: cada objeto à direita do anterior (x crescente)
+    expect(g.nodes[0].x).toBeLessThan(g.nodes[1].x);
+    expect(g.nodes[1].x).toBeLessThan(g.nodes[2].x);
+    // o pic canônico (após "converter" o à mão) recompila sem erro
+    const out = compile(graphToPic(g));
+    expect(out.svg).toContain("<svg");
+    expect(out.svg).toContain("</svg>");
+    for (const txt of ["A", "B", "C"]) expect(out.svg).toContain(txt);
   });
 
   it("hatch com ângulo/espaço/cor compila no WASM real", () => {

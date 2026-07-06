@@ -686,3 +686,71 @@ export function parsePic(source: string): VGraph | null {
     page,
   };
 }
+
+const LOOSE_SHAPE: Record<string, Shape> = { box: "box", circle: "circle", ellipse: "ellipse", text: "text" };
+
+/** Fim (exclusivo) da statement em `start`: o próximo `;` fora de aspas ou o fim. */
+function stmtEnd(text: string, start: number): number {
+  let q = false;
+  for (let i = start; i < text.length; i++) {
+    const c = text[i];
+    if (c === '"' && text[i - 1] !== "\\") q = !q;
+    else if (c === ";" && !q) return i;
+  }
+  return text.length;
+}
+
+/** O "miolo" de uma statement de forma: sem o `Nome:` (o `col` já aponta pro
+ *  token líder) e sem a palavra-chave (box/circle/ellipse; texto não tem). */
+function looseRun(text: string, col: number | undefined, kind: string): string {
+  const start = Math.max(0, (col ?? 1) - 1);
+  let s = text.slice(start, stmtEnd(text, start));
+  if (kind !== "text") s = s.replace(new RegExp(`^\\s*${kind}\\b`), "");
+  return s;
+}
+
+/**
+ * Reconstrução FROUXA a partir da geometria do compilador (`objects[]`), para
+ * editar visualmente pic FORA do formato do `parsePic` (ex.: posicionamento
+ * relativo `box; move; circle`). É **all-or-nothing e alinhada a `s{i}`**: só
+ * vale se TODO objeto for uma forma (box/circle/ellipse/text) com bbox e do
+ * próprio input (`file` ausente); qualquer conector/curva/objeto de `copy`
+ * devolve null (a direção de uma linha não é recuperável do bbox, e dropar algo
+ * corromperia o round-trip) — aí o overlay universal assume. Posições vêm do
+ * bbox (relativo ao conteúdo; o rpic re-recorta, então o absoluto não importa —
+ * só o layout relativo, que o bbox preserva). Na 1ª edição, `graphToPic`
+ * reescreve no formato canônico (o pic à mão é CONVERTIDO — comportamento aceito
+ * para tornar o diagrama arrastável).
+ */
+export function parseLoose(source: string, objects: LooseObject[]): VGraph | null {
+  if (!objects || objects.length === 0) return null;
+  const lines = source.split("\n");
+  const nodes: VNode[] = [];
+  for (let i = 0; i < objects.length; i++) {
+    const o = objects[i];
+    const shape = LOOSE_SHAPE[o.kind];
+    if (!shape || !o.bbox || o.file) return null; // não-forma / invisível / copy → aborta
+    const li = (o.line ?? 0) - 1;
+    const run = looseRun(li >= 0 && li < lines.length ? lines[li] : "", o.col, o.kind);
+    nodes.push({
+      id: `N${i + 1}`,
+      shape,
+      ...parseLabelSeg(run),
+      x: Math.round(o.bbox.x + o.bbox.w / 2),
+      y: Math.round(o.bbox.y + o.bbox.h / 2),
+      w: Math.round(o.bbox.w),
+      h: Math.round(o.bbox.h),
+      ...parseStyle(run),
+    });
+  }
+  return { nodes, edges: [], lines: [], page: growPage(nodes) };
+}
+
+/** Subconjunto de `ObjectGeometry` que o `parseLoose` usa (evita acoplar ao rpic). */
+export interface LooseObject {
+  kind: string;
+  bbox: { x: number; y: number; w: number; h: number } | null;
+  line?: number;
+  col?: number;
+  file?: string;
+}

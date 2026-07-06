@@ -55,8 +55,15 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   diagrama. O modelo é um grafo nós/arestas que **gera pic** (`graphToPic`, formato REGULAR:
   `N1: box "…" at (x,y)`, `arrow from N1.e to N2.w`). NÃO há blob embutido: o grafo é **reconstruído
   lendo o próprio pic** (`parsePic`) — código limpo, e sobrevive a draft/save/share/reload de graça.
-  `parsePic` retorna null para pic escrito à mão (fora do formato) → sem GRAFO editável (arrastar/
-  estilizar), mas aí entra o **overlay universal** (`components/visual/ObjectsOverlay.tsx`): sobre
+  `parsePic` retorna null para pic escrito à mão (fora do formato). Aí um 2º nível, `parseLoose(source,
+  objects)`, tenta reconstruir o GRAFO editável (arrastar) via GEOMETRIA do compilador: só vale p/
+  diagramas **só-de-formas** (box/circle/ellipse/text) SEM conector/move — é all-or-nothing e alinhado
+  a `s{i}` (qualquer `path`/`arc`/objeto de `copy`/bbox-nulo → null, pois a direção de uma linha não é
+  recuperável do bbox e dropar algo corromperia o round-trip). Posições vêm do bbox (relativo ao
+  conteúdo — o rpic re-recorta, o absoluto não importa; o layout relativo é exato). A 1ª edição
+  converte o pic à mão pro formato canônico. `EditorPage`: `parsePic(src) ?? parseLoose(src,
+  rpic.objects)`. Se AMBOS falham (tem conector, macro, etc.), entra o **overlay universal**
+  (`components/visual/ObjectsOverlay.tsx`): sobre
   QUALQUER pic que compile, usa `useRpic().objects[]` (bbox por `#s{i}`, `line/col`, `file`) p/ dar
   caixa selecionável por objeto + duplo-clique→linha do código. Só objetos do próprio input (`file`
   ausente) são interativos. **Estilo-por-linha** (`lib/objectEdit.ts`): o objeto selecionado ganha um

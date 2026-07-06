@@ -1,9 +1,11 @@
 import {
   graphToPic,
   growPage,
+  parseLoose,
   parsePic,
   pickSides,
   PX_PER_INCH,
+  type LooseObject,
   type VGraph,
   type VNode,
 } from "@/lib/visualGraph";
@@ -275,6 +277,44 @@ describe("estilos por objeto (Fase 2)", () => {
     expect(n.hatch).toBe("crosshatch");
     expect(n.dash).toBe("dashed");
     expect(n.thick).toBe(1.5);
+  });
+
+  it("parseLoose reconstrói diagrama só-de-formas via geometria (fora do formato)", () => {
+    const src = 'box "A"\ncircle "B"'; // auto-fluxo — parsePic estrito devolve null
+    expect(parsePic(src)).toBeNull();
+    const objects: LooseObject[] = [
+      { kind: "box", bbox: { x: 0, y: 0, w: 96, h: 48 }, line: 1, col: 1 },
+      { kind: "circle", bbox: { x: 200, y: 0, w: 58, h: 58 }, line: 2, col: 1 },
+    ];
+    const g = parseLoose(src, objects)!;
+    expect(g).not.toBeNull();
+    expect(g.nodes.map((n) => n.shape)).toEqual(["box", "circle"]);
+    expect(g.nodes.map((n) => n.label)).toEqual(["A", "B"]);
+    // centro = canto do bbox + metade; layout relativo preservado
+    expect(g.nodes[0]).toMatchObject({ x: 48, y: 24, w: 96, h: 48 });
+    expect(g.nodes[1]).toMatchObject({ x: 229, y: 29 });
+    // ids alinhados a s{i} (N1, N2) e vira pic canônico editável
+    expect(g.nodes.map((n) => n.id)).toEqual(["N1", "N2"]);
+    expect(graphToPic(g)).toMatch(/N1: box "A"/);
+  });
+
+  it("parseLoose ABORTA (null) com qualquer conector, objeto de copy ou sem bbox", () => {
+    const shape: LooseObject = { kind: "box", bbox: { x: 0, y: 0, w: 96, h: 48 }, line: 1, col: 1 };
+    // um conector (kind path) no meio → null (direção não recuperável do bbox)
+    expect(parseLoose("box\narrow\nbox", [shape, { kind: "path", bbox: { x: 0, y: 0, w: 50, h: 1 }, line: 2, col: 1 }, shape])).toBeNull();
+    // objeto de copy/circuits (file setado) → null (round-trip perderia)
+    expect(parseLoose("box", [{ ...shape, file: "circuits" }])).toBeNull();
+    // bbox nula (invisível) → null
+    expect(parseLoose("box", [{ kind: "box", bbox: null, line: 1, col: 1 }])).toBeNull();
+    // vazio → null
+    expect(parseLoose("", [])).toBeNull();
+  });
+
+  it("parseLoose lê estilo e ignora tokens de geometria no rótulo", () => {
+    const src = 'box "X" wid 1 ht 0.5 shaded "lightblue" at (1,-1)';
+    const g = parseLoose(src, [{ kind: "box", bbox: { x: 0, y: 0, w: 96, h: 48 }, line: 1, col: 1 }])!;
+    expect(g.nodes[0].label).toBe("X");
+    expect(g.nodes[0].fill).toBe("lightblue");
   });
 
   it("parâmetros de hatch (ângulo/espaço/cor) round-trippam", () => {
