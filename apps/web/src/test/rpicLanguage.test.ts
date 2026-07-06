@@ -51,4 +51,16 @@ describe("gramática rpic (porte do tmLanguage)", () => {
     expect(styleOf("resistor(A,B)", "resistor")).toBe("macroName");
     expect(styleOf("x = sprintf(\"%g\", i)", "sprintf")).toBe("builtinFunction");
   });
+
+  it("bloco de CSS custom: tokeniza o conteúdo dos # como CSS", () => {
+    const css = { inCss: true, brace: 0, afterColon: false };
+    const toks = tokenizeLine("# .svc rect { fill: #eef3ff; stroke-width: 1.4 }", css);
+    const styleOfCss = (text: string) => toks.find((t) => t.text === text)?.style;
+    expect(toks[0].style).toBe("comment"); // o prefixo `# ` fica cinza
+    expect(styleOfCss(".svc")).toBe("cssClass");
+    expect(styleOfCss("rect")).toBe("cssTag"); // seletor de elemento
+    expect(styleOfCss("fill")).toBe("cssProp"); // dentro do { } → propriedade
+    expect(styleOfCss("#eef3ff")).toBe("cssColor");
+    expect(styleOfCss("1.4")).toBe("number");
+  });
 });

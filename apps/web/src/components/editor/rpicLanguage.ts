@@ -38,7 +38,66 @@ export const rpicTags = {
   arrowop: Tag.define(t.operator),
 };
 
-function token(stream: StringStream): string | null {
+// Estado do tokenizer: o bloco de CSS custom (`# ── css (rpic studio) ──` …
+// `# ───`) é tokenizado como CSS de verdade — as linhas são COMENTÁRIOS pra o
+// rpic, mas o studio injeta esse CSS. `brace`/`afterColon` distinguem seletor ×
+// propriedade × valor.
+interface RpicState {
+  inCss: boolean;
+  brace: number;
+  afterColon: boolean;
+}
+const CSS_BEGIN = /css \(rpic studio\)/;
+const CSS_END = /^#\s*─+\s*$/;
+
+/** Tokeniza o conteúdo de uma linha `# …` DENTRO do bloco de CSS. */
+function cssToken(stream: StringStream, state: RpicState): string | null {
+  if (stream.sol()) {
+    stream.match(/^#\s?/); // prefixo de comentário → cinza
+    return "comment";
+  }
+  if (stream.eatSpace()) return null;
+  if (stream.match(/^\/\*[^]*?(?:\*\/|$)/)) return "comment";
+  if (stream.match(/^"(?:\\.|[^"\\])*"?/) || stream.match(/^'(?:\\.|[^'\\])*'?/)) return "string";
+  if (stream.match(/^@[\w-]+/)) return "cssAt";
+  if (stream.match(/^#[0-9a-fA-F]{3,8}\b/)) return "cssColor";
+  if (stream.match(/^\.-?[\w-]+/) || stream.match(/^#-?[\w-]+/)) return "cssClass";
+  if (stream.match(/^-?(?:\d+\.?\d*|\.\d+)(?:px|em|rem|ex|ch|vw|vh|vmin|vmax|deg|rad|turn|fr|pt|pc|cm|mm|in|ms|s|%)?/))
+    return "number";
+  if (stream.match(/^[\w-]+/)) {
+    if (state.brace === 0) return "cssTag"; // seletor de elemento / nome de @keyframes
+    return state.afterColon ? "cssKeyword" : "cssProp"; // valor × propriedade
+  }
+  const ch = stream.next();
+  if (ch === "{") {
+    state.brace++;
+    state.afterColon = false;
+  } else if (ch === "}") {
+    state.brace = Math.max(0, state.brace - 1);
+    state.afterColon = false;
+  } else if (ch === ":") state.afterColon = true;
+  else if (ch === ";") state.afterColon = false;
+  return "operator";
+}
+
+function token(stream: StringStream, state: RpicState): string | null {
+  // Fronteiras do bloco de CSS (linhas-marcador).
+  if (stream.sol()) {
+    if (!state.inCss && CSS_BEGIN.test(stream.string)) {
+      state.inCss = true;
+      state.brace = 0;
+      state.afterColon = false;
+      stream.skipToEnd();
+      return "comment";
+    }
+    if (state.inCss && CSS_END.test(stream.string)) {
+      state.inCss = false;
+      stream.skipToEnd();
+      return "comment";
+    }
+  }
+  if (state.inCss) return cssToken(stream, state);
+
   if (stream.eatSpace()) return null;
   if (stream.match(RE.comment)) return "comment";
   if (stream.match(RE.string)) return "string";
@@ -60,8 +119,9 @@ function token(stream: StringStream): string | null {
   return null;
 }
 
-const parser = StreamLanguage.define({
+const parser = StreamLanguage.define<RpicState>({
   name: "rpic",
+  startState: () => ({ inCss: false, brace: 0, afterColon: false }),
   token,
   languageData: {
     commentTokens: { line: "#" },
@@ -83,6 +143,13 @@ const parser = StreamLanguage.define({
     number: t.number,
     arrowop: rpicTags.arrowop,
     operator: t.operator,
+    // CSS dentro do bloco de comentário
+    cssAt: t.definitionKeyword,
+    cssColor: t.color,
+    cssClass: t.className,
+    cssProp: t.propertyName,
+    cssKeyword: t.keyword,
+    cssTag: t.tagName,
   },
 });
 
@@ -90,13 +157,17 @@ export function rpicLanguage(): LanguageSupport {
   return new LanguageSupport(parser);
 }
 
-/** Tokeniza uma linha isolada — usado nos testes da gramática. */
-export function tokenizeLine(line: string): { text: string; style: string | null }[] {
+/** Tokeniza uma linha isolada — usado nos testes da gramática. `state` opcional
+ *  permite testar o modo CSS (ex.: `{ inCss: true, brace: 0, afterColon: false }`). */
+export function tokenizeLine(
+  line: string,
+  state: RpicState = { inCss: false, brace: 0, afterColon: false },
+): { text: string; style: string | null }[] {
   const stream = new StringStream(line, 4, 2);
   const out: { text: string; style: string | null }[] = [];
   while (!stream.eol()) {
     stream.start = stream.pos;
-    const style = token(stream);
+    const style = token(stream, state);
     const text = line.slice(stream.start, stream.pos);
     if (text.trim()) out.push({ text, style });
   }

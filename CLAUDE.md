@@ -130,6 +130,10 @@ topbar; escolha em `rpic:locale.v1`. Conteúdo estruturado (exemplos, ajuda) car
   após o `<svg>` (o DOMPurify preserva `class` E `<style>`). Aplicado no `bakedSvg` → preview + exports
   .svg/clipboard/png-cliente (o render SERVER-SIDE não reflete, usa o pic cru + resvg). Seletores: box
   = `.cls rect`/`.cls text`; conector = `.cls path`/`.cls polygon`. Exemplo "CSS classes (pulsing)".
+  O `rpicLanguage` (StreamLanguage) tem estado `inCss` que, entre os marcadores, tokeniza o conteúdo
+  dos `#` como CSS (tags `cssProp`/`cssClass`/`cssColor`/`cssTag`/`cssAt`/`cssKeyword`) → o CSS fica
+  colorido TAMBÉM no code pane. Editar o CSS direto nos comentários (mantendo o `# `) atualiza o
+  preview ao vivo (`bakedSvg` depende de `readCss(doc.source)`).
 - **PNG export**: fontes web em SVG-dentro-de-`<img>` são best-effort (o browser pode cair na
   genérica); preview, .svg e clipboard-SVG carregam a fonte com fidelidade.
 - **Variáveis pic** (`scale`, `boxwid`, `linethick`…) NÃO são aparência — mudam geometria. Vão no
