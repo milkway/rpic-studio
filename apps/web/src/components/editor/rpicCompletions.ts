@@ -1,0 +1,54 @@
+// Autocomplete do rpic (pic) para o CodeMirror. Sugere primitivas, direções,
+// atributos, cores, diretivas, nomes de objetos JÁ definidos no documento
+// (p/ `from N1.e`) e macros de circuito quando `copy "circuits"` está presente.
+import { type Completion, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
+import { CIRCUIT_ELEMENTS } from "@/lib/circuitCatalog";
+import { FILL_COLORS, STROKE_COLORS } from "@/lib/palette";
+
+function group(labels: string[], type: string, detail: string): Completion[] {
+  return labels.map((label) => ({ label, type, detail }));
+}
+
+// Estáticas — não dependem do documento (montadas uma vez).
+const STATIC: Completion[] = [
+  ...group(["box", "circle", "ellipse", "line", "arrow", "spline", "arc", "move", "dot", "text"], "keyword", "forma"),
+  ...group(["right", "left", "up", "down", "then", "same"], "keyword", "direção"),
+  ...group(["wid", "ht", "rad", "diam", "at", "from", "to", "with", "chop", "fit", "invis"], "property", "atributo"),
+  ...group(
+    ["shaded", "outlined", "colored", "color", "fill", "hatch", "crosshatch", "hatchangle", "hatchsep", "hatchcolor", "hatchwid", "dashed", "dotted", "thick", "opacity"],
+    "property",
+    "estilo",
+  ),
+  ...group(["bold", "italic", "font", "fontsize", "ljust", "rjust", "above", "below", "rotated"], "property", "texto"),
+  { label: ".PS", type: "keyword", detail: "início do diagrama" },
+  { label: ".PE", type: "keyword", detail: "fim do diagrama" },
+  { label: "canvas", type: "keyword", detail: "página de tamanho fixo" },
+  { label: 'copy "circuits"', type: "keyword", detail: "carrega a biblioteca de circuitos" },
+  { label: "define", type: "keyword", detail: "macro reutilizável" },
+  ...group(["scale", "boxwid", "boxht", "circlerad", "linethick", "arrowht", "arrowwid"], "variable", "variável pic"),
+  ...group([...FILL_COLORS, ...STROKE_COLORS], "constant", "cor"),
+];
+
+const CIRCUIT: Completion[] = CIRCUIT_ELEMENTS.map((e) => ({
+  label: e.id,
+  type: "function",
+  detail: `circuito · ${e.label.en}`,
+  apply: `${e.id}(`,
+}));
+
+/** Fonte de completions (registrada via `autocompletion({ override })`). */
+export function rpicCompletions(context: CompletionContext): CompletionResult | null {
+  const word = context.matchBefore(/[\w.]+/);
+  if (!context.explicit && (!word || word.from === word.to)) return null;
+
+  const text = context.state.doc.toString();
+  // nomes de objetos já rotulados (`Nome:`) — p/ referências `from Nome.lado`
+  const names = new Set<string>();
+  for (const m of text.matchAll(/^\s*([A-Za-z]\w*)\s*:/gm)) names.add(m[1]);
+  const nameOpts: Completion[] = [...names].map((n) => ({ label: n, type: "variable", detail: "objeto" }));
+
+  const circuitsOn = /copy\s+"circuits"/.test(text);
+  const options = [...STATIC, ...nameOpts, ...(circuitsOn ? CIRCUIT : [])];
+
+  return { from: word ? word.from : context.pos, options, validFor: /^[\w.]*$/ };
+}

@@ -12,6 +12,8 @@ import {
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { bracketMatching } from "@codemirror/language";
 import { lintGutter, setDiagnostics, type Diagnostic } from "@codemirror/lint";
+import { autocompletion, completionKeymap } from "@codemirror/autocomplete";
+import { rpicCompletions } from "./rpicCompletions";
 import { rpicLanguage } from "./rpicLanguage";
 import { rpicEditorTheme } from "./rpicTheme";
 import type { ErrorInfo } from "@/lib/errorInfo";
@@ -83,7 +85,8 @@ export const CodePane = forwardRef<CodePaneHandle, CodePaneProps>(function CodeP
           dropCursor(),
           history(),
           bracketMatching(),
-          keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+          autocompletion({ override: [rpicCompletions], icons: false }),
+          keymap.of([...defaultKeymap, ...historyKeymap, ...completionKeymap, indentWithTab]),
           rpicLanguage(),
           themeCompartment.of(rpicEditorTheme(initialDarkRef.current)),
           EditorView.lineWrapping,
