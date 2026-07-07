@@ -22,6 +22,19 @@ const STATIC: Completion[] = [
     "estilo",
   ),
   ...group(["bold", "italic", "font", "fontsize", "ljust", "rjust", "above", "below", "rotated"], "property", "texto"),
+  // animação (extensão animate — rpic 0.8.x)
+  { label: "animate", type: "keyword", detail: "animação" },
+  ...group(
+    ["with", "along", "into", "out", "stagger", "for", "at", "after", "delay", "repeat", "yoyo", "ease", "scroll"],
+    "property",
+    "animação",
+  ),
+  ...(["pop", "fade", "draw", "slide", "move", "highlight", "morph"] as const).map((e) => ({
+    label: `"${e}"`,
+    type: "constant",
+    detail: "efeito de animação",
+    apply: `"${e}"`,
+  })),
   { label: ".PS", type: "keyword", detail: "início do diagrama" },
   { label: ".PE", type: "keyword", detail: "fim do diagrama" },
   { label: "canvas", type: "keyword", detail: "página de tamanho fixo" },

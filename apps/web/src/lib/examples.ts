@@ -82,6 +82,44 @@ export const examples: Example[] = [
     source: WELCOME_SOURCES.en,
   },
   {
+    id: "dataflow",
+    title: { en: "Data flow (slide · move · loop)", pt: "Fluxo de dados (slide · move · laço)" },
+    description: {
+      en: "The 0.8 effects: boxes slide in, a token travels along the wire, the source pulses forever.",
+      pt: "Os efeitos da 0.8: as caixas entram deslizando, um token viaja pelo fio e a origem pulsa sem parar.",
+    },
+    tags: ["animation", "extensions"],
+    circuits: false,
+    source: `.PS
+margin = 0.25
+Src: box "source" fit fill 0.95
+arrow right 1.9
+Dst: box "sink" fit fill 0.95
+Tok: dot at 1st arrow.start rad 0.08 colored "crimson"
+animate Src with "slide" from left for 0.5
+animate Dst with "slide" from right for 0.5 after Src
+animate 1st arrow with "draw" for 0.7 after Dst
+animate Tok with "move" along 1st arrow for 1.2 after 1st arrow repeat -1
+animate Src with "highlight" to "crimson" for 0.6 repeat -1 yoyo
+.PE`,
+  },
+  {
+    id: "morph",
+    title: { en: "Morph (box ⇄ circle)", pt: "Morph (caixa ⇄ círculo)" },
+    description: {
+      en: "The morph effect tweens one shape's outline into another's, looping with yoyo.",
+      pt: "O efeito morph transforma o contorno de uma forma no de outra, em laço com yoyo.",
+    },
+    tags: ["animation", "extensions"],
+    circuits: false,
+    source: `.PS
+margin = 0.3
+A: box "shape" fit at (0,0)
+B: circle rad 0.4 at A invis
+animate A with "morph" into B for 1.0 repeat -1 yoyo ease "power2.inOut"
+.PE`,
+  },
+  {
     id: "pipeline",
     title: { en: "Kernighan's pipeline", pt: "Pipeline do Kernighan" },
     description: {

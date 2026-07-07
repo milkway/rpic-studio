@@ -131,6 +131,30 @@ export function AppShell({ actions, children }: AppShellProps) {
         </div>
       </header>
       <main className="min-h-0 flex-1">{children}</main>
+      <AppFooter />
     </div>
+  );
+}
+
+/** Barra de status fina no rodapé: versão do studio + do motor rpic. */
+function AppFooter() {
+  const { t } = useI18n();
+  return (
+    <footer className="flex h-6 shrink-0 items-center justify-end gap-2 border-t border-(--color-border) bg-(--color-surface) px-4 text-[11px] leading-none text-(--color-text-muted)">
+      <span className="tabular-nums">
+        <span className="font-medium">rpic studio</span> v{__APP_VERSION__}
+        <span className="mx-1.5 text-(--color-border)">·</span>
+        {t("footer.engine")} rpic v{__RPIC_VERSION__}
+      </span>
+      <span className="text-(--color-border)">·</span>
+      <a
+        href={`https://github.com/milkway/rpic-lang/releases/tag/v${__RPIC_VERSION__}`}
+        target="_blank"
+        rel="noreferrer"
+        className="transition-colors hover:text-(--color-text)"
+      >
+        {t("footer.changelog")}
+      </a>
+    </footer>
   );
 }

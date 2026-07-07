@@ -84,14 +84,21 @@ const sections: Section[] = [
   {
     title: { en: "Animation (rpic extension)", pt: "Animação (extensão rpic)" },
     intro: {
-      en: "animate builds a GSAP timeline played in the preview. Effects: draw (stroke-on), fade, pop.",
-      pt: "animate gera uma timeline GSAP tocada no preview. Efeitos: draw (traça), fade, pop.",
+      en: "animate builds a GSAP timeline played in the preview. Effects: draw, fade, pop, slide, move, highlight, morph.",
+      pt: "animate gera uma timeline GSAP tocada no preview. Efeitos: draw, fade, pop, slide, move, highlight, morph.",
     },
     rows: [
       ['animate 1st box with "pop" for 0.4', { en: "effect with a duration", pt: "efeito com duração" }],
       ['animate 1st arrow with "draw" after 1st box', { en: "chains after another object", pt: "encadeia após outro objeto" }],
       ['animate 2nd box with "fade" at 1.2', { en: "starts at an absolute time", pt: "início em tempo absoluto" }],
       ['animate last circle with "pop" delay 0.3', { en: "extra delay", pt: "atraso extra" }],
+      ['animate B with "slide" from left', { en: "slide in from a direction", pt: "entra deslizando de uma direção" }],
+      ['animate D with "move" along L', { en: "travel along a line/arrow path", pt: "viaja pela linha/seta (caminho)" }],
+      ['animate A with "morph" into B', { en: "morph one shape into another", pt: "transforma uma forma na outra" }],
+      ['animate C with "highlight" to "crimson"', { en: "recolour + pulse an object", pt: "recolore + pulsa um objeto" }],
+      ['… repeat -1 yoyo ease "sine.inOut"', { en: "loop, ping-pong, custom easing", pt: "laço, vai-e-volta, easing custom" }],
+      ["animate [ … ] with \"pop\" stagger 0.1", { en: "fan an effect across a block", pt: "espalha um efeito pelo bloco" }],
+      ['animate B with "fade" out', { en: "play the effect as an exit", pt: "toca o efeito como saída" }],
     ],
   },
   {

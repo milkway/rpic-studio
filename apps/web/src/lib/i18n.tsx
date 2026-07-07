@@ -16,6 +16,10 @@ const en = {
   "nav.users": "Users",
   "nav.home": "rpic studio — home",
 
+  // rodapé
+  "footer.engine": "engine",
+  "footer.changelog": "What's new",
+
   // usuários (admin)
   "users.title": "Users",
   "users.subtitle": "Everyone who has signed in to this app.",
@@ -301,6 +305,10 @@ const pt: Record<MessageKey, string> = {
   "nav.help": "Ajuda",
   "nav.users": "Usuários",
   "nav.home": "rpic studio — início",
+
+  // rodapé
+  "footer.engine": "motor",
+  "footer.changelog": "Novidades",
 
   // usuários (admin)
   "users.title": "Usuários",

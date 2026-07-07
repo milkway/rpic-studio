@@ -15,7 +15,7 @@ const RE = {
     /^(?:fit|behind|close|crosshatch|hatchangle|hatchsep|hatchwidth|hatchwid|hatchcolor|hatch|opacity|gradientangle|gradient|class|texlabels|bracepos|labeloffset|topmargin|rightmargin|bottommargin|leftmargin|margin|dotrad)\b/,
   primitive: /^(?:box|circle|ellipse|line|arrow|arc|spline|move|brace|dot)\b/,
   attribute:
-    /^(?:at|with|after|from|to|by|chop|fill|same|invis|invisible|solid|dashed|dotted|thick|up|down|left|right|ljust|rjust|above|below|between|of|the|way|heading|wid|width|ht|height|rad|radius|diam|diameter|shaded|outlined|colored|coloured|color|colour|cw|ccw|dotstart|dotend)\b/,
+    /^(?:at|with|after|from|to|by|chop|fill|same|invis|invisible|solid|dashed|dotted|thick|up|down|left|right|ljust|rjust|above|below|between|of|the|way|heading|wid|width|ht|height|rad|radius|diam|diameter|shaded|outlined|colored|coloured|color|colour|cw|ccw|dotstart|dotend|along|into|out|stagger|delay|repeat|yoyo|ease|scroll)\b/,
   envvar:
     /^(?:scale|boxwid|boxht|boxrad|circlerad|linewid|lineht|movewid|moveht|arcrad|ellipsewid|ellipseht|textwid|textht|textoffset|arrowwid|arrowht|arrowhead|dashwid|fillval|maxpswid|maxpsht|linethick)\b/,
   builtin: /^(?:sqrt|sin|cos|atan2|log|exp|int|max|min|rand|srand|sprintf)\b/,
