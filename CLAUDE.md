@@ -81,8 +81,25 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   em pic pode ser relativa) — criar/posicionar fica no código, com **autocomplete** (`rpicCompletions`).
 - **Autocomplete do PIC** (`components/editor/rpicCompletions.ts`, ligado no `CodePane` via
   `autocompletion({override})`): primitivas, direções, atributos, cores, variáveis, diretivas,
-  keywords pikchr-compat (0.7.1), NOMES de objetos já rotulados no doc (`from N1.e`) e macros de
-  circuito quando `copy "circuits"` está presente. Disparo por prefixo de palavra.
+  keywords pikchr-compat (0.7.1), keywords de animação (0.8.x: `animate` + cláusulas `along/into/out/
+  stagger/repeat/yoyo/ease/scroll/delay` + efeitos como strings `"slide"/"move"/"morph"/…`), NOMES de
+  objetos já rotulados no doc (`from N1.e`) e macros de circuito quando `copy "circuits"` está
+  presente. Disparo por prefixo de palavra.
+- **Animação (`animate`, extensão rpic 0.8.x)**: o compile bundle traz `animations[]` (manifesto
+  flat de tempo absoluto); o `PreviewPane` monta uma timeline **GSAP** via `animate(root, animations,
+  gsap)` do pacote npm (botão replay, respeita `prefers-reduced-motion`). Efeitos: `draw/fade/pop`
+  (0.6.x) + `slide` (`from <dir>`), `move` (`along <path>`), `highlight` (`to <cor>`), `morph`
+  (`into <shape>`); modificadores `out`, `repeat`/`yoyo`/`ease`, `stagger` de bloco, `animate scroll`.
+  O player do npm 0.8.1 converte as formas em `<path>` p/ `move`/`morph` no browser. Highlight das
+  cláusulas em `rpicLanguage.ts` (`RE.attribute`); exemplos "Data flow" e "Morph" em `examples.ts`;
+  referência na `HelpPage`. Ao subir a versão do rpic, SEMPRE aflorar features novas de linguagem
+  nessas 4 superfícies (autocomplete + highlight + exemplos + ajuda).
+- **Rodapé de versões** (`AppShell.tsx`, `AppFooter`): barra de status fina mostrando
+  `rpic studio v{app} · engine rpic v{rpic} · <link release>`. As versões são INJETADAS no build por
+  `define` no `vite.config.ts` (`__APP_VERSION__`/`__RPIC_VERSION__`, lidas dos `package.json` — o do
+  rpic via subpath exportado do `.wasm`, pois o package não expõe `./package.json`); globais
+  declaradas em `vite-env.d.ts`. A versão do studio é PRÓPRIA (SemVer independente do engine; começou
+  em **v0.2.0** com o suporte a animação 0.8.x).
 - **Paleta de circuitos** (`components/editor/CircuitPalette.tsx` + `lib/circuitCatalog.ts`): menu no
   header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — 14
   macros circuit_macros com sintaxe de DOIS pontos nomeados (`resistor(A,B)`; centrados `ground(P)`),
