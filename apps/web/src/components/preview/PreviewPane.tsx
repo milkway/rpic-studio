@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { gsap } from "gsap";
+import { gsap } from "@/lib/gsap";
 import { Loader2, Minus, Plus, RotateCcw, Scan } from "lucide-react";
 import { motion } from "@rpic/design-system";
 import { useI18n } from "@/lib/i18n";

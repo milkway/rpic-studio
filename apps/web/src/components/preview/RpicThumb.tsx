@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { gsap } from "gsap";
+import { gsap } from "@/lib/gsap";
 import { RotateCcw } from "lucide-react";
 import { cn, motion } from "@rpic/design-system";
 import { animate, compile, ensureRpic, type Anim } from "@/lib/rpic";

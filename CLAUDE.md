@@ -94,6 +94,12 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   cláusulas em `rpicLanguage.ts` (`RE.attribute`); exemplos "Data flow" e "Morph" em `examples.ts`;
   referência na `HelpPage`. Ao subir a versão do rpic, SEMPRE aflorar features novas de linguagem
   nessas 4 superfícies (autocomplete + highlight + exemplos + ajuda).
+  **PEGADINHA dos plugins GSAP**: `move` usa a propriedade `motionPath` e `morph` usa `morphSVG` —
+  ambas EXIGEM plugins registrados (`MotionPathPlugin`/`MorphSVGPlugin`), senão o GSAP loga
+  `Invalid property … Missing plugin? gsap.registerPlugin()` e o efeito não roda (os demais efeitos
+  usam props nativas do core e funcionam sem plugin). Os dois vêm de graça no gsap ≥ 3.13. Toda a app
+  importa `gsap` de `lib/gsap.ts` (NÃO direto de `"gsap"`), que registra os plugins uma vez e reexporta
+  essa instância — é o `gsap` passado a `animate(root, animations, gsap)` em `PreviewPane`/`RpicThumb`.
 - **Rodapé de versões** (`AppShell.tsx`, `AppFooter`): barra de status fina mostrando
   `rpic studio v{app} · engine rpic v{rpic} · <link release>`. As versões são INJETADAS no build por
   `define` no `vite.config.ts` (`__APP_VERSION__`/`__RPIC_VERSION__`, lidas dos `package.json` — o do
