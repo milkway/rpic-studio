@@ -113,10 +113,10 @@ animate Src with "highlight" to "crimson" for 0.6 repeat -1 yoyo
     tags: ["animation", "extensions"],
     circuits: false,
     source: `.PS
-margin = 0.3
-A: box "shape" fit at (0,0)
-B: circle rad 0.4 at A invis
-animate A with "morph" into B for 1.0 repeat -1 yoyo ease "power2.inOut"
+margin = 0.25
+B: circle rad 0.45 at (1.2,0)
+A: box wid 0.8 ht 0.8 "shape" fit at (1.2,0)
+animate A with "morph" into B for 1.2 repeat -1 yoyo ease "power1.inOut"
 .PE`,
   },
   {
