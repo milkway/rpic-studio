@@ -203,7 +203,6 @@ export function PreviewPane({
           <ObjectsOverlay
             objects={objects}
             stageRef={stageRef}
-            canvasRef={canvasRef}
             onJumpToLine={onJumpToLine}
             source={source}
             onSourceChange={onSourceChange}

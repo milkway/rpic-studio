@@ -112,3 +112,37 @@ test("duplo-clique num objeto pula o cursor pra sua linha de código", async ({ 
     .poll(() => page.evaluate(() => document.querySelector(".cm-activeLineGutter")?.textContent))
     .toBe("3");
 });
+
+test("selecionar realça a GEOMETRIA real do objeto (drop-shadow no #s{i}), não um retângulo", async ({ page }) => {
+  await loadDraft(page, 'box "A"\ncircle "B"');
+  await page.getByTestId("objects-handle").nth(1).click(); // circle B = #s1
+  const svgEl = page.locator('[data-testid="preview-stage"] svg #s1');
+  await expect(svgEl).toHaveAttribute("data-obj-selected", "", { timeout: 5_000 });
+  expect(await svgEl.evaluate((el) => (el as SVGElement).style.filter)).toContain("drop-shadow");
+  // deselecionar remove o realce da geometria
+  await page.getByTestId("objects-deselect").click({ position: { x: 16, y: 16 } });
+  await expect(svgEl).not.toHaveAttribute("data-obj-selected", "", { timeout: 5_000 });
+});
+
+test("com o canvas rolado, o handle continua alinhado ao objeto (sem deslocamento)", async ({ page }) => {
+  // Diagrama ALTO o suficiente p/ estourar o canvas e gerar scroll vertical.
+  const tall = "down\n" + ["A", "B", "C", "D", "E", "F"].map((l) => `box "${l}" ht 2`).join("\n");
+  await loadDraft(page, tall);
+  await expect(page.getByTestId("objects-handle")).toHaveCount(6, { timeout: 5_000 });
+
+  // Rola o canvas até o fim (é onde o bug aparecia: o handle subia `scrollTop` px).
+  await page.getByTestId("preview-canvas").evaluate((el) => {
+    el.scrollTop = el.scrollHeight;
+  });
+  // Deixa o loop rAF reassentar as caixas na nova posição de scroll.
+  await page.waitForTimeout(250);
+
+  // O handle do último objeto (F = #s5, embaixo) deve COINCIDIR com o elemento
+  // SVG real — mesma posição de viewport, dentro de ~2px.
+  const svgBox = await page.locator('[data-testid="preview-stage"] svg #s5').boundingBox();
+  const handleBox = await page.getByTestId("objects-handle").nth(5).boundingBox();
+  expect(svgBox).toBeTruthy();
+  expect(handleBox).toBeTruthy();
+  expect(Math.abs(handleBox!.y - svgBox!.y)).toBeLessThan(2);
+  expect(Math.abs(handleBox!.x - svgBox!.x)).toBeLessThan(2);
+});

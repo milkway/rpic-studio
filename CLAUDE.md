@@ -61,6 +61,12 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   ESTILIZA: sobre QUALQUER pic que compile, o overlay lê `useRpic().objects[]` (bbox por `#s{i}` via
   `getBoundingClientRect` num loop rAF; `kind`/`line`/`col`/`file`) e dá uma caixa selecionável por
   objeto. Só objetos do próprio input (`file` ausente — exclui `copy`/circuitos) são interativos.
+  A bbox é só o ALVO DE CLIQUE (invisível quando selecionado): o INDICADOR de seleção abraça a
+  GEOMETRIA REAL — um `drop-shadow` (`SELECT_FILTER`) no elemento `#s{i}` do SVG, marcado com
+  `data-obj-selected` e reaplicado no loop rAF (sobrevive à reinjeção do SVG). Segue linhas/polígonos/
+  curvas em vez de um retângulo (uma forma diagonal grande daria uma caixa com o topo lá no vértice
+  mais alto, lendo como "deslocado para cima"). As caixas são posicionadas relativas ao rect do
+  PRÓPRIO overlay (não ao canvas) — auto-contido e invariante a scroll/layout.
   Clicar → inspetor; duplo-clique → pula pra linha (`onJumpToLine`); clicar no VAZIO desseleciona
   (`objects-deselect`). O inspetor escreve o atributo NA STATEMENT do objeto via
   `setObjectAttr(source, line, col, kind, value)` (`lib/objectEdit.ts`): acha o fim da statement

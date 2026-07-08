@@ -12,12 +12,17 @@ interface Props {
    *  mesmo fora do formato do editor visual (onde `parsePic` devolve null). */
   objects: ObjectGeometry[];
   stageRef: RefObject<HTMLDivElement | null>;
-  canvasRef: RefObject<HTMLDivElement | null>;
   onJumpToLine?: (line: number, col?: number) => void;
   /** Código-fonte atual + escrita — habilita estilizar por-linha (setObjectAttr). */
   source?: string;
   onSourceChange?: (s: string) => void;
 }
+
+/** Realce do objeto SELECIONADO: um brilho na cor de acento que segue a
+ *  GEOMETRIA REAL (linhas/polígonos/curvas), não um retângulo — `drop-shadow`
+ *  usa o alpha do elemento renderizado, então abraça o traço/contorno exato. */
+const SELECT_FILTER =
+  "drop-shadow(0 0 2px var(--color-accent)) drop-shadow(0 0 5px var(--color-accent))";
 
 interface OBox {
   id: string;
@@ -38,11 +43,13 @@ interface OBox {
  * (`file` ausente — exclui macros de `copy`/circuits) são interativos.
  * É a base p/ editar visualmente pic "já pronto"; estilo-por-linha vem depois.
  */
-export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, source, onSourceChange }: Props) {
+export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSourceChange }: Props) {
   const { t } = useI18n();
+  const overlayRef = useRef<HTMLDivElement>(null);
   const [boxes, setBoxes] = useState<OBox[]>([]);
   const [sel, setSel] = useState<string | null>(null);
   const boxesRef = useRef<OBox[]>([]);
+  const selRef = useRef<string | null>(null);
   const selBox = boxes.find((b) => b.id === sel);
   // Estiliza escrevendo o atributo NA STATEMENT do objeto (`setObjectAttr` acha o
   // fim, agora respeitando `}` de bloco). Macros (`define`)/laços (`for`) expandem
@@ -65,6 +72,10 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
   };
 
   useEffect(() => {
+    selRef.current = sel;
+  }, [sel]);
+
+  useEffect(() => {
     let raf = 0;
     const same = (a: OBox[], b: OBox[]) =>
       a.length === b.length &&
@@ -81,9 +92,13 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
       });
     const compute = (): OBox[] => {
       const stage = stageRef.current;
-      const canvas = canvasRef.current;
-      if (!stage || !canvas) return boxesRef.current;
-      const cr = canvas.getBoundingClientRect();
+      const overlay = overlayRef.current;
+      if (!stage || !overlay) return boxesRef.current;
+      // Origem = o PRÓPRIO overlay: as caixas são `absolute` DENTRO dele, logo o
+      // rect do overlay é, por definição, a referência exata das suas coords —
+      // invariante a scroll/layout. (O canvas coincide só por o overlay ficar
+      // colado nele; referenciar o próprio container é o correto e auto-contido.)
+      const or = overlay.getBoundingClientRect();
       const next: OBox[] = [];
       objects.forEach((o) => {
         if (!o.bbox || o.file) return; // sem geometria, ou veio de copy/circuits
@@ -91,9 +106,27 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
         if (!el) return;
         const r = (el as SVGGraphicsElement).getBoundingClientRect();
         if (r.width < 1 || r.height < 1) return;
-        next.push({ id: o.id, kind: o.kind, line: o.line, col: o.col, left: r.left - cr.left, top: r.top - cr.top, w: r.width, h: r.height });
+        next.push({ id: o.id, kind: o.kind, line: o.line, col: o.col, left: r.left - or.left, top: r.top - or.top, w: r.width, h: r.height });
       });
       return next;
+    };
+    // Realça a GEOMETRIA REAL do selecionado (segue o traço, não um retângulo)
+    // via drop-shadow no `#s{i}` do SVG. Reaplicado no loop → sobrevive à
+    // reinjeção do SVG a cada compilação (o elemento vira uma instância nova).
+    const syncHighlight = () => {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const prev = stage.querySelector<SVGElement>("[data-obj-selected]");
+      const want = selRef.current ? stage.querySelector<SVGElement>(`#${selRef.current}`) : null;
+      if (prev === want) return;
+      if (prev) {
+        prev.removeAttribute("data-obj-selected");
+        prev.style.filter = "";
+      }
+      if (want) {
+        want.setAttribute("data-obj-selected", "");
+        want.style.filter = SELECT_FILTER;
+      }
     };
     const loop = () => {
       const next = compute();
@@ -101,14 +134,22 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
         boxesRef.current = next;
         setBoxes(next);
       }
+      syncHighlight();
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [objects, stageRef, canvasRef]);
+    return () => {
+      cancelAnimationFrame(raf);
+      const el = stageRef.current?.querySelector<SVGElement>("[data-obj-selected]");
+      if (el) {
+        el.removeAttribute("data-obj-selected");
+        el.style.filter = "";
+      }
+    };
+  }, [objects, stageRef]);
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-10" data-testid="objects-overlay">
+    <div ref={overlayRef} className="pointer-events-none absolute inset-0 z-10" data-testid="objects-overlay">
       {/* clicar no vazio deseleciona */}
       <div className="pointer-events-auto absolute inset-0" onPointerDown={() => setSel(null)} data-testid="objects-deselect" />
       {boxes.map((b) => {
@@ -120,9 +161,12 @@ export function ObjectsOverlay({ objects, stageRef, canvasRef, onJumpToLine, sou
             className={cn(
               "pointer-events-auto absolute cursor-pointer transition-[outline] duration-100",
               round ? "rounded-full" : "rounded-sm",
+              // Selecionado: SEM retângulo — o realce é o brilho na geometria real
+              // (SELECT_FILTER no elemento SVG). Só a bbox continua sendo o alvo de
+              // clique. Hover mostra um contorno tênue só p/ sinalizar clicabilidade.
               selected
-                ? "outline outline-2 outline-(--color-accent)"
-                : "outline outline-1 outline-transparent hover:outline-(--color-accent)/50",
+                ? "outline-none"
+                : "outline outline-1 outline-transparent hover:outline-(--color-accent)/40",
             )}
             style={{ left: b.left, top: b.top, width: b.w, height: b.h }}
             onPointerDown={(e) => {
