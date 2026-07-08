@@ -113,6 +113,38 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
   // lado remove o gradiente inteiro.
   const setGradient = (from: string, to: string) => setAttr("gradient", `"${from}" "${to}"`);
 
+  // Qual objeto está SOB o cursor. As caixas de bbox se sobrepõem (uma forma
+  // diagonal grande cobre outras), então NÃO dá p/ confiar em qual `div` recebeu
+  // o evento — isso selecionava o objeto errado. Hit-test pela GEOMETRIA REAL:
+  //  1) a forma PINTADA sob o cursor (via `elementsFromPoint`, ignorando os clones
+  //     de realce e objetos não-interativos) → o objeto certo mesmo com bbox alheia
+  //     por cima;
+  //  2) fallback (cursor em área vazia dentro de bboxes, ex.: interior de forma sem
+  //     preenchimento): a MENOR bbox que contém o ponto (a mais específica).
+  const pickObjectAt = (clientX: number, clientY: number): string | null => {
+    const stage = stageRef.current;
+    const overlay = overlayRef.current;
+    if (!stage || !overlay) return null;
+    const ids = new Set(boxesRef.current.map((b) => b.id));
+    for (const el of document.elementsFromPoint(clientX, clientY)) {
+      if (!stage.contains(el) || el.closest("[data-hl]")) continue; // fora do SVG ou é realce
+      const g = el.closest("g[id]");
+      if (g && ids.has(g.id)) return g.id;
+    }
+    const or = overlay.getBoundingClientRect();
+    const px = clientX - or.left;
+    const py = clientY - or.top;
+    let best: string | null = null;
+    let bestArea = Infinity;
+    for (const b of boxesRef.current) {
+      if (px >= b.left && px <= b.left + b.w && py >= b.top && py <= b.top + b.h && b.w * b.h < bestArea) {
+        bestArea = b.w * b.h;
+        best = b.id;
+      }
+    }
+    return best;
+  };
+
   useEffect(() => {
     selRef.current = sel;
   }, [sel]);
@@ -211,19 +243,28 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
             // quanto a seleção são desenhados como CONTORNO na geometria real (clones
             // no SVG), não como retângulo. Hover é rastreado por `ref` (sem re-render
             // → sem flicker); o loop rAF lê `hoverRef` e reconcilia o clone.
+            // Os handlers NÃO usam `b.id` diretamente: delegam a `pickObjectAt` (hit-test
+            // por geometria) — como as bboxes se sobrepõem, o `div` que recebeu o evento
+            // pode não ser o objeto sob o cursor. Por isso `onPointerMove` (não `Enter`):
+            // mover DENTRO de uma bbox grande sobre a geometria de outro reavalia o alvo.
             className="pointer-events-auto absolute cursor-pointer"
             style={{ left: b.left, top: b.top, width: b.w, height: b.h }}
-            onPointerEnter={() => {
-              hoverRef.current = b.id;
+            onPointerMove={(e) => {
+              hoverRef.current = pickObjectAt(e.clientX, e.clientY);
             }}
             onPointerLeave={() => {
-              if (hoverRef.current === b.id) hoverRef.current = null;
+              hoverRef.current = null;
             }}
             onPointerDown={(e) => {
               e.stopPropagation();
-              setSel(b.id);
+              const id = pickObjectAt(e.clientX, e.clientY);
+              if (id) setSel(id);
             }}
-            onDoubleClick={() => b.line && onJumpToLine?.(b.line, b.col ?? undefined)}
+            onDoubleClick={(e) => {
+              const id = pickObjectAt(e.clientX, e.clientY);
+              const bx = boxesRef.current.find((x) => x.id === id);
+              if (bx?.line) onJumpToLine?.(bx.line, bx.col ?? undefined);
+            }}
             title={b.line ? t("visual.objectsHint") : undefined}
             data-testid="objects-handle"
           >

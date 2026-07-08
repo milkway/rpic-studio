@@ -61,7 +61,13 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   ESTILIZA: sobre QUALQUER pic que compile, o overlay lê `useRpic().objects[]` (bbox por `#s{i}` via
   `getBoundingClientRect` num loop rAF; `kind`/`line`/`col`/`file`) e dá uma caixa selecionável por
   objeto. Só objetos do próprio input (`file` ausente — exclui `copy`/circuitos) são interativos.
-  A bbox é SÓ o alvo de clique/hover (transparente — nunca desenha retângulo): TANTO o HOVER quanto a
+  A bbox é SÓ o alvo de clique/hover (transparente — nunca desenha retângulo). PEGADINHA: as bboxes se
+  SOBREPÕEM (uma forma diagonal grande cobre outras), então o `div` que recebe o evento NÃO é
+  necessariamente o objeto sob o cursor → selecionava errado. `pickObjectAt(x,y)` resolve por HIT-TEST
+  de GEOMETRIA: acha a forma PINTADA sob o cursor via `document.elementsFromPoint` (ignora os clones
+  `[data-hl]` e ids não-interativos), com fallback p/ a MENOR bbox que contém o ponto (área vazia de
+  forma sem preenchimento). Os handlers (`onPointerDown`/`onPointerMove`/`onDoubleClick`) delegam a ele
+  — o `b.id` do `div` é irrelevante. TANTO o HOVER quanto a
   SELEÇÃO abraçam a GEOMETRIA REAL — `styleHighlightClone` CLONA o grupo `#s{i}`, sobrepõe um CONTORNO
   de acento (`vector-effect: non-scaling-stroke` = largura CONSTANTE em px de tela; halo branco p/
   separar de fundo escuro/hachura) e o anexa ao `<svg>`, marcado com `data-hl="{papel}:{id}"` (papel =

@@ -148,6 +148,28 @@ test("selecionar realça a GEOMETRIA real (clone de contorno de acento), não um
   await expect(hl).toHaveCount(0, { timeout: 5_000 });
 });
 
+test("clique seleciona o objeto SOB o cursor, mesmo com a bbox de outro por cima", async ({ page }) => {
+  // s0 = box pequeno PREENCHIDO (linha 2); s1 = box grande VAZADO centrado nele
+  // (linha 3) → a bbox de s1 cobre inteiramente a de s0 e fica POR CIMA (mais tarde).
+  await loadDraft(page, ".PS\nS: box wid 0.6 ht 0.6 fill 0.85\nbox wid 3 ht 2 at S\n.PE");
+  await expect(page.getByTestId("objects-handle")).toHaveCount(2, { timeout: 5_000 });
+  const rectOf = (id: string) =>
+    page.locator(`[data-testid="preview-stage"] svg #${id}`).evaluate((el) => {
+      const r = (el as SVGGraphicsElement).getBoundingClientRect();
+      return { cx: r.left + r.width / 2, cy: r.top + r.height / 2, top: r.top, left: r.left };
+    });
+  // clicar no CENTRO do pequeno (fill pintado) → seleciona o pequeno (linha 2),
+  // não o grande cuja bbox está por cima
+  const s0 = await rectOf("s0");
+  await page.mouse.click(s0.cx, s0.cy);
+  await expect(page.getByTestId("objects-inspector")).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByTestId("objects-goto")).toContainText("2");
+  // clicar na BORDA do grande (traço pintado, longe do pequeno) → seleciona o grande (linha 3)
+  const s1 = await rectOf("s1");
+  await page.mouse.click(s1.cx, s1.top + 1);
+  await expect(page.getByTestId("objects-goto")).toContainText("3", { timeout: 5_000 });
+});
+
 test("hover realça a GEOMETRIA (contorno tênue), não um retângulo — e vira seleção ao clicar", async ({ page }) => {
   await loadDraft(page, 'box "A"\ncircle "B"');
   const handleB = page.getByTestId("objects-handle").nth(1); // circle B = #s1
