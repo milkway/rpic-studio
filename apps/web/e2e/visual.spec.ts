@@ -170,6 +170,37 @@ test("clique seleciona o objeto SOB o cursor, mesmo com a bbox de outro por cima
   await expect(page.getByTestId("objects-goto")).toContainText("3", { timeout: 5_000 });
 });
 
+test("remover hachura (∅) limpa a keyword E os parâmetros órfãos (sem pattern residual)", async ({ page }) => {
+  // parâmetros de hachura SOZINHOS recriam uma hachura default → remover só a
+  // keyword deixava um `<pattern>` órfão (e, com gradiente, alterava a figura).
+  await loadDraft(page, '.PS\nline from (0,0) to (2,0) to (2,-2) to (0,-2) close crosshatch hatchsep 0.15 hatchcolor "seagreen" hatchwid 4\n.PE');
+  await page.getByTestId("objects-handle").first().click();
+  const insp = page.getByTestId("objects-inspector");
+  await expect(insp).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByTestId("code-pane")).toContainText("crosshatch");
+  await expect(page.locator('[data-testid="preview-stage"] svg pattern').first()).toBeAttached();
+  // ∅ da HACHURA (nth(1): o ∅ do gradiente vem antes na seção FILL)
+  await insp.getByText("∅", { exact: true }).nth(1).click();
+  await expect(page.getByTestId("code-pane")).not.toContainText("hatch", { timeout: 5_000 });
+  await expect(page.locator('[data-testid="preview-stage"] svg pattern')).toHaveCount(0);
+});
+
+test("clique PRÓXIMO a uma linha fina que cruza uma forma seleciona a linha (proximidade)", async ({ page }) => {
+  // s0 = box vazado centrado em (2,0) (linha 2); s1 = linha vertical no CENTRO do
+  // box, x=2 (linha 3). A linha é fina e vertical (bbox width ≈ 0): sem o fix ela
+  // nem virava handle; com ele, clicar ao lado dela (interior vazio) cai na linha.
+  await loadDraft(page, ".PS\nbox wid 4 ht 4 at (2,0)\nline from (2,-2) to (2,2)\n.PE");
+  await expect(page.getByTestId("objects-handle")).toHaveCount(2, { timeout: 5_000 });
+  const c = await page.locator('[data-testid="preview-stage"] svg #s1').evaluate((el) => {
+    const r = (el as SVGGraphicsElement).getBoundingClientRect();
+    return { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+  });
+  // clica ~4px AO LADO da linha (dentro do box vazio, fora da bbox fina da linha)
+  await page.mouse.click(c.cx + 4, c.cy);
+  await expect(page.getByTestId("objects-inspector")).toBeVisible({ timeout: 5_000 });
+  await expect(page.getByTestId("objects-goto")).toContainText("3"); // a linha, não o box (linha 2)
+});
+
 test("hover realça a GEOMETRIA (contorno tênue), não um retângulo — e vira seleção ao clicar", async ({ page }) => {
   await loadDraft(page, 'box "A"\ncircle "B"');
   const handleB = page.getByTestId("objects-handle").nth(1); // circle B = #s1

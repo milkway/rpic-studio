@@ -20,6 +20,39 @@ interface Props {
 
 const SHAPE_TAGS = /^(rect|circle|ellipse|line|path|polygon|polyline)$/;
 
+// Menor distância (em px de TELA) do ponto (cx,cy) ao CONTORNO de um grupo `#s{i}`,
+// amostrando cada elemento de geometria via `getPointAtLength` mapeado pela CTM.
+// Usado p/ acertar TRAÇOS FINOS (linhas), que exigiriam clique pixel-perfect no
+// `elementsFromPoint`. Retorna Infinity se o grupo não tem geometria mensurável.
+function geomDistPx(g: Element, cx: number, cy: number): number {
+  let min = Infinity;
+  for (const el of g.querySelectorAll("path,line,polyline,polygon,rect,circle,ellipse")) {
+    const ge = el as SVGGeometryElement;
+    if (typeof ge.getTotalLength !== "function" || typeof ge.getPointAtLength !== "function") continue;
+    let total: number;
+    try {
+      total = ge.getTotalLength();
+    } catch {
+      continue;
+    }
+    const ctm = ge.getScreenCTM();
+    if (!total || !isFinite(total) || !ctm) continue;
+    const scale = Math.hypot(ctm.a, ctm.b) || 1;
+    const steps = Math.max(24, Math.min(120, Math.round((total * scale) / 3)));
+    for (let i = 0; i <= steps; i++) {
+      let p: DOMPoint;
+      try {
+        p = ge.getPointAtLength((total * i) / steps);
+      } catch {
+        break;
+      }
+      const d = Math.hypot(ctm.a * p.x + ctm.c * p.y + ctm.e - cx, ctm.b * p.x + ctm.d * p.y + ctm.f - cy);
+      if (d < min) min = d;
+    }
+  }
+  return min;
+}
+
 /**
  * Realce que ABRAÇA a geometria real (não um retângulo), tanto p/ SELEÇÃO quanto
  * p/ HOVER. Abordagem: CLONAR o grupo `#s{i}` e sobrepor um contorno na cor de
@@ -112,6 +145,18 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
   // uma cor mantém a outra (default from=black / to=white); "nenhuma" em qualquer
   // lado remove o gradiente inteiro.
   const setGradient = (from: string, to: string) => setAttr("gradient", `"${from}" "${to}"`);
+  // Remove um atributo composto E seus PARÂMETROS órfãos numa só escrita. Necessário
+  // porque no rpic um parâmetro sozinho recria o efeito default: `hatchsep` sem
+  // `hatch` ainda hachura; `gradientangle` sem `gradient` ainda faz um degradê. Sem
+  // isso, o toggle ∅ "não remove de vez" (e a hachura órfã fica por cima do gradiente).
+  const clearAttrs = (kinds: AttrKind[]) => {
+    if (!canStyle) return;
+    let s = source!;
+    for (const k of kinds) s = setObjectAttr(s, selBox!.line!, selBox!.col, k, undefined);
+    onSourceChange!(s);
+  };
+  const clearHatch = () => clearAttrs(["hatch", "hatchAngle", "hatchSep", "hatchWid", "hatchColor"]);
+  const clearGradient = () => clearAttrs(["gradient", "gradientAngle"]);
 
   // Qual objeto está SOB o cursor. As caixas de bbox se sobrepõem (uma forma
   // diagonal grande cobre outras), então NÃO dá p/ confiar em qual `div` recebeu
@@ -119,7 +164,11 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
   //  1) a forma PINTADA sob o cursor (via `elementsFromPoint`, ignorando os clones
   //     de realce e objetos não-interativos) → o objeto certo mesmo com bbox alheia
   //     por cima;
-  //  2) fallback (cursor em área vazia dentro de bboxes, ex.: interior de forma sem
+  //  2) PROXIMIDADE: o objeto cujo CONTORNO está a ≤ TOL px do cursor — torna
+  //     TRAÇOS FINOS (uma linha de 1px, ex.: a altura de um triângulo) clicáveis sem
+  //     mira pixel-perfect; empate de distância → menor área (o traço vence o quadrado
+  //     com que ele é colinear);
+  //  3) fallback (cursor em área vazia dentro de bboxes, ex.: interior de forma sem
   //     preenchimento): a MENOR bbox que contém o ponto (a mais específica).
   const pickObjectAt = (clientX: number, clientY: number): string | null => {
     const stage = stageRef.current;
@@ -134,15 +183,26 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
     const or = overlay.getBoundingClientRect();
     const px = clientX - or.left;
     const py = clientY - or.top;
-    let best: string | null = null;
-    let bestArea = Infinity;
+    const TOL = 7;
+    let near: { id: string; d: number; area: number } | null = null;
+    let smallest: { id: string; area: number } | null = null;
     for (const b of boxesRef.current) {
-      if (px >= b.left && px <= b.left + b.w && py >= b.top && py <= b.top + b.h && b.w * b.h < bestArea) {
-        bestArea = b.w * b.h;
-        best = b.id;
+      const area = b.w * b.h;
+      if (px >= b.left && px <= b.left + b.w && py >= b.top && py <= b.top + b.h && (!smallest || area < smallest.area)) {
+        smallest = { id: b.id, area };
+      }
+      // candidato de proximidade: bbox expandida por TOL contém o ponto
+      if (px < b.left - TOL || px > b.left + b.w + TOL || py < b.top - TOL || py > b.top + b.h + TOL) continue;
+      const g = stage.querySelector(`[id="${b.id}"]`);
+      if (!g) continue;
+      const d = geomDistPx(g, clientX, clientY);
+      if (d > TOL) continue;
+      // menor distância (buckets de ~2px); empate → menor área
+      if (!near || Math.round(d / 2) < Math.round(near.d / 2) || (Math.round(d / 2) === Math.round(near.d / 2) && area < near.area)) {
+        near = { id: b.id, d, area };
       }
     }
-    return best;
+    return near?.id ?? smallest?.id ?? null;
   };
 
   useEffect(() => {
@@ -179,7 +239,11 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
         const el = stage.querySelector(`#${o.id}`);
         if (!el) return;
         const r = (el as SVGGraphicsElement).getBoundingClientRect();
-        if (r.width < 1 || r.height < 1) return;
+        // NÃO descartar linhas finas: uma linha vertical/horizontal tem
+        // width/height ≈ 0 no getBoundingClientRect (Chromium ignora o traço), e a
+        // guarda antiga `< 1` sumia com ela (ex.: a ALTURA vertical do Pitágoras
+        // ficava sem handle → não-selecionável). Só descarta o degenerado (ponto).
+        if (r.width < 0.5 && r.height < 0.5) return;
         next.push({ id: o.id, kind: o.kind, line: o.line, col: o.col, left: r.left - or.left, top: r.top - or.top, w: r.width, h: r.height });
       });
       return next;
@@ -236,6 +300,13 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
       <div className="pointer-events-auto absolute inset-0" onPointerDown={() => setSel(null)} data-testid="objects-deselect" />
       {boxes.map((b) => {
         const selected = sel === b.id;
+        // Área de clique com MÍNIMO (linha fina de 0px vira uma faixa clicável de
+        // HIT_MIN, centrada na geometria) — senão o `div` de 0px não captura evento
+        // e a linha ficaria inalcançável mesmo estando em `boxes`. Overlaps não
+        // importam: `pickObjectAt` resolve por geometria/proximidade.
+        const HIT_MIN = 10;
+        const hw = Math.max(b.w, HIT_MIN);
+        const hh = Math.max(b.h, HIT_MIN);
         return (
           <div
             key={b.id}
@@ -248,7 +319,7 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
             // pode não ser o objeto sob o cursor. Por isso `onPointerMove` (não `Enter`):
             // mover DENTRO de uma bbox grande sobre a geometria de outro reavalia o alvo.
             className="pointer-events-auto absolute cursor-pointer"
-            style={{ left: b.left, top: b.top, width: b.w, height: b.h }}
+            style={{ left: b.left - (hw - b.w) / 2, top: b.top - (hh - b.h) / 2, width: hw, height: hh }}
             onPointerMove={(e) => {
               hoverRef.current = pickObjectAt(e.clientX, e.clientY);
             }}
@@ -317,27 +388,27 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
             <>
               <Seg
                 title={t("visual.inspector.gradient")}
-                value={attrs.gradientFrom || attrs.gradientTo ? "on" : undefined}
-                onPick={(v) => (v ? setGradient("steelblue", "white") : setAttr("gradient", undefined))}
+                value={attrs.gradientFrom || attrs.gradientTo || attrs.gradientAngle != null ? "on" : undefined}
+                onPick={(v) => (v ? setGradient("steelblue", "white") : clearGradient())}
                 options={[
                   { v: undefined, el: "∅" },
                   { v: "on", el: "▨" },
                 ]}
               />
-              {(attrs.gradientFrom || attrs.gradientTo) && (
+              {(attrs.gradientFrom || attrs.gradientTo || attrs.gradientAngle != null) && (
                 <>
                   <Swatches
                     title={t("visual.inspector.gradientFrom")}
                     colors={FILL_COLORS}
                     value={attrs.gradientFrom}
-                    onPick={(c) => (c ? setGradient(c, attrs.gradientTo ?? "white") : setAttr("gradient", undefined))}
+                    onPick={(c) => (c ? setGradient(c, attrs.gradientTo ?? "white") : clearGradient())}
                     noneLabel={t("visual.none")}
                   />
                   <Swatches
                     title={t("visual.inspector.gradientTo")}
                     colors={FILL_COLORS}
                     value={attrs.gradientTo}
-                    onPick={(c) => (c ? setGradient(attrs.gradientFrom ?? "black", c) : setAttr("gradient", undefined))}
+                    onPick={(c) => (c ? setGradient(attrs.gradientFrom ?? "black", c) : clearGradient())}
                     noneLabel={t("visual.none")}
                   />
                   <Seg
@@ -355,7 +426,7 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
               )}
             </>
           )}
-          <Seg title={t("visual.inspector.hatch")} value={attrs.hatch} onPick={(v) => setAttr("hatch", v)} options={[{ v: undefined, el: "∅" }, { v: "hatch" as const, el: "▧" }, { v: "crosshatch" as const, el: "▦" }]} />
+          <Seg title={t("visual.inspector.hatch")} value={attrs.hatch} onPick={(v) => (v ? setAttr("hatch", v) : clearHatch())} options={[{ v: undefined, el: "∅" }, { v: "hatch" as const, el: "▧" }, { v: "crosshatch" as const, el: "▦" }]} />
           {attrs.hatch && (
             <>
               <Seg

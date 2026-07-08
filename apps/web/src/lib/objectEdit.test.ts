@@ -79,6 +79,31 @@ describe("setObjectAttr", () => {
     expect(b.gradientAngle).toBe(30);
   });
 
+  it("hachura órfã: readObjectAttrs infere `hatch` de parâmetros SEM a keyword", () => {
+    // no rpic um parâmetro sozinho já cria hachura default → o inspetor precisa refletir
+    expect(readObjectAttrs("box hatchsep 0.15", 1, 1).hatch).toBe("hatch");
+    expect(readObjectAttrs('box hatchcolor "seagreen"', 1, 1).hatch).toBe("hatch");
+    expect(readObjectAttrs("box hatchwid 4.25", 1, 1).hatch).toBe("hatch");
+    expect(readObjectAttrs("box crosshatch hatchsep 0.15", 1, 1).hatch).toBe("crosshatch");
+    expect(readObjectAttrs("box", 1, 1).hatch).toBeUndefined();
+  });
+
+  it("remoção COMPLETA de hachura: keyword + TODOS os parâmetros (senão órfão recria)", () => {
+    let s = 'box crosshatch hatchsep 0.15 hatchcolor "seagreen" hatchwid 4.25 hatchangle 30';
+    for (const k of ["hatch", "hatchAngle", "hatchSep", "hatchWid", "hatchColor"] as const) {
+      s = setObjectAttr(s, 1, 1, k, undefined);
+    }
+    expect(s).toBe("box");
+    expect(readObjectAttrs(s, 1, 1).hatch).toBeUndefined();
+  });
+
+  it("remoção COMPLETA de gradiente: par + gradientangle (senão o ângulo órfão faz degradê)", () => {
+    let s = 'box gradient "steelblue" "white" gradientangle 90';
+    for (const k of ["gradient", "gradientAngle"] as const) s = setObjectAttr(s, 1, 1, k, undefined);
+    expect(s).toBe("box");
+    expect(readObjectAttrs(s, 1, 1).gradientAngle).toBeUndefined();
+  });
+
   it("edita a statement CERTA numa linha com várias (respeita o ;)", () => {
     const src = 'box "A"; circle "B"';
     // col 1 → a caixa (antes do ;)

@@ -64,10 +64,16 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   A bbox é SÓ o alvo de clique/hover (transparente — nunca desenha retângulo). PEGADINHA: as bboxes se
   SOBREPÕEM (uma forma diagonal grande cobre outras), então o `div` que recebe o evento NÃO é
   necessariamente o objeto sob o cursor → selecionava errado. `pickObjectAt(x,y)` resolve por HIT-TEST
-  de GEOMETRIA: acha a forma PINTADA sob o cursor via `document.elementsFromPoint` (ignora os clones
-  `[data-hl]` e ids não-interativos), com fallback p/ a MENOR bbox que contém o ponto (área vazia de
-  forma sem preenchimento). Os handlers (`onPointerDown`/`onPointerMove`/`onDoubleClick`) delegam a ele
-  — o `b.id` do `div` é irrelevante. TANTO o HOVER quanto a
+  de GEOMETRIA, em 3 camadas: (1) a forma PINTADA sob o cursor via `document.elementsFromPoint`
+  (ignora os clones `[data-hl]` e ids não-interativos); (2) PROXIMIDADE — `geomDistPx` (amostra o
+  contorno via `getPointAtLength`+CTM) acha o objeto cujo traço está a ≤ TOL px, empate → MENOR área
+  (torna TRAÇOS FINOS clicáveis sem mira pixel-perfect e faz um traço vencer o quadrado com que é
+  colinear); (3) fallback: a MENOR bbox que contém o ponto. Os handlers
+  (`onPointerDown`/`onPointerMove`/`onDoubleClick`) delegam a ele — o `b.id` do `div` é irrelevante.
+  PEGADINHA das linhas finas: uma linha vertical/horizontal tem `getBoundingClientRect` width/height ≈
+  0 (Chromium ignora o traço) — o `compute()` só descarta o DEGENERADO (`< 0.5` nos DOIS eixos, não
+  em um), e o handle recebe um tamanho MÍNIMO de clique (`HIT_MIN`, faixa centrada) senão o `div` de
+  0px não capturaria evento e a linha (ex.: a ALTURA do Pitágoras) ficaria inalcançável. TANTO o HOVER quanto a
   SELEÇÃO abraçam a GEOMETRIA REAL — `styleHighlightClone` CLONA o grupo `#s{i}`, sobrepõe um CONTORNO
   de acento (`vector-effect: non-scaling-stroke` = largura CONSTANTE em px de tela; halo branco p/
   separar de fundo escuro/hachura) e o anexa ao `<svg>`, marcado com `data-hl="{papel}:{id}"` (papel =
@@ -94,6 +100,11 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   cor livre `#rrggbb`), `hatch|crosshatch` (+ `hatchangle`/`hatchsep`/**`hatchwid`**/`hatchcolor`),
   **`gradient "de" "até"`** (toggle ∅/▨ p/ formas não-texto → revela cor-de/cor-até + `gradientangle`;
   o UI compõe o par de cores, o rpic exige as duas), `dashed|dotted`,
+  **PEGADINHA — parâmetro órfão recria o efeito**: no rpic um `hatchsep`/`hatchcolor`/`hatchwid`/
+  `hatchangle` SOZINHO (sem a keyword) já gera hachura default, e um `gradientangle` sozinho já faz
+  degradê. Por isso o toggle ∅ chama `clearHatch`/`clearGradient` (removem keyword **+ TODOS os
+  parâmetros** de uma vez) e `readObjectAttrs` INFERE a hachura dos parâmetros — senão a hachura "não
+  some de vez" e fica por cima do gradiente.
   `thick`, `rotated`, `opacity`, **dimensões** (`wid`/`ht` p/ box/ellipse, `rad` p/ círculo — campos
   numéricos em POLEGADAS; vazio = auto), **fonte** p/ qualquer rótulo (`bold`/`italic`/`font "…"`/
   `fontsize`) e `ljust|rjust` (texto). Tudo escrito na statement (por-string p/ os de fonte).

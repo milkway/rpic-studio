@@ -179,8 +179,13 @@ export function readObjectAttrs(source: string, line: number, col: number | unde
   if (fill) out.fill = fill[1];
   const stroke = /\boutlined\s+"((?:[^"\\]|\\.)*)"/.exec(stmt);
   if (stroke) out.stroke = stroke[1];
+  // Hachura: a keyword `hatch`/`crosshatch` OU qualquer parâmetro órfão
+  // (`hatchsep`/`hatchcolor`/`hatchwid`/`hatchangle`) — no rpic um parâmetro
+  // SOZINHO já cria uma hachura default. Inferir dos parâmetros faz o inspetor
+  // refletir a hachura que de fato renderiza (e permite REMOVÊ-LA de vez).
   const hatch = /\b(crosshatch|hatch)\b/.exec(stmt);
   if (hatch) out.hatch = hatch[1] as "hatch" | "crosshatch";
+  else if (/\bhatch(?:angle|sep|wid(?:th)?|color)\b/.test(stmt)) out.hatch = "hatch";
   const dash = /\b(dashed|dotted)\b/.exec(stmt);
   if (dash) out.dash = dash[1] as "dashed" | "dotted";
   const thick = /\bthick\s+([\d.]+)/.exec(stmt);
