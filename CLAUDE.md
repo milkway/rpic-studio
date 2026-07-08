@@ -62,11 +62,16 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   `getBoundingClientRect` num loop rAF; `kind`/`line`/`col`/`file`) e dá uma caixa selecionável por
   objeto. Só objetos do próprio input (`file` ausente — exclui `copy`/circuitos) são interativos.
   A bbox é só o ALVO DE CLIQUE (invisível quando selecionado): o INDICADOR de seleção abraça a
-  GEOMETRIA REAL — um `drop-shadow` (`SELECT_FILTER`) no elemento `#s{i}` do SVG, marcado com
-  `data-obj-selected` e reaplicado no loop rAF (sobrevive à reinjeção do SVG). Segue linhas/polígonos/
-  curvas em vez de um retângulo (uma forma diagonal grande daria uma caixa com o topo lá no vértice
-  mais alto, lendo como "deslocado para cima"). As caixas são posicionadas relativas ao rect do
-  PRÓPRIO overlay (não ao canvas) — auto-contido e invariante a scroll/layout.
+  GEOMETRIA REAL — `decorateHighlight` CLONA o grupo `#s{i}`, sobrepõe um CONTORNO de acento
+  (`vector-effect: non-scaling-stroke` = largura CONSTANTE em px de tela; halo branco p/ separar de
+  fundo escuro/hachura; pulso sutil respeitando `prefers-reduced-motion`) e o anexa ao `<svg>`,
+  marcado com `data-obj-highlight`. É reconciliado no loop rAF (RECRIA o clone após cada reinjeção do
+  SVG; trocar/limpar a seleção o remove). Segue linhas/polígonos/curvas em vez de um retângulo (uma
+  forma diagonal grande daria uma caixa com o topo lá no vértice mais alto, lendo como "deslocado para
+  cima"). ATENÇÃO: um `drop-shadow` (tentativa anterior) SOME sobre traço fino/hachura — daí o clone.
+  O clone é só DOM vivo (sem `id`): não entra nos exports (que usam a string `bakedSvg`) nem vira
+  handle. As caixas são posicionadas relativas ao rect do PRÓPRIO overlay (não ao canvas) —
+  auto-contido e invariante a scroll/layout.
   Clicar → inspetor; duplo-clique → pula pra linha (`onJumpToLine`); clicar no VAZIO desseleciona
   (`objects-deselect`). O inspetor escreve o atributo NA STATEMENT do objeto via
   `setObjectAttr(source, line, col, kind, value)` (`lib/objectEdit.ts`): acha o fim da statement
@@ -78,10 +83,14 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   normalmente. Dimensões: box tem larg/alt + **raio dos CANTOS** (`box rad N`, controle `⌜`); círculo
   tem raio; elipse larg/alt.
   Atributos (o inspetor expõe TUDO que dá por elemento): `fill`/`stroke` (`shaded`/`outlined "…"` +
-  cor livre `#rrggbb`), `hatch|crosshatch` (+ `hatchangle`/`hatchsep`/`hatchcolor`), `dashed|dotted`,
+  cor livre `#rrggbb`), `hatch|crosshatch` (+ `hatchangle`/`hatchsep`/**`hatchwid`**/`hatchcolor`),
+  **`gradient "de" "até"`** (toggle ∅/▨ p/ formas não-texto → revela cor-de/cor-até + `gradientangle`;
+  o UI compõe o par de cores, o rpic exige as duas), `dashed|dotted`,
   `thick`, `rotated`, `opacity`, **dimensões** (`wid`/`ht` p/ box/ellipse, `rad` p/ círculo — campos
   numéricos em POLEGADAS; vazio = auto), **fonte** p/ qualquer rótulo (`bold`/`italic`/`font "…"`/
   `fontsize`) e `ljust|rjust` (texto). Tudo escrito na statement (por-string p/ os de fonte).
+  Auditoria completa dos atributos estilizáveis vs. inspetor: issue milkway/rpic-studio#1 (fora do
+  escopo DE PROPÓSITO: `vpos`/`aligned` reposicionam; `mono`/`diam`/`sized` são redundantes).
   `source`+`onSourceChange` fluem EditorPage→PreviewTabs→PreviewPane→overlay. `Seg`/`Swatches` em
   `visual/inspectorControls.tsx`; cores/fontes em `lib/palette.ts`. NÃO move nem REPOSICIONA (posição
   em pic pode ser relativa) — criar/posicionar fica no código, com **autocomplete** (`rpicCompletions`).

@@ -18,11 +18,49 @@ interface Props {
   onSourceChange?: (s: string) => void;
 }
 
-/** Realce do objeto SELECIONADO: um brilho na cor de acento que segue a
- *  GEOMETRIA REAL (linhas/polígonos/curvas), não um retângulo — `drop-shadow`
- *  usa o alpha do elemento renderizado, então abraça o traço/contorno exato. */
-const SELECT_FILTER =
-  "drop-shadow(0 0 2px var(--color-accent)) drop-shadow(0 0 5px var(--color-accent))";
+const SHAPE_TAGS = /^(rect|circle|ellipse|line|path|polygon|polyline)$/;
+
+/**
+ * Realce do objeto SELECIONADO que ABRAÇA a geometria real (não um retângulo).
+ * Abordagem: CLONAR o grupo `#s{i}` e sobrepor um contorno na cor de acento —
+ * traço `non-scaling-stroke` (largura CONSTANTE em pixels de tela, invariante ao
+ * zoom/viewBox) e um pulso sutil de opacidade. É crisp mesmo sobre hachura/traço
+ * fino (onde um `drop-shadow` some) e NÃO é destrutivo (o original fica intacto).
+ * Texto ganha `fill` de acento; formas ganham só o CONTORNO (fill none).
+ */
+function decorateHighlight(clone: SVGElement, selId: string, accent: string): void {
+  clone.setAttribute("data-obj-highlight", selId);
+  clone.removeAttribute("id");
+  clone.style.pointerEvents = "none";
+  // Halo branco fino sob o realce: separa o acento do conteúdo ESCURO/hachurado
+  // (invisível sobre o papel claro). Fica no grupo, cobrindo traço E texto.
+  clone.style.filter = "drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff)";
+  for (const el of [clone, ...Array.from(clone.querySelectorAll<SVGElement>("*"))]) {
+    el.removeAttribute("id");
+    const tag = el.tagName?.toLowerCase();
+    if (tag === "text" || tag === "tspan") {
+      el.style.fill = accent;
+      el.style.stroke = "none";
+    } else if (tag && SHAPE_TAGS.test(tag)) {
+      el.removeAttribute("filter");
+      el.style.fill = "none";
+      el.style.stroke = accent;
+      el.style.strokeWidth = "2.5";
+      el.style.setProperty("vector-effect", "non-scaling-stroke");
+      el.style.strokeDasharray = "none";
+      el.style.opacity = "1";
+    }
+  }
+  const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (!reduce) {
+    // pulso sutil (nunca apaga demais) p/ o olho pousar na seleção
+    clone.animate?.([{ opacity: 1 }, { opacity: 0.55 }, { opacity: 1 }], {
+      duration: 1500,
+      iterations: Infinity,
+      easing: "ease-in-out",
+    });
+  }
+}
 
 interface OBox {
   id: string;
@@ -70,6 +108,10 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
     if (!canStyle) return;
     onSourceChange!(setObjectAttr(source!, selBox!.line!, selBox!.col, kind, value));
   };
+  // Gradiente = par `gradient "from" "to"` (o rpic exige as DUAS cores). Escolher
+  // uma cor mantém a outra (default from=black / to=white); "nenhuma" em qualquer
+  // lado remove o gradiente inteiro.
+  const setGradient = (from: string, to: string) => setAttr("gradient", `"${from}" "${to}"`);
 
   useEffect(() => {
     selRef.current = sel;
@@ -110,23 +152,32 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
       });
       return next;
     };
-    // Realça a GEOMETRIA REAL do selecionado (segue o traço, não um retângulo)
-    // via drop-shadow no `#s{i}` do SVG. Reaplicado no loop → sobrevive à
-    // reinjeção do SVG a cada compilação (o elemento vira uma instância nova).
+    // Realça a GEOMETRIA REAL do selecionado clonando `#s{i}` e sobrepondo um
+    // contorno de acento (ver `decorateHighlight`). Reconciliado no loop → o
+    // clone é RECRIADO após cada reinjeção do SVG (quando some junto), e trocar
+    // ou limpar a seleção o remove. Idempotente: se o clone já é da seleção
+    // atual, não faz nada.
+    const cssEsc = (s: string) => (typeof CSS !== "undefined" && CSS.escape ? CSS.escape(s) : s);
     const syncHighlight = () => {
-      const stage = stageRef.current;
-      if (!stage) return;
-      const prev = stage.querySelector<SVGElement>("[data-obj-selected]");
-      const want = selRef.current ? stage.querySelector<SVGElement>(`#${selRef.current}`) : null;
-      if (prev === want) return;
-      if (prev) {
-        prev.removeAttribute("data-obj-selected");
-        prev.style.filter = "";
+      const svg = stageRef.current?.querySelector("svg");
+      if (!svg) return;
+      const sel = selRef.current;
+      const existing = svg.querySelector<SVGElement>("[data-obj-highlight]");
+      if (!sel) {
+        existing?.remove();
+        return;
       }
-      if (want) {
-        want.setAttribute("data-obj-selected", "");
-        want.style.filter = SELECT_FILTER;
+      const target = svg.querySelector<SVGElement>(`#${cssEsc(sel)}`);
+      if (!target) {
+        existing?.remove();
+        return;
       }
+      if (existing?.getAttribute("data-obj-highlight") === sel) return; // já correto
+      existing?.remove();
+      const accent = getComputedStyle(document.documentElement).getPropertyValue("--color-accent").trim() || "#1b5e20";
+      const clone = target.cloneNode(true) as SVGElement;
+      decorateHighlight(clone, sel, accent);
+      svg.appendChild(clone); // por cima de tudo
     };
     const loop = () => {
       const next = compute();
@@ -140,11 +191,7 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
     raf = requestAnimationFrame(loop);
     return () => {
       cancelAnimationFrame(raf);
-      const el = stageRef.current?.querySelector<SVGElement>("[data-obj-selected]");
-      if (el) {
-        el.removeAttribute("data-obj-selected");
-        el.style.filter = "";
-      }
+      stageRef.current?.querySelector("[data-obj-highlight]")?.remove();
     };
   }, [objects, stageRef]);
 
@@ -219,6 +266,51 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
           <>
           <Swatches title={t("visual.inspector.fill")} colors={FILL_COLORS} value={attrs.fill} onPick={(c) => setAttr("fill", c)} noneLabel={t("visual.none")} />
           <Swatches title={t("visual.inspector.stroke")} colors={STROKE_COLORS} value={attrs.stroke} onPick={(c) => setAttr("stroke", c)} noneLabel={t("visual.none")} />
+          {/* Gradiente (preenchimento de 2 passos) — só p/ formas fecháveis (não
+              texto). Toggle ∅/▨ como a hachura: ligar semeia um par default e
+              REVELA cor-inicial/final + ângulo; desligar remove o par. */}
+          {selBox.kind !== "text" && (
+            <>
+              <Seg
+                title={t("visual.inspector.gradient")}
+                value={attrs.gradientFrom || attrs.gradientTo ? "on" : undefined}
+                onPick={(v) => (v ? setGradient("steelblue", "white") : setAttr("gradient", undefined))}
+                options={[
+                  { v: undefined, el: "∅" },
+                  { v: "on", el: "▨" },
+                ]}
+              />
+              {(attrs.gradientFrom || attrs.gradientTo) && (
+                <>
+                  <Swatches
+                    title={t("visual.inspector.gradientFrom")}
+                    colors={FILL_COLORS}
+                    value={attrs.gradientFrom}
+                    onPick={(c) => (c ? setGradient(c, attrs.gradientTo ?? "white") : setAttr("gradient", undefined))}
+                    noneLabel={t("visual.none")}
+                  />
+                  <Swatches
+                    title={t("visual.inspector.gradientTo")}
+                    colors={FILL_COLORS}
+                    value={attrs.gradientTo}
+                    onPick={(c) => (c ? setGradient(attrs.gradientFrom ?? "black", c) : setAttr("gradient", undefined))}
+                    noneLabel={t("visual.none")}
+                  />
+                  <Seg
+                    title={t("visual.inspector.gradientAngle")}
+                    value={attrs.gradientAngle}
+                    onPick={(v) => setAttr("gradientAngle", v)}
+                    options={[
+                      { v: undefined, el: "0°" },
+                      { v: 45, el: "45°" },
+                      { v: 90, el: "90°" },
+                      { v: 135, el: "135°" },
+                    ]}
+                  />
+                </>
+              )}
+            </>
+          )}
           <Seg title={t("visual.inspector.hatch")} value={attrs.hatch} onPick={(v) => setAttr("hatch", v)} options={[{ v: undefined, el: "∅" }, { v: "hatch" as const, el: "▧" }, { v: "crosshatch" as const, el: "▦" }]} />
           {attrs.hatch && (
             <>

@@ -52,6 +52,33 @@ describe("setObjectAttr", () => {
     expect(readObjectAttrs("box hatch hatchwidth 2", 1, 1).hatchWid).toBe(2);
   });
 
+  it("gradiente: par de cores + ângulo, substitui e remove", () => {
+    let s = setObjectAttr("box", 1, 1, "gradient", `"steelblue" "white"`);
+    expect(s).toBe('box gradient "steelblue" "white"');
+    s = setObjectAttr(s, 1, 1, "gradientAngle", 90);
+    expect(s).toBe('box gradient "steelblue" "white" gradientangle 90');
+    // troca a cor final: como todo atributo, é removido e RE-ANEXADO ao fim
+    // (a ordem não importa ao rpic — `gradientangle` antes de `gradient` compila).
+    s = setObjectAttr(s, 1, 1, "gradient", `"steelblue" "gold"`);
+    expect(s).toBe('box gradientangle 90 gradient "steelblue" "gold"');
+    // remover o gradiente NÃO remove o gradientangle (são atributos distintos)
+    s = setObjectAttr(s, 1, 1, "gradient", undefined);
+    expect(s).toBe("box gradientangle 90");
+    s = setObjectAttr(s, 1, 1, "gradientAngle", undefined);
+    expect(s).toBe("box");
+  });
+
+  it("gradiente: leitura de volta (from/to/angle) p/ o inspetor", () => {
+    const a = readObjectAttrs('box gradient "steelblue" "white" gradientangle 45', 1, 1);
+    expect(a.gradientFrom).toBe("steelblue");
+    expect(a.gradientTo).toBe("white");
+    expect(a.gradientAngle).toBe(45);
+    // `gradient` não deve confundir a leitura com `gradientangle` sozinho
+    const b = readObjectAttrs("box gradientangle 30", 1, 1);
+    expect(b.gradientFrom).toBeUndefined();
+    expect(b.gradientAngle).toBe(30);
+  });
+
   it("edita a statement CERTA numa linha com várias (respeita o ;)", () => {
     const src = 'box "A"; circle "B"';
     // col 1 → a caixa (antes do ;)

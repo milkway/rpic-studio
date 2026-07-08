@@ -37,6 +37,21 @@ test("hatch + parâmetros (ângulo) escrevem na linha do objeto", async ({ page 
   await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok");
 });
 
+test("gradiente: o toggle semeia o par `gradient` e o ângulo ajusta", async ({ page }) => {
+  await loadDraft(page, 'box "A"');
+  const insp = page.getByTestId("objects-inspector");
+  await page.getByTestId("objects-handle").first().click();
+  await expect(insp).toBeVisible({ timeout: 5_000 });
+  // ▨ é exclusivo do toggle de gradiente (hachura usa ▧/▦); liga com par default
+  await insp.getByText("▨", { exact: true }).click();
+  await expect(page.getByTestId("code-pane")).toContainText('gradient "steelblue" "white"', { timeout: 5_000 });
+  // revela cor-final + ângulo; 135° só existe na gradientAngle aqui (rotate é 0/45/90/−45)
+  await expect(insp.getByText("Gradient to")).toBeVisible();
+  await insp.getByText("135°", { exact: true }).click();
+  await expect(page.getByTestId("code-pane")).toContainText("gradientangle 135", { timeout: 5_000 });
+  await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok");
+});
+
 test("dimensões, rotação e fonte de um box escrevem na sua linha", async ({ page }) => {
   await loadDraft(page, 'box "Hi"');
   await page.getByTestId("objects-handle").first().click();
@@ -69,7 +84,8 @@ test("Google Font por objeto: escreve `font \"…\"` e aplica no SVG", async ({ 
   await page.getByTestId("objects-font-Pacifico").click();
   await expect(page.getByTestId("code-pane")).toContainText('font "Pacifico"', { timeout: 5_000 });
   // a família é aplicada no <text> do SVG e a Google Font é carregada no browser
-  await expect(page.locator('[data-testid="preview-stage"] svg text[font-family="Pacifico"]')).toBeVisible({ timeout: 5_000 });
+  // (escopa ao grupo #s0 do objeto; o clone de realce não tem `id`)
+  await expect(page.locator('[data-testid="preview-stage"] svg #s0 text[font-family="Pacifico"]')).toBeVisible({ timeout: 5_000 });
   await expect
     .poll(() => page.evaluate(() => !!document.querySelector('link[data-gfont="Pacifico"]')))
     .toBe(true);
@@ -113,15 +129,23 @@ test("duplo-clique num objeto pula o cursor pra sua linha de código", async ({ 
     .toBe("3");
 });
 
-test("selecionar realça a GEOMETRIA real do objeto (drop-shadow no #s{i}), não um retângulo", async ({ page }) => {
+test("selecionar realça a GEOMETRIA real (clone de contorno de acento), não um retângulo", async ({ page }) => {
   await loadDraft(page, 'box "A"\ncircle "B"');
   await page.getByTestId("objects-handle").nth(1).click(); // circle B = #s1
-  const svgEl = page.locator('[data-testid="preview-stage"] svg #s1');
-  await expect(svgEl).toHaveAttribute("data-obj-selected", "", { timeout: 5_000 });
-  expect(await svgEl.evaluate((el) => (el as SVGElement).style.filter)).toContain("drop-shadow");
-  // deselecionar remove o realce da geometria
+  // um clone `[data-obj-highlight="s1"]` é sobreposto no SVG, com contorno de acento
+  const hl = page.locator('[data-testid="preview-stage"] svg [data-obj-highlight="s1"]');
+  await expect(hl).toHaveCount(1, { timeout: 5_000 });
+  // o contorno segue a geometria: traço non-scaling na cor de acento, sem preenchimento
+  const style = await hl.locator("circle,path,ellipse,rect").first().evaluate((el) => {
+    const s = (el as SVGElement).style;
+    return { stroke: s.stroke, fill: s.fill, ve: s.getPropertyValue("vector-effect") };
+  });
+  expect(style.fill).toBe("none");
+  expect(style.ve).toBe("non-scaling-stroke");
+  expect(style.stroke).not.toBe("");
+  // deselecionar remove o realce
   await page.getByTestId("objects-deselect").click({ position: { x: 16, y: 16 } });
-  await expect(svgEl).not.toHaveAttribute("data-obj-selected", "", { timeout: 5_000 });
+  await expect(hl).toHaveCount(0, { timeout: 5_000 });
 });
 
 test("com o canvas rolado, o handle continua alinhado ao objeto (sem deslocamento)", async ({ page }) => {

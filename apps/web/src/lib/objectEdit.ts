@@ -14,6 +14,8 @@ export type AttrKind =
   | "hatchSep"
   | "hatchWid"
   | "hatchColor"
+  | "gradient"
+  | "gradientAngle"
   | "dash"
   | "thick"
   | "bold"
@@ -54,6 +56,12 @@ function attrSpec(kind: AttrKind, value: string | number | undefined): { re: Reg
       return { re: /\s*\bhatch(?:wid|width)\s+[\d.]+/g, add: value != null && value !== "" ? `hatchwid ${fmtNum(Number(value))}` : "" };
     case "hatchColor":
       return { re: /\s*\bhatchcolor\s+"(?:[^"\\]|\\.)*"/g, add: value ? `hatchcolor "${value}"` : "" };
+    case "gradient":
+      // par de cores `gradient "a" "b"` (o UI compõe as duas strings já com aspas
+      // em `value`). A regex casa as DUAS strings p/ não deixar sobra ao remover.
+      return { re: /\s*\bgradient\s+"(?:[^"\\]|\\.)*"\s+"(?:[^"\\]|\\.)*"/g, add: value ? `gradient ${value}` : "" };
+    case "gradientAngle":
+      return { re: /\s*\bgradientangle\s+-?[\d.]+/g, add: value != null && value !== "" ? `gradientangle ${fmtNum(Number(value))}` : "" };
     case "dash":
       return { re: /\s*\b(?:dashed|dotted)\b/g, add: value ? String(value) : "" };
     case "thick":
@@ -137,6 +145,9 @@ export interface ObjectAttrs {
   hatchSep?: number;
   hatchWid?: number;
   hatchColor?: string;
+  gradientFrom?: string;
+  gradientTo?: string;
+  gradientAngle?: number;
   dash?: "dashed" | "dotted";
   thick?: number;
   bold?: boolean;
@@ -182,6 +193,13 @@ export function readObjectAttrs(source: string, line: number, col: number | unde
   if (hWid) out.hatchWid = +hWid[1];
   const hColor = /\bhatchcolor\s+"((?:[^"\\]|\\.)*)"/.exec(stmt);
   if (hColor) out.hatchColor = hColor[1];
+  const grad = /\bgradient\s+"((?:[^"\\]|\\.)*)"\s+"((?:[^"\\]|\\.)*)"/.exec(stmt);
+  if (grad) {
+    out.gradientFrom = grad[1];
+    out.gradientTo = grad[2];
+  }
+  const gAngle = /\bgradientangle\s+(-?[\d.]+)/.exec(stmt);
+  if (gAngle) out.gradientAngle = +gAngle[1];
   if (/\bbold\b/.test(stmt)) out.bold = true;
   if (/\bitalic\b/.test(stmt)) out.italic = true;
   const font = /\bfont\s+"((?:[^"\\]|\\.)*)"/.exec(stmt);
