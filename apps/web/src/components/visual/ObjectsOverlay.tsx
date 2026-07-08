@@ -243,6 +243,18 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
                   { v: 0.15, el: "═" },
                 ]}
               />
+              {/* Largura da linha de hachura em PONTOS (default 0.8); undefined = default. */}
+              <Seg
+                title={t("visual.inspector.hatchWid")}
+                value={attrs.hatchWid}
+                onPick={(v) => setAttr("hatchWid", v)}
+                options={[
+                  { v: 0.4, el: <div className="h-px w-5 bg-current" /> },
+                  { v: undefined, el: <div className="h-0.5 w-5 bg-current" /> },
+                  { v: 1.5, el: <div className="h-1 w-5 rounded-full bg-current" /> },
+                  { v: 3, el: <div className="h-1.5 w-5 rounded-full bg-current" /> },
+                ]}
+              />
               <Swatches title={t("visual.inspector.hatchColor")} colors={STROKE_COLORS} value={attrs.hatchColor} onPick={(c) => setAttr("hatchColor", c)} noneLabel={t("visual.none")} />
             </>
           )}

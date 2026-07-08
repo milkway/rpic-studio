@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { setObjectAttr } from "./objectEdit";
+import { readObjectAttrs, setObjectAttr } from "./objectEdit";
 
 describe("setObjectAttr", () => {
   it("anexa fill (shaded) a uma statement sem estilo", () => {
@@ -35,6 +35,21 @@ describe("setObjectAttr", () => {
     // hatchangle não deve ser removido pelo regex de hatch (fronteira de palavra)
     const s = setObjectAttr("box hatch hatchangle 30", 1, 1, "hatch", undefined);
     expect(s).toBe("box hatchangle 30");
+  });
+
+  it("hatchWid anexa/substitui/remove e absorve a forma longa `hatchwidth`", () => {
+    let s = setObjectAttr("box hatch", 1, 1, "hatchWid", 1.5);
+    expect(s).toBe("box hatch hatchwid 1.5");
+    s = setObjectAttr(s, 1, 1, "hatchWid", 0.4);
+    expect(s).toBe("box hatch hatchwid 0.4");
+    s = setObjectAttr(s, 1, 1, "hatchWid", undefined);
+    expect(s).toBe("box hatch");
+    // a forma longa `hatchwidth` também é reconhecida e não duplica ao reescrever
+    s = setObjectAttr("box hatch hatchwidth 2", 1, 1, "hatchWid", 1);
+    expect(s).toBe("box hatch hatchwid 1");
+    // e é lida de volta (round-trip p/ o inspetor)
+    expect(readObjectAttrs("box hatch hatchwid 1.2", 1, 1).hatchWid).toBe(1.2);
+    expect(readObjectAttrs("box hatch hatchwidth 2", 1, 1).hatchWid).toBe(2);
   });
 
   it("edita a statement CERTA numa linha com várias (respeita o ;)", () => {

@@ -12,6 +12,7 @@ export type AttrKind =
   | "hatch"
   | "hatchAngle"
   | "hatchSep"
+  | "hatchWid"
   | "hatchColor"
   | "dash"
   | "thick"
@@ -47,6 +48,10 @@ function attrSpec(kind: AttrKind, value: string | number | undefined): { re: Reg
       return { re: /\s*\bhatchangle\s+-?[\d.]+/g, add: value != null && value !== "" ? `hatchangle ${fmtNum(Number(value))}` : "" };
     case "hatchSep":
       return { re: /\s*\bhatchsep\s+[\d.]+/g, add: value != null && value !== "" ? `hatchsep ${fmtNum(Number(value))}` : "" };
+    case "hatchWid":
+      // o rpic aceita `hatchwid` e `hatchwidth`; escrevemos a forma curta, mas a
+      // regex remove ambas p/ não duplicar ao reescrever.
+      return { re: /\s*\bhatch(?:wid|width)\s+[\d.]+/g, add: value != null && value !== "" ? `hatchwid ${fmtNum(Number(value))}` : "" };
     case "hatchColor":
       return { re: /\s*\bhatchcolor\s+"(?:[^"\\]|\\.)*"/g, add: value ? `hatchcolor "${value}"` : "" };
     case "dash":
@@ -130,6 +135,7 @@ export interface ObjectAttrs {
   hatch?: "hatch" | "crosshatch";
   hatchAngle?: number;
   hatchSep?: number;
+  hatchWid?: number;
   hatchColor?: string;
   dash?: "dashed" | "dotted";
   thick?: number;
@@ -172,6 +178,8 @@ export function readObjectAttrs(source: string, line: number, col: number | unde
   if (hAngle) out.hatchAngle = +hAngle[1];
   const hSep = /\bhatchsep\s+([\d.]+)/.exec(stmt);
   if (hSep) out.hatchSep = +hSep[1];
+  const hWid = /\bhatch(?:wid|width)\s+([\d.]+)/.exec(stmt);
+  if (hWid) out.hatchWid = +hWid[1];
   const hColor = /\bhatchcolor\s+"((?:[^"\\]|\\.)*)"/.exec(stmt);
   if (hColor) out.hatchColor = hColor[1];
   if (/\bbold\b/.test(stmt)) out.bold = true;
