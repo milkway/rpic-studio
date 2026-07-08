@@ -61,16 +61,18 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   ESTILIZA: sobre QUALQUER pic que compile, o overlay lê `useRpic().objects[]` (bbox por `#s{i}` via
   `getBoundingClientRect` num loop rAF; `kind`/`line`/`col`/`file`) e dá uma caixa selecionável por
   objeto. Só objetos do próprio input (`file` ausente — exclui `copy`/circuitos) são interativos.
-  A bbox é só o ALVO DE CLIQUE (invisível quando selecionado): o INDICADOR de seleção abraça a
-  GEOMETRIA REAL — `decorateHighlight` CLONA o grupo `#s{i}`, sobrepõe um CONTORNO de acento
-  (`vector-effect: non-scaling-stroke` = largura CONSTANTE em px de tela; halo branco p/ separar de
-  fundo escuro/hachura; pulso sutil respeitando `prefers-reduced-motion`) e o anexa ao `<svg>`,
-  marcado com `data-obj-highlight`. É reconciliado no loop rAF (RECRIA o clone após cada reinjeção do
-  SVG; trocar/limpar a seleção o remove). Segue linhas/polígonos/curvas em vez de um retângulo (uma
-  forma diagonal grande daria uma caixa com o topo lá no vértice mais alto, lendo como "deslocado para
-  cima"). ATENÇÃO: um `drop-shadow` (tentativa anterior) SOME sobre traço fino/hachura — daí o clone.
-  O clone é só DOM vivo (sem `id`): não entra nos exports (que usam a string `bakedSvg`) nem vira
-  handle. As caixas são posicionadas relativas ao rect do PRÓPRIO overlay (não ao canvas) —
+  A bbox é SÓ o alvo de clique/hover (transparente — nunca desenha retângulo): TANTO o HOVER quanto a
+  SELEÇÃO abraçam a GEOMETRIA REAL — `styleHighlightClone` CLONA o grupo `#s{i}`, sobrepõe um CONTORNO
+  de acento (`vector-effect: non-scaling-stroke` = largura CONSTANTE em px de tela; halo branco p/
+  separar de fundo escuro/hachura) e o anexa ao `<svg>`, marcado com `data-hl="{papel}:{id}"` (papel =
+  `sel`|`hover`). Seleção pulsa (respeita `prefers-reduced-motion`); hover é mais fino/apagado e sem
+  pulso; hover só aparece se ≠ seleção. `reconcile(svg, papel, id)` no loop rAF é IDEMPOTENTE (se o
+  clone já é do alvo, não faz nada → sem churn/flicker; troca em UM frame; RECRIA após reinjeção do
+  SVG). Hover é rastreado por `hoverRef` (sem re-render → sem flicker). Segue linhas/polígonos/curvas
+  em vez de um retângulo (uma forma diagonal grande daria uma caixa com o topo lá no vértice mais alto,
+  lendo como "deslocado para cima"). ATENÇÃO: um `drop-shadow` (tentativa anterior) SOME sobre traço
+  fino/hachura — daí o clone. O clone é só DOM vivo (sem `id`): não entra nos exports (que usam a
+  string `bakedSvg`) nem vira handle. As caixas são posicionadas relativas ao rect do PRÓPRIO overlay (não ao canvas) —
   auto-contido e invariante a scroll/layout.
   Clicar → inspetor; duplo-clique → pula pra linha (`onJumpToLine`); clicar no VAZIO desseleciona
   (`objects-deselect`). O inspetor escreve o atributo NA STATEMENT do objeto via

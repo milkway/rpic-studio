@@ -132,8 +132,8 @@ test("duplo-clique num objeto pula o cursor pra sua linha de código", async ({ 
 test("selecionar realça a GEOMETRIA real (clone de contorno de acento), não um retângulo", async ({ page }) => {
   await loadDraft(page, 'box "A"\ncircle "B"');
   await page.getByTestId("objects-handle").nth(1).click(); // circle B = #s1
-  // um clone `[data-obj-highlight="s1"]` é sobreposto no SVG, com contorno de acento
-  const hl = page.locator('[data-testid="preview-stage"] svg [data-obj-highlight="s1"]');
+  // um clone `[data-hl="sel:s1"]` é sobreposto no SVG, com contorno de acento
+  const hl = page.locator('[data-testid="preview-stage"] svg [data-hl="sel:s1"]');
   await expect(hl).toHaveCount(1, { timeout: 5_000 });
   // o contorno segue a geometria: traço non-scaling na cor de acento, sem preenchimento
   const style = await hl.locator("circle,path,ellipse,rect").first().evaluate((el) => {
@@ -146,6 +146,19 @@ test("selecionar realça a GEOMETRIA real (clone de contorno de acento), não um
   // deselecionar remove o realce
   await page.getByTestId("objects-deselect").click({ position: { x: 16, y: 16 } });
   await expect(hl).toHaveCount(0, { timeout: 5_000 });
+});
+
+test("hover realça a GEOMETRIA (contorno tênue), não um retângulo — e vira seleção ao clicar", async ({ page }) => {
+  await loadDraft(page, 'box "A"\ncircle "B"');
+  const handleB = page.getByTestId("objects-handle").nth(1); // circle B = #s1
+  await handleB.hover();
+  // clone de hover sobreposto na geometria (não um outline retangular na bbox)
+  const hov = page.locator('[data-testid="preview-stage"] svg [data-hl="hover:s1"]');
+  await expect(hov).toHaveCount(1, { timeout: 5_000 });
+  // ao clicar, o hover vira SELEÇÃO: some o clone de hover, aparece o de seleção
+  await handleB.click();
+  await expect(page.locator('[data-testid="preview-stage"] svg [data-hl="sel:s1"]')).toHaveCount(1, { timeout: 5_000 });
+  await expect(hov).toHaveCount(0, { timeout: 5_000 });
 });
 
 test("com o canvas rolado, o handle continua alinhado ao objeto (sem deslocamento)", async ({ page }) => {

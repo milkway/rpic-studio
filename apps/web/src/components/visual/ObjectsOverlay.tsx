@@ -21,19 +21,17 @@ interface Props {
 const SHAPE_TAGS = /^(rect|circle|ellipse|line|path|polygon|polyline)$/;
 
 /**
- * Realce do objeto SELECIONADO que ABRAÇA a geometria real (não um retângulo).
- * Abordagem: CLONAR o grupo `#s{i}` e sobrepor um contorno na cor de acento —
- * traço `non-scaling-stroke` (largura CONSTANTE em pixels de tela, invariante ao
- * zoom/viewBox) e um pulso sutil de opacidade. É crisp mesmo sobre hachura/traço
- * fino (onde um `drop-shadow` some) e NÃO é destrutivo (o original fica intacto).
+ * Realce que ABRAÇA a geometria real (não um retângulo), tanto p/ SELEÇÃO quanto
+ * p/ HOVER. Abordagem: CLONAR o grupo `#s{i}` e sobrepor um contorno na cor de
+ * acento — traço `non-scaling-stroke` (largura CONSTANTE em pixels de tela,
+ * invariante ao zoom/viewBox) + halo branco (separa de hachura/fundo escuro). É
+ * crisp mesmo sobre traço fino (onde um `drop-shadow` some) e NÃO é destrutivo.
  * Texto ganha `fill` de acento; formas ganham só o CONTORNO (fill none).
+ * `hover` = variante mais fina/apagada e SEM pulso (a seleção pulsa p/ se
+ * distinguir do hover).
  */
-function decorateHighlight(clone: SVGElement, selId: string, accent: string): void {
-  clone.setAttribute("data-obj-highlight", selId);
-  clone.removeAttribute("id");
+function styleHighlightClone(clone: SVGElement, accent: string, hover: boolean): void {
   clone.style.pointerEvents = "none";
-  // Halo branco fino sob o realce: separa o acento do conteúdo ESCURO/hachurado
-  // (invisível sobre o papel claro). Fica no grupo, cobrindo traço E texto.
   clone.style.filter = "drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff)";
   for (const el of [clone, ...Array.from(clone.querySelectorAll<SVGElement>("*"))]) {
     el.removeAttribute("id");
@@ -41,19 +39,20 @@ function decorateHighlight(clone: SVGElement, selId: string, accent: string): vo
     if (tag === "text" || tag === "tspan") {
       el.style.fill = accent;
       el.style.stroke = "none";
+      el.style.opacity = hover ? "0.55" : "1";
     } else if (tag && SHAPE_TAGS.test(tag)) {
       el.removeAttribute("filter");
       el.style.fill = "none";
       el.style.stroke = accent;
-      el.style.strokeWidth = "2.5";
+      el.style.strokeWidth = hover ? "1.75" : "2.5";
       el.style.setProperty("vector-effect", "non-scaling-stroke");
       el.style.strokeDasharray = "none";
-      el.style.opacity = "1";
+      el.style.opacity = hover ? "0.55" : "1";
     }
   }
   const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  if (!reduce) {
-    // pulso sutil (nunca apaga demais) p/ o olho pousar na seleção
+  if (!hover && !reduce) {
+    // pulso sutil (nunca apaga demais) só na SELEÇÃO p/ o olho pousar nela
     clone.animate?.([{ opacity: 1 }, { opacity: 0.55 }, { opacity: 1 }], {
       duration: 1500,
       iterations: Infinity,
@@ -88,6 +87,7 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
   const [sel, setSel] = useState<string | null>(null);
   const boxesRef = useRef<OBox[]>([]);
   const selRef = useRef<string | null>(null);
+  const hoverRef = useRef<string | null>(null);
   const selBox = boxes.find((b) => b.id === sel);
   // Estiliza escrevendo o atributo NA STATEMENT do objeto (`setObjectAttr` acha o
   // fim, agora respeitando `}` de bloco). Macros (`define`)/laços (`for`) expandem
@@ -152,32 +152,35 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
       });
       return next;
     };
-    // Realça a GEOMETRIA REAL do selecionado clonando `#s{i}` e sobrepondo um
-    // contorno de acento (ver `decorateHighlight`). Reconciliado no loop → o
-    // clone é RECRIADO após cada reinjeção do SVG (quando some junto), e trocar
-    // ou limpar a seleção o remove. Idempotente: se o clone já é da seleção
-    // atual, não faz nada.
+    // Realça a GEOMETRIA REAL clonando `#s{i}` e sobrepondo um contorno de acento
+    // (ver `styleHighlightClone`), tanto p/ SELEÇÃO quanto p/ HOVER. Cada papel é
+    // um clone marcado com `data-hl="{papel}:{id}"`, reconciliado de forma
+    // IDEMPOTENTE: se o clone já é do alvo atual, não faz nada (sem churn/flicker);
+    // se o alvo mudou, troca em UM frame; some com a seleção/hover ou some junto na
+    // reinjeção do SVG e é RECRIADO. `id` nulo (ou hover == seleção) remove o clone.
     const cssEsc = (s: string) => (typeof CSS !== "undefined" && CSS.escape ? CSS.escape(s) : s);
+    const reconcile = (svg: SVGElement, role: "sel" | "hover", id: string | null) => {
+      const key = id ? `${role}:${id}` : "";
+      const existing = svg.querySelector<SVGElement>(`[data-hl^="${role}:"]`);
+      if ((existing?.getAttribute("data-hl") ?? "") === key) return; // já correto
+      existing?.remove();
+      if (!id) return;
+      const target = svg.querySelector<SVGElement>(`#${cssEsc(id)}`);
+      if (!target) return;
+      const accent = getComputedStyle(document.documentElement).getPropertyValue("--color-accent").trim() || "#1b5e20";
+      const clone = target.cloneNode(true) as SVGElement;
+      clone.removeAttribute("id");
+      clone.setAttribute("data-hl", key);
+      styleHighlightClone(clone, accent, role === "hover");
+      svg.appendChild(clone); // por cima de tudo
+    };
     const syncHighlight = () => {
       const svg = stageRef.current?.querySelector("svg");
       if (!svg) return;
       const sel = selRef.current;
-      const existing = svg.querySelector<SVGElement>("[data-obj-highlight]");
-      if (!sel) {
-        existing?.remove();
-        return;
-      }
-      const target = svg.querySelector<SVGElement>(`#${cssEsc(sel)}`);
-      if (!target) {
-        existing?.remove();
-        return;
-      }
-      if (existing?.getAttribute("data-obj-highlight") === sel) return; // já correto
-      existing?.remove();
-      const accent = getComputedStyle(document.documentElement).getPropertyValue("--color-accent").trim() || "#1b5e20";
-      const clone = target.cloneNode(true) as SVGElement;
-      decorateHighlight(clone, sel, accent);
-      svg.appendChild(clone); // por cima de tudo
+      const hov = hoverRef.current;
+      reconcile(svg, "sel", sel);
+      reconcile(svg, "hover", hov && hov !== sel ? hov : null); // hover só se != seleção
     };
     const loop = () => {
       const next = compute();
@@ -191,7 +194,7 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
     raf = requestAnimationFrame(loop);
     return () => {
       cancelAnimationFrame(raf);
-      stageRef.current?.querySelector("[data-obj-highlight]")?.remove();
+      stageRef.current?.querySelectorAll("[data-hl]").forEach((el) => el.remove());
     };
   }, [objects, stageRef]);
 
@@ -201,21 +204,21 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
       <div className="pointer-events-auto absolute inset-0" onPointerDown={() => setSel(null)} data-testid="objects-deselect" />
       {boxes.map((b) => {
         const selected = sel === b.id;
-        const round = b.kind === "circle" || b.kind === "ellipse";
         return (
           <div
             key={b.id}
-            className={cn(
-              "pointer-events-auto absolute cursor-pointer transition-[outline] duration-100",
-              round ? "rounded-full" : "rounded-sm",
-              // Selecionado: SEM retângulo — o realce é o brilho na geometria real
-              // (SELECT_FILTER no elemento SVG). Só a bbox continua sendo o alvo de
-              // clique. Hover mostra um contorno tênue só p/ sinalizar clicabilidade.
-              selected
-                ? "outline-none"
-                : "outline outline-1 outline-transparent hover:outline-(--color-accent)/40",
-            )}
+            // A bbox é SÓ o alvo de clique/hover (transparente): tanto o hover
+            // quanto a seleção são desenhados como CONTORNO na geometria real (clones
+            // no SVG), não como retângulo. Hover é rastreado por `ref` (sem re-render
+            // → sem flicker); o loop rAF lê `hoverRef` e reconcilia o clone.
+            className="pointer-events-auto absolute cursor-pointer"
             style={{ left: b.left, top: b.top, width: b.w, height: b.h }}
+            onPointerEnter={() => {
+              hoverRef.current = b.id;
+            }}
+            onPointerLeave={() => {
+              if (hoverRef.current === b.id) hoverRef.current = null;
+            }}
             onPointerDown={(e) => {
               e.stopPropagation();
               setSel(b.id);
