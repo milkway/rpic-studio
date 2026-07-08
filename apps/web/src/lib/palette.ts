@@ -2,6 +2,8 @@
 // render → escolher cor/fonte). São nomes/valores aceitos pelo rpic; o color
 // picker livre complementa com `#rrggbb`.
 
+// 10 cores por paleta: com "nenhuma" + o color picker, o grid do `Swatches`
+// (6 colunas) fecha exatamente DUAS linhas cheias (6 + 6), picker por último.
 /** Cores de preenchimento (nomes X11/CSS claros — bons p/ `shaded`). */
 export const FILL_COLORS = [
   "white",
@@ -12,16 +14,22 @@ export const FILL_COLORS = [
   "lavender",
   "wheat",
   "gainsboro",
+  "peachpuff",
+  "lightcyan",
 ] as const;
 
 /** Cores de contorno/hachura (tons escuros — bons p/ `outlined`/`hatchcolor`). */
 export const STROKE_COLORS = [
   "black",
   "gray",
+  "dimgray",
   "steelblue",
   "seagreen",
   "firebrick",
   "goldenrod",
+  "darkorange",
+  "purple",
+  "teal",
 ] as const;
 
 /** Famílias de fonte por objeto (genéricas/sistema, sem carregamento). */

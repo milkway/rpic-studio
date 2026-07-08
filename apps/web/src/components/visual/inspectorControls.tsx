@@ -54,22 +54,24 @@ export function Swatches({
   return (
     <div className="mb-3">
       <span className="mb-1 block font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">{title}</span>
-      <div className="flex flex-wrap gap-1.5">
+      {/* Grid de 6 colunas: "nenhuma" + 10 cores + picker = 12 → duas linhas
+          CHEIAS (sem buraco), com o color picker SEMPRE por último. */}
+      <div className="grid grid-cols-6 place-items-center gap-1.5">
         <button
           onClick={() => onPick(undefined)}
           title={noneLabel}
-          className={cn("h-5 w-5 rounded-full border border-(--color-border) text-[9px] leading-none text-(--color-text-muted)", !value && "ring-2 ring-(--color-accent)")}
+          className={cn("size-6 rounded-full border border-(--color-border) text-[9px] leading-none text-(--color-text-muted)", !value && "ring-2 ring-(--color-accent)")}
         >
           ⌀
         </button>
         {colors.map((c) => (
-          <button key={c} onClick={() => onPick(c)} title={c} style={{ background: c }} className={cn("h-5 w-5 rounded-full border border-(--color-border)", value === c && "ring-2 ring-(--color-accent)")} />
+          <button key={c} onClick={() => onPick(c)} title={c} style={{ background: c }} className={cn("size-6 rounded-full border border-(--color-border)", value === c && "ring-2 ring-(--color-accent)")} />
         ))}
-        {/* cor livre (rgb/hex — v0.7.0): emite `shaded "#rrggbb"` */}
+        {/* cor livre (rgb/hex — v0.7.0): emite `shaded "#rrggbb"`. SEMPRE por último. */}
         <label
           title="Cor livre"
           className={cn(
-            "relative h-5 w-5 cursor-pointer overflow-hidden rounded-full border border-(--color-border)",
+            "relative size-6 cursor-pointer overflow-hidden rounded-full border border-(--color-border)",
             value?.startsWith("#") && "ring-2 ring-(--color-accent)",
           )}
           style={{ background: value?.startsWith("#") ? value : "conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)" }}

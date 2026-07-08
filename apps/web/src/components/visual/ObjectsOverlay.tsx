@@ -20,6 +20,13 @@ interface Props {
 
 const SHAPE_TAGS = /^(rect|circle|ellipse|line|path|polygon|polyline)$/;
 
+/** Rótulo pic no início da linha do objeto (`B: circle …` → "B"), se houver — o
+ *  badge do seletor o mostra junto de linha/tipo. Labels pic começam maiúsculos. */
+function lineLabel(source: string | undefined, line?: number): string | undefined {
+  if (!source || !line) return undefined;
+  return /^\s*([A-Z][A-Za-z0-9_]*)\s*:/.exec(source.split("\n")[line - 1] ?? "")?.[1];
+}
+
 // Menor distância (em px de TELA) do ponto (cx,cy) ao CONTORNO de um grupo `#s{i}`,
 // amostrando cada elemento de geometria via `getPointAtLength` mapeado pela CTM.
 // Usado p/ acertar TRAÇOS FINOS (linhas), que exigiriam clique pixel-perfect no
@@ -341,6 +348,10 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
           >
             {selected && b.line && (
               <span className="pointer-events-none absolute -top-5 left-0 z-10 rounded-(--radius-sm) bg-(--color-accent) px-1.5 text-[10px] leading-4 whitespace-nowrap text-white">
+                {(() => {
+                  const lbl = lineLabel(source, b.line);
+                  return lbl ? `${lbl} · ` : "";
+                })()}
                 {t("visual.objectsLine", { line: String(b.line) })} · {b.kind}
               </span>
             )}
@@ -378,6 +389,11 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
             </p>
           )}
           {canStyle && (
+          <>
+          {/* Preenchimento/traço/hachura/gradiente/espessura só p/ FORMAS: no rpic
+              texto não é colorível por atributo (só via `class`+CSS) e vários desses
+              não se aplicam. Texto mostra só fonte/alinhamento/rotação. */}
+          {selBox.kind !== "text" && (
           <>
           <Swatches title={t("visual.inspector.fill")} colors={FILL_COLORS} value={attrs.fill} onPick={(c) => setAttr("fill", c)} noneLabel={t("visual.none")} />
           <Swatches title={t("visual.inspector.stroke")} colors={STROKE_COLORS} value={attrs.stroke} onPick={(c) => setAttr("stroke", c)} noneLabel={t("visual.none")} />
@@ -485,7 +501,9 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
               { v: 3, el: <div className="h-1 w-5 rounded-full bg-current" /> },
             ]}
           />
-          {/* Rotação + opacidade (qualquer elemento) */}
+          </>
+          )}
+          {/* Rotação: qualquer elemento (inclusive texto). */}
           <Seg
             title={t("visual.inspector.rotate")}
             value={attrs.rotated}
@@ -497,6 +515,8 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
               { v: -45, el: "−45°" },
             ]}
           />
+          {/* Opacidade: só formas — no rpic `opacity` em texto é erro de compilação. */}
+          {selBox.kind !== "text" && (
           <Seg
             title={t("visual.inspector.opacity")}
             value={attrs.opacity}
@@ -508,6 +528,7 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
               { v: 0.15, el: "15" },
             ]}
           />
+          )}
           {/* Dimensões (em polegadas; vazio = automático). Box: larg×alt + raio
               dos CANTOS (`box rad N` = cantos arredondados); ellipse: larg×alt;
               círculo: raio. Escritas como wid/ht/rad na linha do objeto. */}

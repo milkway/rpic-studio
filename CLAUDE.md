@@ -108,6 +108,12 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   `thick`, `rotated`, `opacity`, **dimensões** (`wid`/`ht` p/ box/ellipse, `rad` p/ círculo — campos
   numéricos em POLEGADAS; vazio = auto), **fonte** p/ qualquer rótulo (`bold`/`italic`/`font "…"`/
   `fontsize`) e `ljust|rjust` (texto). Tudo escrito na statement (por-string p/ os de fonte).
+  **TEXTO (`kind === "text"`)**: o inspetor mostra SÓ o aplicável — fonte, `ljust|rjust`, `rotated`.
+  Esconde fill/stroke/hatch/gradient/dash/thick/dimensões (texto não é colorível por atributo no rpic,
+  só via `class`+CSS) e ESPECIALMENTE `opacity` (em texto é ERRO de compilação: "opacity applies only
+  to filled regions"). Badge do seletor mostra `{rótulo pic} · {linha} · {tipo}` (`lineLabel` fareja
+  um `B:` no início da linha). Cores: `Swatches` é um grid de 6 col = "nenhuma" + 10 cores + picker
+  (SEMPRE por último) = duas linhas cheias (`FILL_COLORS`/`STROKE_COLORS` têm 10 cada por isso).
   Auditoria completa dos atributos estilizáveis vs. inspetor: issue milkway/rpic-studio#1 (fora do
   escopo DE PROPÓSITO: `vpos`/`aligned` reposicionam; `mono`/`diam`/`sized` são redundantes).
   `source`+`onSourceChange` fluem EditorPage→PreviewTabs→PreviewPane→overlay. `Seg`/`Swatches` em

@@ -185,6 +185,31 @@ test("remover hachura (∅) limpa a keyword E os parâmetros órfãos (sem patte
   await expect(page.locator('[data-testid="preview-stage"] svg pattern')).toHaveCount(0);
 });
 
+test("inspetor de TEXTO mostra só o aplicável (fonte/alinhar/rotação; sem fill/hachura/opacidade)", async ({ page }) => {
+  await loadDraft(page, '"Hello" at (1,-1)');
+  await page.getByTestId("objects-handle").first().click();
+  const insp = page.getByTestId("objects-inspector");
+  await expect(insp).toBeVisible({ timeout: 5_000 });
+  // aplicáveis a texto
+  await expect(insp.getByTestId("objects-bold")).toBeVisible();
+  await expect(insp.getByText("Rotate", { exact: true })).toBeVisible();
+  await expect(insp.getByText("Align", { exact: true })).toBeVisible();
+  // NÃO aplicáveis (some no rpic p/ texto; `opacity` até quebra a compilação)
+  await expect(insp.getByText("Fill", { exact: true })).toHaveCount(0);
+  await expect(insp.getByText("Outline", { exact: true })).toHaveCount(0);
+  await expect(insp.getByText("Hatch", { exact: true })).toHaveCount(0);
+  await expect(insp.getByText("Opacity", { exact: true })).toHaveCount(0);
+});
+
+test("badge do seletor mostra o rótulo pic (B:) do objeto, junto de linha e tipo", async ({ page }) => {
+  await loadDraft(page, 'B: circle "x"\nbox "y"');
+  await page.getByTestId("objects-handle").first().click(); // circle rotulado B (linha 1)
+  await expect(page.getByTestId("objects-overlay")).toContainText("B ·", { timeout: 5_000 });
+  // o box da linha 2 não tem rótulo → badge sem "· ·" espúrio
+  await page.getByTestId("objects-handle").nth(1).click();
+  await expect(page.getByTestId("objects-overlay")).not.toContainText("B ·");
+});
+
 test("clique PRÓXIMO a uma linha fina que cruza uma forma seleciona a linha (proximidade)", async ({ page }) => {
   // s0 = box vazado centrado em (2,0) (linha 2); s1 = linha vertical no CENTRO do
   // box, x=2 (linha 3). A linha é fina e vertical (bbox width ≈ 0): sem o fix ela
