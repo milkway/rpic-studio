@@ -108,6 +108,10 @@ const M = {
     en: (w: string) => `“${w}” is not a valid attribute here and was ignored.`,
     pt: (w: string) => `“${w}” não é um atributo válido aqui e foi ignorado.`,
   },
+  invalidColor: {
+    en: (w: string) => `“${w}” is not a known colour name or a #hex/rgb() value — it will render as no paint.`,
+    pt: (w: string) => `“${w}” não é um nome de cor conhecido nem um valor #hex/rgb() — vai renderizar sem tinta.`,
+  },
   unknownEffect: {
     en: (w: string, ok: string) => `Unknown animation effect “${w}”. Available: ${ok}.`,
     pt: (w: string, ok: string) => `Efeito de animação desconhecido: “${w}”. Disponíveis: ${ok}.`,
@@ -205,6 +209,8 @@ function classifyDiagnostic(
       const suggestion = base.suggestion ?? maybeSuggest(word ?? "", source, locale);
       return { ...base, friendly: M.ignoredAttribute[locale](word ?? "?"), suggestion };
     }
+    case "invalid_color":
+      return { ...base, friendly: M.invalidColor[locale](word ?? "?") };
     case "unknown_animation_effect":
       return { ...base, friendly: M.unknownEffect[locale](word ?? "?", d.expected ?? "…") };
     case "parse":

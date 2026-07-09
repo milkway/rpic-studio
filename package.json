@@ -1,7 +1,7 @@
 {
   "name": "rpic-app",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "rpic studio — editor web de diagramas na linguagem rpic (pic). Escreva o desenho, veja-o nascer.",
   "license": "BSD-2-Clause",
   "workspaces": [
@@ -19,6 +19,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@strategicprojects/rpic": "^0.8.1"
+    "@strategicprojects/rpic": "^0.9.0"
   }
 }

@@ -50,4 +50,35 @@ describe("compilador rpic (WASM real)", () => {
     const out = compile('x = 6*7\nprint x\nbox "ok"');
     expect(out.diagnostics.some((d) => d.includes("42"))).toBe(true);
   });
+
+  // rpic 0.9.0
+  it("gradient + hatch pinta UM gradiente no objeto todo (rpic-lang#273)", () => {
+    const out = compile('box gradient "gold" "crimson" hatch');
+    // o gradiente vive como underlay próprio, não dentro do tile do <pattern>
+    // (dentro do tile ele repetiria por célula da hachura — efeito acolchoado)
+    const pattern = /<pattern[\s\S]*?<\/pattern>/.exec(out.svg)?.[0] ?? "";
+    expect(out.svg).toContain("<linearGradient");
+    expect(pattern).not.toContain("linearGradient");
+  });
+
+  it("thin afina o traço em 2/3 do linethick", () => {
+    const out = compile("line right 1\nline right 1 thin");
+    const widths = [...out.svg.matchAll(/<line[^>]*stroke-width="([\d.]+)"/g)].map((m) => Number(m[1]));
+    expect(widths).toHaveLength(2);
+    expect(widths[1]).toBeCloseTo(widths[0] * (2 / 3), 3);
+  });
+
+  it("cor em variável e em expressão resolve em posição de cor", () => {
+    const out = compile('accent = 0x1b5e20\nbox shaded accent\nbox shaded (accent + 0x101010)');
+    expect(out.svg).toContain('fill="#1b5e20"');
+    expect(out.svg).toContain('fill="#2b6e30"');
+  });
+
+  it("cor desconhecida gera warning invalid_color com sugestão", () => {
+    const out = compile('box outlined "crimsom"');
+    const w = out.warnings.find((d) => d.kind === "invalid_color");
+    expect(w).toBeDefined();
+    expect(w!.found).toBe("crimsom");
+    expect(w!.hint).toContain("crimson");
+  });
 });

@@ -421,6 +421,32 @@ line right 0.85 then up 0.52 then left 0.85 then down 0.52 \\
 .PE`,
   },
   {
+    id: "palette",
+    title: { en: "Colour variables (palette)", pt: "Cores em variáveis (paleta)" },
+    description: {
+      en: "rpic 0.9: hold colours in variables and compute tints with expressions — one palette drives the figure.",
+      pt: "rpic 0.9: guarde cores em variáveis e calcule tons com expressões — uma paleta guia a figura toda.",
+    },
+    tags: ["extensions"],
+    circuits: false,
+    source: `.PS
+# define the palette once, reuse it everywhere
+accent = 0x1b5e20
+mist   = 0xdce8dc
+
+boxwid = 0.8; boxht = 0.52
+A: box "accent" outlined accent
+move right 1.05
+B: box "mist" shaded mist outlined accent
+move right 1.05
+C: circle "tint" rad 0.3 shaded (mist + 0x101010) outlined accent
+
+arrow from A.e to B.w thin
+arrow from B.e to C.w thin
+"thin arrows" at B.s + (0, -0.4)
+.PE`,
+  },
+  {
     id: "rlc",
     title: { en: "RLC circuit", pt: "Circuito RLC" },
     description: {
