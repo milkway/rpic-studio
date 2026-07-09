@@ -42,7 +42,11 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   `draw`/`fade`/`pop`, `out`, `repeat`/`yoyo`/`ease`, `stagger`, `animate scroll`; o player npm converte
   formas em `<path>` p/ `move`/`morph`). O pin fica em TRÊS lugares:
   `apps/web/package.json` E a raiz `package.json` (web WASM `@strategicprojects/rpic`), e a git-dep
-  da API em `apps/api/Cargo.toml` (`rpic-core`/`rpic-render` na `tag = "v0.9.0"`).
+  da API em `apps/api/Cargo.toml` (`rpic-core`/`rpic-render` na `tag = "v0.9.0"`). Depois de mudar a
+  tag, rodar `cargo update --manifest-path apps/api/Cargo.toml -p rpic-core -p rpic-render` — editar
+  só o `Cargo.toml` deixa o `Cargo.lock` STALE (foi assim que o lock ficou preso no v0.7.0 dois bumps
+  seguidos; o Docker do servidor resolvia sozinho e mascarava). Obs.: o sqlx 0.9 do lock exige
+  rustc ≥ 1.94 — se o `cargo` local reclamar de MSRV, `rustup update stable`.
 - **Erros do compilador**: formato `"linha:coluna: mensagem"` — parse em `errorPosition()`.
 - **SVG no DOM**: sempre via `sanitizeSvg()` (DOMPurify) — o código pode ter vindo de link de
   terceiros (`#pic=`).
@@ -138,8 +142,10 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   ancorado num objeto real presente nos dois compiles (as sondas podem AMPLIAR os bounds — a âncora
   transfere a diferença; a escala sai das duas sondas no MESMO compile, o que absorve `scale=…`).
   Exposto como `getPicMapping()` no `useRpic` — LAZY (só compila na 1ª chamada por versão) e cacheado.
-  Cliente→viewBox pela razão `getBoundingClientRect()/viewBox` do próprio `<svg>` — NÃO usar
-  `getScreenCTM()` (no Chromium ele IGNORA `scale()` CSS de ancestral → coords desviavam ~zoom).
+  Cliente→viewBox pela razão `getBoundingClientRect()/viewBox` do próprio `<svg>` (correta por
+  construção sob qualquer transform; obs.: TESTAMOS e o `getScreenCTM()` do Chromium atual TAMBÉM
+  inclui `scale()` CSS de ancestral — o `geomDistPx` do overlay o usa e está correto; a razão
+  rect/viewBox é só a forma mais à prova de dúvida). E2E fixa coords exatas a 100% e ~305% de zoom.
 - **Autocomplete do PIC** (`components/editor/rpicCompletions.ts`, ligado no `CodePane` via
   `autocompletion({override})`): primitivas, direções, atributos, cores, variáveis, diretivas,
   keywords pikchr-compat (0.7.1), keywords de animação (0.8.x: `animate` + cláusulas `along/into/out/
@@ -169,7 +175,8 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   rpic via subpath exportado do `.wasm`, pois o package não expõe `./package.json`); globais
   declaradas em `vite-env.d.ts`. A versão do studio é PRÓPRIA (SemVer independente do engine; **v0.2.0**
   = animação 0.8.x, **v0.3.0** = engine 0.9.0 com `thin`/cores-variáveis/warnings, **v0.4.0** =
-  pan por arrasto + coordenadas pic com cópia + scrubber de `animate scroll` + thin/xcolor na UI).
+  pan por arrasto + coordenadas pic com cópia + scrubber de `animate scroll` + thin/xcolor na UI,
+  **v0.4.1** = zoom dimensiona o layout → pan nas 4 direções e coords exatas sob zoom).
 - **Paleta de circuitos** (`components/editor/CircuitPalette.tsx` + `lib/circuitCatalog.ts`): menu no
   header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — 14
   macros circuit_macros com sintaxe de DOIS pontos nomeados (`resistor(A,B)`; centrados `ground(P)`),
