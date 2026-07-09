@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { compile, ensureRpic, type Anim, type CompileError, type Diagnostic, type ObjectGeometry } from "./rpic";
 import { detectTexLabels } from "./detect";
+import { solvePicMapping, type PicMapping } from "./picCoords";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 export interface RpicState {
@@ -23,6 +24,11 @@ export interface RpicState {
   version: number;
   /** Geometria por objeto (v0.7.0): bbox + `line/col` no código, alinhado a `s{i}`. */
   objects: ObjectGeometry[];
+  /** `animate scroll` no fonte — o preview troca autoplay por scrub (0.8.x). */
+  scroll: boolean;
+  /** Mapeamento SVG→pic da ÚLTIMA compilação boa, resolvido SOB DEMANDA (faz um
+   *  shadow compile com sondas na 1ª chamada por versão; depois é cache). */
+  getPicMapping: () => PicMapping | null;
 }
 
 export interface RpicOptions {
@@ -30,7 +36,7 @@ export interface RpicOptions {
   texlabels: boolean;
 }
 
-const INITIAL: RpicState = {
+const INITIAL: Omit<RpicState, "getPicMapping"> = {
   svg: "",
   animations: [],
   prints: [],
@@ -41,6 +47,7 @@ const INITIAL: RpicState = {
   compileMs: null,
   version: 0,
   objects: [],
+  scroll: false,
 };
 
 /** Atraso extra antes de EXIBIR um erro ("lazy red"): sucesso aparece na hora,
@@ -50,9 +57,30 @@ const ERROR_GRACE_MS = 600;
 /** Compila `source` ao vivo (debounce), preservando o último SVG bom em erro. */
 export function useRpic(source: string, { circuits, texlabels }: RpicOptions): RpicState {
   const debounced = useDebouncedValue(source, 200);
-  const [state, setState] = useState<RpicState>(INITIAL);
+  const [state, setState] = useState<Omit<RpicState, "getPicMapping">>(INITIAL);
   const versionRef = useRef(0);
   const errorTimerRef = useRef<number | null>(null);
+  // Última compilação BOA (fonte + opções + objetos) — insumo do mapeamento
+  // SVG→pic. Resolvido sob demanda (custa um compile extra) e cacheado por versão.
+  const lastGoodRef = useRef<{
+    source: string;
+    circuits: boolean;
+    texlabels: boolean;
+    objects: ObjectGeometry[];
+    version: number;
+  } | null>(null);
+  const picMapRef = useRef<{ version: number; map: PicMapping | null } | null>(null);
+  const getPicMapping = useCallback((): PicMapping | null => {
+    const good = lastGoodRef.current;
+    if (!good) return null;
+    if (picMapRef.current?.version !== good.version) {
+      picMapRef.current = {
+        version: good.version,
+        map: solvePicMapping(good.source, { circuits: good.circuits, texlabels: good.texlabels }, good.objects),
+      };
+    }
+    return picMapRef.current.map;
+  }, []);
   // Documento inicial já tem TeX? Então carrega o build math direto (sem reload).
   // Capturado no 1º render: `ensureRpic` é idempotente, só a 1ª chamada fixa o build.
   const initialTexRef = useRef(detectTexLabels(source));
@@ -84,6 +112,13 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
         window.clearTimeout(errorTimerRef.current);
         errorTimerRef.current = null;
       }
+      lastGoodRef.current = {
+        source: debounced,
+        circuits,
+        texlabels,
+        objects: bundle.objects ?? [],
+        version: versionRef.current,
+      };
       setState((s) => ({
         ...s,
         svg: bundle.svg,
@@ -95,6 +130,7 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
         compileMs,
         version: versionRef.current,
         objects: bundle.objects ?? [],
+        scroll: bundle.scroll ?? false,
       }));
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
@@ -112,5 +148,5 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
     };
   }, [debounced, circuits, texlabels, state.loading]);
 
-  return state;
+  return { ...state, getPicMapping };
 }

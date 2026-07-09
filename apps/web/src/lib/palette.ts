@@ -32,6 +32,24 @@ export const STROKE_COLORS = [
   "teal",
 ] as const;
 
+/** Os 68 nomes dvips/xcolor (CamelCase) que o rpic 0.9 resolve p/ RGB real
+ *  (`dvipsnam.def`) — o corpus dpic/circuit_macros usa (`shaded "Dandelion"`).
+ *  Lista espelhada de `XCOLOR_NAMED` no rpic-lang (crates/core/src/color.rs). */
+export const XCOLOR_NAMES = [
+  "Apricot", "Aquamarine", "Bittersweet", "Black", "Blue", "BlueGreen",
+  "BlueViolet", "BrickRed", "Brown", "BurntOrange", "CadetBlue",
+  "CarnationPink", "Cerulean", "CornflowerBlue", "Cyan", "Dandelion",
+  "DarkOrchid", "Emerald", "ForestGreen", "Fuchsia", "Goldenrod", "Gray",
+  "Green", "GreenYellow", "JungleGreen", "Lavender", "LimeGreen", "Magenta",
+  "Mahogany", "Maroon", "Melon", "MidnightBlue", "Mulberry", "NavyBlue",
+  "OliveGreen", "Orange", "OrangeRed", "Orchid", "Peach", "Periwinkle",
+  "PineGreen", "Plum", "ProcessBlue", "Purple", "RawSienna", "Red",
+  "RedOrange", "RedViolet", "Rhodamine", "RoyalBlue", "RoyalPurple",
+  "RubineRed", "Salmon", "SeaGreen", "Sepia", "SkyBlue", "SpringGreen",
+  "Tan", "TealBlue", "Thistle", "Turquoise", "Violet", "VioletRed", "White",
+  "WildStrawberry", "Yellow", "YellowGreen", "YellowOrange",
+] as const;
+
 /** Famílias de fonte por objeto (genéricas/sistema, sem carregamento). */
 export const FONT_FAMILIES = [
   "serif",

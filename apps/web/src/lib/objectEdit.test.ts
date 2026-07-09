@@ -137,4 +137,16 @@ describe("setObjectAttr", () => {
   it("preserva rótulo com aspas ao anexar (não fecha string errada)", () => {
     expect(setObjectAttr('box "a; b"', 1, 1, "fill", "red")).toBe('box "a; b" shaded "red"');
   });
+
+  it("thin (0.9.0): anexa, é lido de volta e é mutuamente exclusivo com thick", () => {
+    const withThin = setObjectAttr("box", 1, 1, "thin", "thin");
+    expect(withThin).toBe("box thin");
+    expect(readObjectAttrs(withThin, 1, 1).thin).toBe(true);
+    // thin → thick substitui (não deixa os dois competindo pela espessura)
+    expect(setObjectAttr(withThin, 1, 1, "thick", 2)).toBe("box thick 2");
+    // thick → thin idem
+    expect(setObjectAttr("box thick 2", 1, 1, "thin", "thin")).toBe("box thin");
+    // remover thin
+    expect(setObjectAttr(withThin, 1, 1, "thin", undefined)).toBe("box");
+  });
 });

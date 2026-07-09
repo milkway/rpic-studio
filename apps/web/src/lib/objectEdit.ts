@@ -18,6 +18,7 @@ export type AttrKind =
   | "gradientAngle"
   | "dash"
   | "thick"
+  | "thin"
   | "bold"
   | "italic"
   | "font"
@@ -65,7 +66,11 @@ function attrSpec(kind: AttrKind, value: string | number | undefined): { re: Reg
     case "dash":
       return { re: /\s*\b(?:dashed|dotted)\b/g, add: value ? String(value) : "" };
     case "thick":
-      return { re: /\s*\bthick\s+[\d.]+/g, add: value != null && value !== "" ? `thick ${fmtNum(Number(value))}` : "" };
+      // remove também um `thin` (0.9.0) — os dois competiriam pela espessura
+      return { re: /\s*\b(?:thick\s+[\d.]+|thin\b)/g, add: value != null && value !== "" ? `thick ${fmtNum(Number(value))}` : "" };
+    case "thin":
+      // `thin` (0.9.0, sem valor) = 2/3 do linethick; mutuamente exclusivo com thick
+      return { re: /\s*\b(?:thick\s+[\d.]+|thin\b)/g, add: value ? "thin" : "" };
     case "bold":
       return { re: /\s*\bbold\b/g, add: value ? "bold" : "" };
     case "italic":
@@ -150,6 +155,7 @@ export interface ObjectAttrs {
   gradientAngle?: number;
   dash?: "dashed" | "dotted";
   thick?: number;
+  thin?: boolean;
   bold?: boolean;
   italic?: boolean;
   font?: string;
@@ -190,6 +196,7 @@ export function readObjectAttrs(source: string, line: number, col: number | unde
   if (dash) out.dash = dash[1] as "dashed" | "dotted";
   const thick = /\bthick\s+([\d.]+)/.exec(stmt);
   if (thick) out.thick = +thick[1];
+  if (/\bthin\b/.test(stmt)) out.thin = true;
   const hAngle = /\bhatchangle\s+(-?[\d.]+)/.exec(stmt);
   if (hAngle) out.hatchAngle = +hAngle[1];
   const hSep = /\bhatchsep\s+([\d.]+)/.exec(stmt);

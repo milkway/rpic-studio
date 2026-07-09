@@ -32,13 +32,17 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
 - **Releases do rpic**: o workflow `.github/workflows/rpic-release-watch.yml` abre uma issue
   com checklist de investigação quando o rpic-lang taggeia versão nova (compara com a versão
   do lockfile). Ao atualizar a dependência, rodar a suíte completa — `compile.test.ts` valida
-  todos os exemplos no WASM real e pega drift de comportamento. **Atual: v0.8.1** (subsistema de
-  animação completo: efeitos `slide`/`move`/`highlight`/`morph` além de `draw`/`fade`/`pop`, modificador
-  `out`, `repeat`/`yoyo`/`ease`, `stagger` de bloco e `animate scroll`; o manifesto ganhou chaves opcionais
-  `from`/`path`/`color`/`morph`/`repeat`/`yoyo`/`ease`/`out` e o flag top-level `scroll` — o player do npm
-  0.8.1 converte as formas em `<path>` p/ `move`/`morph` no browser). O pin fica em TRÊS lugares:
+  todos os exemplos no WASM real e pega drift de comportamento. **Atual: v0.9.0** (`thin` = 2/3 do
+  `linethick`; cores em VARIÁVEIS/expressões em posição de cor — `accent = 0x…; box shaded accent`,
+  `shaded (expr)`; nomes dvips/xcolor resolvem p/ RGB; warning `invalid_color` no bundle com hint
+  "did you mean" — o `errorInfo.ts` tem caso localizado e `compile.test.ts` cobre tudo isso; FIX do
+  gradient+hatch #273 — gradiente vira underlay, não repete por tile; tipos TS do `Anim`/`Bundle.scroll`
+  agora completos no npm; labels standalone entram nos bounds; hardening contra input hostil).
+  0.8.x trouxe o subsistema de animação (efeitos `slide`/`move`/`highlight`/`morph` além de
+  `draw`/`fade`/`pop`, `out`, `repeat`/`yoyo`/`ease`, `stagger`, `animate scroll`; o player npm converte
+  formas em `<path>` p/ `move`/`morph`). O pin fica em TRÊS lugares:
   `apps/web/package.json` E a raiz `package.json` (web WASM `@strategicprojects/rpic`), e a git-dep
-  da API em `apps/api/Cargo.toml` (`rpic-core`/`rpic-render` na `tag = "v0.8.1"`).
+  da API em `apps/api/Cargo.toml` (`rpic-core`/`rpic-render` na `tag = "v0.9.0"`).
 - **Erros do compilador**: formato `"linha:coluna: mensagem"` — parse em `errorPosition()`.
 - **SVG no DOM**: sempre via `sanitizeSvg()` (DOMPurify) — o código pode ter vindo de link de
   terceiros (`#pic=`).
@@ -87,7 +91,8 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   string `bakedSvg`) nem vira handle. As caixas são posicionadas relativas ao rect do PRÓPRIO overlay (não ao canvas) —
   auto-contido e invariante a scroll/layout.
   Clicar → inspetor; duplo-clique → pula pra linha (`onJumpToLine`); clicar no VAZIO desseleciona
-  (`objects-deselect`). O inspetor escreve o atributo NA STATEMENT do objeto via
+  (`objects-deselect`) — mas só o CLIQUE LIMPO (down+up sem mover >4px): arrasto a partir do vazio é
+  PAN do canvas e não pode perder a seleção. O inspetor escreve o atributo NA STATEMENT do objeto via
   `setObjectAttr(source, line, col, kind, value)` (`lib/objectEdit.ts`): acha o fim da statement
   (próximo `;` fora de aspas ou fim de linha) e SUBSTITUI/ANEXA; `readObjectAttrs` lê o estado atual.
   `statementEnd` para no `;` OU no `}` (fim de bloco) — por isso o atributo de um objeto de **macro
@@ -105,7 +110,8 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   degradê. Por isso o toggle ∅ chama `clearHatch`/`clearGradient` (removem keyword **+ TODOS os
   parâmetros** de uma vez) e `readObjectAttrs` INFERE a hachura dos parâmetros — senão a hachura "não
   some de vez" e fica por cima do gradiente.
-  `thick`, `rotated`, `opacity`, **dimensões** (`wid`/`ht` p/ box/ellipse, `rad` p/ círculo — campos
+  `thick`/**`thin`** (0.9.0 — mutuamente exclusivos: o attrSpec de um REMOVE o outro), `rotated`,
+  `opacity`, **dimensões** (`wid`/`ht` p/ box/ellipse, `rad` p/ círculo — campos
   numéricos em POLEGADAS; vazio = auto), **fonte** p/ qualquer rótulo (`bold`/`italic`/`font "…"`/
   `fontsize`) e `ljust|rjust` (texto). Tudo escrito na statement (por-string p/ os de fonte).
   **TEXTO (`kind === "text"`)**: o inspetor mostra SÓ o aplicável — fonte, `ljust|rjust`, `rotated`.
@@ -119,6 +125,16 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   `source`+`onSourceChange` fluem EditorPage→PreviewTabs→PreviewPane→overlay. `Seg`/`Swatches` em
   `visual/inspectorControls.tsx`; cores/fontes em `lib/palette.ts`. NÃO move nem REPOSICIONA (posição
   em pic pode ser relativa) — criar/posicionar fica no código, com **autocomplete** (`rpicCompletions`).
+- **Pan + coordenadas pic no preview** (`PreviewPane.tsx`): o canvas (overflow-auto) tem PAN por
+  arrasto — handlers de CAPTURA no div do canvas, limiar de 4px, `setPointerCapture` (os moves param
+  de chegar ao overlay durante o pan → sem churn de hover); clique limpo continua selecionando. O
+  rodapé do preview mostra as **coordenadas pic do cursor** (`pic-coords`; clique copia `(x, y)`
+  pronto p/ o código). O SVG do rpic NÃO carrega a origem do espaço pic → `lib/picCoords.ts` resolve
+  por MEDIÇÃO: um **shadow compile** com dois dots-sonda em (0,0)/(1,1) (inseridos antes do `.PE`),
+  ancorado num objeto real presente nos dois compiles (as sondas podem AMPLIAR os bounds — a âncora
+  transfere a diferença; a escala sai das duas sondas no MESMO compile, o que absorve `scale=…`).
+  Exposto como `getPicMapping()` no `useRpic` — LAZY (só compila na 1ª chamada por versão) e cacheado.
+  Cliente→viewBox via `getScreenCTM().inverse()` (inclui o `scale(zoom)` CSS).
 - **Autocomplete do PIC** (`components/editor/rpicCompletions.ts`, ligado no `CodePane` via
   `autocompletion({override})`): primitivas, direções, atributos, cores, variáveis, diretivas,
   keywords pikchr-compat (0.7.1), keywords de animação (0.8.x: `animate` + cláusulas `along/into/out/
@@ -130,7 +146,9 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   gsap)` do pacote npm (botão replay, respeita `prefers-reduced-motion`). Efeitos: `draw/fade/pop`
   (0.6.x) + `slide` (`from <dir>`), `move` (`along <path>`), `highlight` (`to <cor>`), `morph`
   (`into <shape>`); modificadores `out`, `repeat`/`yoyo`/`ease`, `stagger` de bloco, `animate scroll`.
-  O player do npm 0.8.1 converte as formas em `<path>` p/ `move`/`morph` no browser. Highlight das
+  O player do npm converte as formas em `<path>` p/ `move`/`morph` no browser. **`animate scroll`**:
+  o `useRpic` expõe `bundle.scroll` e o `PreviewPane` troca o autoplay por um SCRUBBER (`scroll-scrub`,
+  timeline nasce pausada; o replay some) — no site final o host liga o ScrollTrigger. Highlight das
   cláusulas em `rpicLanguage.ts` (`RE.attribute`); exemplos "Data flow" e "Morph" em `examples.ts`;
   referência na `HelpPage`. Ao subir a versão do rpic, SEMPRE aflorar features novas de linguagem
   nessas 4 superfícies (autocomplete + highlight + exemplos + ajuda).
@@ -144,8 +162,9 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   `rpic studio v{app} · engine rpic v{rpic} · <link release>`. As versões são INJETADAS no build por
   `define` no `vite.config.ts` (`__APP_VERSION__`/`__RPIC_VERSION__`, lidas dos `package.json` — o do
   rpic via subpath exportado do `.wasm`, pois o package não expõe `./package.json`); globais
-  declaradas em `vite-env.d.ts`. A versão do studio é PRÓPRIA (SemVer independente do engine; começou
-  em **v0.2.0** com o suporte a animação 0.8.x).
+  declaradas em `vite-env.d.ts`. A versão do studio é PRÓPRIA (SemVer independente do engine; **v0.2.0**
+  = animação 0.8.x, **v0.3.0** = engine 0.9.0 com `thin`/cores-variáveis/warnings, **v0.4.0** =
+  pan por arrasto + coordenadas pic com cópia + scrubber de `animate scroll` + thin/xcolor na UI).
 - **Paleta de circuitos** (`components/editor/CircuitPalette.tsx` + `lib/circuitCatalog.ts`): menu no
   header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — 14
   macros circuit_macros com sintaxe de DOIS pontos nomeados (`resistor(A,B)`; centrados `ground(P)`),

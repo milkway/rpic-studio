@@ -55,9 +55,10 @@ const sections: Section[] = [
       pt: "Combináveis em qualquer primitiva, na ordem que preferir.",
     },
     rows: [
-      ["dashed / dotted / invis / thick", { en: "stroke style", pt: "traço" }],
+      ["dashed / dotted / invis / thick / thin", { en: "stroke style", pt: "traço" }],
       ["fill 0.2", { en: "grayscale fill (0–1)", pt: "preenchimento em cinza (0–1)" }],
       ['colored "red" / outlined "blue" / shaded "gray"', { en: "colors", pt: "cores" }],
+      ["accent = 0x1b5e20; box shaded accent", { en: "colour variables — and (expr) computes a tint", pt: "cores em variáveis — e (expr) calcula um tom" }],
       ["wid 1.2 ht 0.6 / same", { en: "dimensions (same repeats the last ones)", pt: "dimensões (same repete as últimas)" }],
       ["hatch / crosshatch hatchangle 30", { en: "hatching (extension)", pt: "hachuras (extensão)" }],
       ['gradient / opacity 0.5 / class "my-css"', { en: "visual extensions", pt: "extensões visuais" }],
@@ -99,6 +100,7 @@ const sections: Section[] = [
       ['… repeat -1 yoyo ease "sine.inOut"', { en: "loop, ping-pong, custom easing", pt: "laço, vai-e-volta, easing custom" }],
       ["animate [ … ] with \"pop\" stagger 0.1", { en: "fan an effect across a block", pt: "espalha um efeito pelo bloco" }],
       ['animate B with "fade" out', { en: "play the effect as an exit", pt: "toca o efeito como saída" }],
+      ["animate scroll", { en: "scrub the timeline (slider in the preview; ScrollTrigger on your site)", pt: "arrastar a timeline (slider no preview; ScrollTrigger no seu site)" }],
     ],
   },
   {

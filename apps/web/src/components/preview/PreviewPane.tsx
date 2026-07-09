@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { gsap } from "@/lib/gsap";
-import { Loader2, Minus, Plus, RotateCcw, Scan } from "lucide-react";
+import { Copy, Loader2, Minus, Plus, RotateCcw, Scan } from "lucide-react";
 import { motion } from "@rpic/design-system";
 import { useI18n } from "@/lib/i18n";
+import { copyText } from "@/lib/exports";
 import { animate, type Anim, type ObjectGeometry } from "@/lib/rpic";
+import { formatPicPoint, svgToPic, type PicMapping } from "@/lib/picCoords";
 import { sanitizeSvg } from "@/lib/sanitize";
 import { type CanvasSettings } from "@/lib/storage";
 import { ObjectsOverlay } from "@/components/visual/ObjectsOverlay";
@@ -11,6 +13,7 @@ import { CanvasSettingsPopover } from "./CanvasSettingsPopover";
 import { canvasBackground } from "./canvasStyle";
 import { Button } from "@/components/ui/Button";
 import { Tip } from "@/components/ui/Tooltip";
+import { useToast } from "@/components/ui/Toast";
 
 interface PreviewPaneProps {
   /** SVG já "assado" com a fonte escolhida. */
@@ -32,6 +35,10 @@ interface PreviewPaneProps {
   /** Código-fonte + escrita — estilizar por-linha no overlay universal. */
   source?: string;
   onSourceChange?: (s: string) => void;
+  /** `animate scroll` no fonte: troca autoplay por um scrubber de timeline. */
+  scroll?: boolean;
+  /** Mapeamento SVG→pic sob demanda (coordenadas do cursor no rodapé). */
+  getPicMap?: () => PicMapping | null;
 }
 
 /** Papel técnico: SVG ao vivo com zoom, replay de animação e status. */
@@ -49,14 +56,25 @@ export function PreviewPane({
   onJumpToLine,
   source,
   onSourceChange,
+  scroll,
+  getPicMap,
 }: PreviewPaneProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [scrub, setScrub] = useState(0);
+  const [coords, setCoords] = useState<{ x: number; y: number } | null>(null);
+  const coordsRafRef = useRef(0);
+  // Pan por arrasto: guarda o início do gesto; vira pan após um limiar (4px) —
+  // cliques limpos continuam selecionando/deselecionando no overlay.
+  const panRef = useRef<{ x: number; y: number; sl: number; st: number; panning: boolean } | null>(null);
   const { t } = useI18n();
+  const toast = useToast();
 
   // Injeta o SVG e (re)monta a timeline GSAP a cada compilação boa.
+  // Com `animate scroll`, a timeline nasce PAUSADA no início: quem avança é o
+  // scrubber (a intenção do autor é scrubbing, não autoplay).
   useEffect(() => {
     const stage = stageRef.current;
     if (!stage || !svg) return;
@@ -66,12 +84,17 @@ export function PreviewPane({
     motion.crossFade(stage, 0.2);
     if (animations.length > 0 && !motion.prefersReduced()) {
       timelineRef.current = animate(stage, animations, gsap) as gsap.core.Timeline;
+      if (scroll) {
+        timelineRef.current?.pause(0);
+        setScrub(0);
+      }
     }
-  }, [svg, version, animations]);
+  }, [svg, version, animations, scroll]);
 
   useEffect(
     () => () => {
       timelineRef.current?.kill();
+      cancelAnimationFrame(coordsRafRef.current);
     },
     [],
   );
@@ -111,12 +134,78 @@ export function PreviewPane({
     setZoom(Math.max(scale, 0.1));
   }, []);
 
+  // ——— Pan por arrasto (o canvas é overflow-auto: pan = scroll) ———
+  // Fase de CAPTURA: o gesto começa em qualquer lugar (inclusive sobre um
+  // objeto — os handles do overlay dão stopPropagation no bubble). A seleção
+  // acontece no pointerdown como sempre; só o ARRASTO vira pan. Com o pointer
+  // capturado pelo canvas, os moves param de chegar ao overlay (sem churn de
+  // hover durante o pan).
+  const onPanDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.button !== 1) return;
+    const c = canvasRef.current;
+    if (!c) return;
+    panRef.current = { x: e.clientX, y: e.clientY, sl: c.scrollLeft, st: c.scrollTop, panning: false };
+  };
+  const onPanMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const p = panRef.current;
+    const c = canvasRef.current;
+    updateCoords(e.clientX, e.clientY);
+    if (!p || !c) return;
+    const dx = e.clientX - p.x;
+    const dy = e.clientY - p.y;
+    if (!p.panning) {
+      if (Math.hypot(dx, dy) < 4) return;
+      p.panning = true;
+      c.setPointerCapture(e.pointerId);
+      c.style.cursor = "grabbing";
+    }
+    c.scrollLeft = p.sl - dx;
+    c.scrollTop = p.st - dy;
+  };
+  const onPanEnd = (e: React.PointerEvent<HTMLDivElement>) => {
+    const c = canvasRef.current;
+    if (panRef.current?.panning && c) {
+      if (c.hasPointerCapture(e.pointerId)) c.releasePointerCapture(e.pointerId);
+      c.style.cursor = "";
+    }
+    panRef.current = null;
+  };
+
+  // ——— Coordenadas pic do cursor (rodapé) ———
+  // Cliente → unidades do viewBox via CTM do <svg> (inclui o scale(zoom) CSS),
+  // depois → pic pelo mapeamento resolvido sob demanda (`getPicMap`). Atualiza
+  // em rAF p/ não re-renderizar a cada pixel de movimento.
+  const updateCoords = (clientX: number, clientY: number) => {
+    if (!getPicMap) return;
+    cancelAnimationFrame(coordsRafRef.current);
+    coordsRafRef.current = requestAnimationFrame(() => {
+      const svgEl = stageRef.current?.querySelector("svg");
+      const ctm = svgEl?.getScreenCTM();
+      const map = ctm ? getPicMap() : null;
+      if (!map) {
+        setCoords(null);
+        return;
+      }
+      const p = new DOMPoint(clientX, clientY).matrixTransform(ctm!.inverse());
+      const pic = svgToPic(map, p.x, p.y);
+      setCoords((prev) =>
+        prev && Math.abs(prev.x - pic.x) < 0.005 && Math.abs(prev.y - pic.y) < 0.005 ? prev : pic,
+      );
+    });
+  };
+  const clearCoords = () => {
+    cancelAnimationFrame(coordsRafRef.current);
+    setCoords(null);
+  };
+
+  const scrubbable = !!scroll && animations.length > 0 && !motion.prefersReduced();
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-10 shrink-0 items-center gap-1.5 border-b border-(--color-border) bg-(--color-surface) px-3">
         {tabs}
         <div className="ml-auto flex items-center gap-0.5">
-          {animations.length > 0 && (
+          {animations.length > 0 && !scrubbable && (
             <Tip label={t("preview.replayTip")}>
               <Button
                 variant="ghost"
@@ -128,6 +217,26 @@ export function PreviewPane({
                 <RotateCcw size={14} />
               </Button>
             </Tip>
+          )}
+          {/* `animate scroll`: o autor pediu scrubbing — slider avança a timeline
+              (no site final, o host liga o ScrollTrigger; aqui o slider simula). */}
+          {scrubbable && (
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.001}
+              value={scrub}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setScrub(v);
+                timelineRef.current?.progress(v).pause();
+              }}
+              title={t("preview.scrub")}
+              aria-label={t("preview.scrub")}
+              data-testid="scroll-scrub"
+              className="w-28 accent-(--color-accent)"
+            />
           )}
           <Tip label={t("preview.zoomOut")}>
             <Button
@@ -170,6 +279,11 @@ export function PreviewPane({
         data-testid="preview-canvas"
         className="relative min-h-0 flex-1 overflow-auto"
         style={canvasBackground(canvas)}
+        onPointerDownCapture={onPanDown}
+        onPointerMoveCapture={onPanMove}
+        onPointerUpCapture={onPanEnd}
+        onPointerCancelCapture={onPanEnd}
+        onPointerLeave={clearCoords}
       >
         {loading ? (
           <div className="flex h-full items-center justify-center gap-2.5 text-sm text-(--color-text-muted)">
@@ -227,6 +341,21 @@ export function PreviewPane({
           <span>
             {animations.length} {t("preview.animations")}
           </span>
+        )}
+        {/* Coordenadas pic do cursor — clique copia `(x, y)` pronto p/ o código. */}
+        {coords && (
+          <button
+            className="ml-auto flex cursor-pointer items-center gap-1 rounded-(--radius-sm) px-1.5 py-0.5 hover:bg-(--color-surface-muted) hover:text-(--color-text)"
+            onClick={() => {
+              void copyText(formatPicPoint(coords));
+              toast(t("preview.coordsCopied"));
+            }}
+            title={t("preview.coordsTip")}
+            data-testid="pic-coords"
+          >
+            {formatPicPoint(coords)}
+            <Copy size={11} />
+          </button>
         )}
       </div>
     </div>

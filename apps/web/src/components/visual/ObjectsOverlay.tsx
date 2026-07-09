@@ -128,6 +128,7 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
   const boxesRef = useRef<OBox[]>([]);
   const selRef = useRef<string | null>(null);
   const hoverRef = useRef<string | null>(null);
+  const deselectFromRef = useRef<{ x: number; y: number } | null>(null);
   const selBox = boxes.find((b) => b.id === sel);
   // Estiliza escrevendo o atributo NA STATEMENT do objeto (`setObjectAttr` acha o
   // fim, agora respeitando `}` de bloco). Macros (`define`)/laços (`for`) expandem
@@ -303,8 +304,21 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
 
   return (
     <div ref={overlayRef} className="pointer-events-none absolute inset-0 z-10" data-testid="objects-overlay">
-      {/* clicar no vazio deseleciona */}
-      <div className="pointer-events-auto absolute inset-0" onPointerDown={() => setSel(null)} data-testid="objects-deselect" />
+      {/* clicar no vazio deseleciona — mas só o CLIQUE limpo (down+up sem
+          movimento): um arrasto a partir do vazio é PAN do canvas e não deve
+          perder a seleção. (Se o pan capturar o pointer, o up nem chega aqui.) */}
+      <div
+        className="pointer-events-auto absolute inset-0"
+        onPointerDown={(e) => {
+          deselectFromRef.current = { x: e.clientX, y: e.clientY };
+        }}
+        onPointerUp={(e) => {
+          const d = deselectFromRef.current;
+          deselectFromRef.current = null;
+          if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 4) setSel(null);
+        }}
+        data-testid="objects-deselect"
+      />
       {boxes.map((b) => {
         const selected = sel === b.id;
         // Área de clique com MÍNIMO (linha fina de 0px vira uma faixa clicável de
@@ -491,11 +505,14 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
               { v: "dotted" as const, el: "┈┈" },
             ]}
           />
-          <Seg
+          {/* Espessura: `thin` (0.9.0, 2/3 do linethick) | auto | thick N.
+              thin/thick são mutuamente exclusivos — o attrSpec remove o outro. */}
+          <Seg<number | "thin" | undefined>
             title={t("visual.inspector.thick")}
-            value={attrs.thick}
-            onPick={(v) => setAttr("thick", v)}
+            value={attrs.thin ? "thin" : attrs.thick}
+            onPick={(v) => (v === "thin" ? setAttr("thin", "thin") : setAttr("thick", v))}
             options={[
+              { v: "thin", el: <div className="h-px w-5 bg-current opacity-50" />, testid: "objects-thin" },
               { v: undefined, el: <div className="h-px w-5 bg-current" /> },
               { v: 1.5, el: <div className="h-0.5 w-5 bg-current" /> },
               { v: 3, el: <div className="h-1 w-5 rounded-full bg-current" /> },

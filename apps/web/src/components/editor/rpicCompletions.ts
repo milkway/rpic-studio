@@ -3,7 +3,7 @@
 // (p/ `from N1.e`) e macros de circuito quando `copy "circuits"` está presente.
 import { type Completion, type CompletionContext, type CompletionResult } from "@codemirror/autocomplete";
 import { CIRCUIT_ELEMENTS } from "@/lib/circuitCatalog";
-import { FILL_COLORS, STROKE_COLORS } from "@/lib/palette";
+import { FILL_COLORS, STROKE_COLORS, XCOLOR_NAMES } from "@/lib/palette";
 
 function group(labels: string[], type: string, detail: string): Completion[] {
   return labels.map((label) => ({ label, type, detail }));
@@ -17,7 +17,7 @@ const STATIC: Completion[] = [
   ...group(["previous", "aligned", "big", "small"], "keyword", "pikchr-compat"),
   ...group(["wid", "ht", "rad", "diam", "at", "from", "to", "with", "chop", "fit", "invis"], "property", "atributo"),
   ...group(
-    ["shaded", "outlined", "colored", "color", "fill", "hatch", "crosshatch", "hatchangle", "hatchsep", "hatchcolor", "hatchwid", "dashed", "dotted", "thick", "opacity"],
+    ["shaded", "outlined", "colored", "color", "fill", "hatch", "crosshatch", "hatchangle", "hatchsep", "hatchcolor", "hatchwid", "dashed", "dotted", "thick", "thin", "opacity"],
     "property",
     "estilo",
   ),
@@ -42,6 +42,8 @@ const STATIC: Completion[] = [
   { label: "define", type: "keyword", detail: "macro reutilizável" },
   ...group(["scale", "boxwid", "boxht", "circlerad", "linethick", "arrowht", "arrowwid"], "variable", "variável pic"),
   ...group([...FILL_COLORS, ...STROKE_COLORS], "constant", "cor"),
+  // nomes dvips/xcolor (rpic 0.9 resolve p/ o RGB do dvipsnam.def)
+  ...group([...XCOLOR_NAMES], "constant", "cor (xcolor)"),
 ];
 
 const CIRCUIT: Completion[] = CIRCUIT_ELEMENTS.map((e) => ({

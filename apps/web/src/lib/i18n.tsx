@@ -172,6 +172,9 @@ const en = {
   "preview.compiled": "compiled",
   "preview.compileError": "compile error",
   "preview.animations": "animations",
+  "preview.scrub": "Scrub the timeline (animate scroll)",
+  "preview.coordsTip": "pic coordinates under the cursor — click to copy",
+  "preview.coordsCopied": "Coordinates copied",
 
   // editor
   "editor.draft": "draft",
@@ -461,6 +464,9 @@ const pt: Record<MessageKey, string> = {
   "preview.compiled": "compilado",
   "preview.compileError": "erro de compilação",
   "preview.animations": "animações",
+  "preview.scrub": "Arrastar a timeline (animate scroll)",
+  "preview.coordsTip": "coordenadas pic sob o cursor — clique para copiar",
+  "preview.coordsCopied": "Coordenadas copiadas",
 
   "editor.draft": "rascunho",
   "editor.examples": "Exemplos",
