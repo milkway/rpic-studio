@@ -28,6 +28,17 @@ test("rodapé mostra as coordenadas pic do cursor e o clique copia", async ({ pa
   expect(Math.abs(Number(m![2]))).toBeLessThan(0.05);
   await coords.click();
   await expect(page.getByText("Coordinates copied")).toBeVisible({ timeout: 5_000 });
+
+  // com ZOOM alto as coordenadas têm que continuar batendo (regressão: o
+  // getScreenCTM ignorava o scale() CSS e desviava por um fator ~zoom)
+  const zoomIn = page.getByRole("button", { name: "Zoom in" });
+  for (let i = 0; i < 5; i++) await zoomIn.click(); // ≈ 305%
+  const bb2 = (await handle.boundingBox())!;
+  await page.mouse.move(bb2.x + bb2.width / 2, bb2.y + bb2.height / 2);
+  await expect(coords).toBeVisible({ timeout: 5_000 });
+  const m2 = /\((-?[\d.]+), (-?[\d.]+)\)/.exec((await coords.textContent()) ?? "");
+  expect(Math.abs(Number(m2![1]) - 0.375)).toBeLessThan(0.05);
+  expect(Math.abs(Number(m2![2]))).toBeLessThan(0.05);
 });
 
 test("arrastar o canvas faz PAN (e não perde a seleção)", async ({ page }) => {
@@ -50,6 +61,32 @@ test("arrastar o canvas faz PAN (e não perde a seleção)", async ({ page }) =>
   expect(after).toBeGreaterThan(before);
   // seleção sobreviveu ao pan (arrasto ≠ clique de deselecionar)
   await expect(page.getByTestId("objects-inspector")).toBeVisible();
+});
+
+test("zoom alto: o diagrama vira área de rolagem real e navega nas 4 direções", async ({ page }) => {
+  await loadDraft(page, 'box "A"; arrow; box "B"; arrow; box "C"\narrow down 2 from 2nd box.s; box "D"');
+  const zoomIn = page.getByRole("button", { name: "Zoom in" });
+  for (let i = 0; i < 7; i++) await zoomIn.click();
+  const canvas = page.getByTestId("preview-canvas");
+  // o zoom dimensiona o LAYOUT (não só o transform): tem que haver overflow…
+  const m = await canvas.evaluate((el) => ({
+    sw: el.scrollWidth, cw: el.clientWidth, sh: el.scrollHeight, ch: el.clientHeight,
+    sl: el.scrollLeft, st: el.scrollTop,
+  }));
+  expect(m.sw).toBeGreaterThan(m.cw);
+  expect(m.sh).toBeGreaterThan(m.ch);
+  // …e o conteúdo RECENTRADO (esquerda/topo alcançáveis, não clipados)
+  expect(m.sl).toBeGreaterThan(0);
+  expect(m.st).toBeGreaterThan(0);
+  // arrastar p/ BAIXO-DIREITA revela o canto superior-esquerdo
+  const cb = (await canvas.boundingBox())!;
+  await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(cb.x + cb.width / 2 + 120, cb.y + cb.height / 2 + 80, { steps: 8 });
+  await page.mouse.up();
+  const after = await canvas.evaluate((el) => ({ sl: el.scrollLeft, st: el.scrollTop }));
+  expect(after.sl).toBeLessThan(m.sl);
+  expect(after.st).toBeLessThan(m.st);
 });
 
 test("`animate scroll` troca o replay por um scrubber que avança a timeline", async ({ page }) => {

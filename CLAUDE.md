@@ -127,14 +127,19 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   em pic pode ser relativa) — criar/posicionar fica no código, com **autocomplete** (`rpicCompletions`).
 - **Pan + coordenadas pic no preview** (`PreviewPane.tsx`): o canvas (overflow-auto) tem PAN por
   arrasto — handlers de CAPTURA no div do canvas, limiar de 4px, `setPointerCapture` (os moves param
-  de chegar ao overlay durante o pan → sem churn de hover); clique limpo continua selecionando. O
+  de chegar ao overlay durante o pan → sem churn de hover); clique limpo continua selecionando.
+  PEGADINHA do zoom: `transform: scale()` NÃO cria área de rolagem (o conteúdo vaza CLIPADO e o pan
+  não tem p/ onde ir) — o zoom dimensiona o LAYOUT: wrapper com `width/height = svg×zoom` (attrs
+  lidos na injeção → `dims`), transform `top left` dentro, e `m-auto` p/ centrar (justify-center
+  deixaria esquerda/topo INALCANÇÁVEIS ao transbordar); mudar o zoom RECENTRA o scroll. O
   rodapé do preview mostra as **coordenadas pic do cursor** (`pic-coords`; clique copia `(x, y)`
   pronto p/ o código). O SVG do rpic NÃO carrega a origem do espaço pic → `lib/picCoords.ts` resolve
   por MEDIÇÃO: um **shadow compile** com dois dots-sonda em (0,0)/(1,1) (inseridos antes do `.PE`),
   ancorado num objeto real presente nos dois compiles (as sondas podem AMPLIAR os bounds — a âncora
   transfere a diferença; a escala sai das duas sondas no MESMO compile, o que absorve `scale=…`).
   Exposto como `getPicMapping()` no `useRpic` — LAZY (só compila na 1ª chamada por versão) e cacheado.
-  Cliente→viewBox via `getScreenCTM().inverse()` (inclui o `scale(zoom)` CSS).
+  Cliente→viewBox pela razão `getBoundingClientRect()/viewBox` do próprio `<svg>` — NÃO usar
+  `getScreenCTM()` (no Chromium ele IGNORA `scale()` CSS de ancestral → coords desviavam ~zoom).
 - **Autocomplete do PIC** (`components/editor/rpicCompletions.ts`, ligado no `CodePane` via
   `autocompletion({override})`): primitivas, direções, atributos, cores, variáveis, diretivas,
   keywords pikchr-compat (0.7.1), keywords de animação (0.8.x: `animate` + cláusulas `along/into/out/

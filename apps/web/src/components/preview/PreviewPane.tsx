@@ -63,6 +63,12 @@ export function PreviewPane({
   const canvasRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
   const [zoom, setZoom] = useState(1);
+  // Tamanho NATURAL do SVG (attrs width/height) — o zoom precisa dimensionar o
+  // LAYOUT (não só o transform): `scale()` sozinho não cria área de rolagem no
+  // overflow-auto, então com zoom alto o diagrama vazava clipado e o pan não
+  // tinha p/ onde ir (e o flex `justify-center` deixava esquerda/topo
+  // inalcançáveis mesmo transbordando).
+  const [dims, setDims] = useState<{ w: number; h: number } | null>(null);
   const [scrub, setScrub] = useState(0);
   const [coords, setCoords] = useState<{ x: number; y: number } | null>(null);
   const coordsRafRef = useRef(0);
@@ -81,6 +87,10 @@ export function PreviewPane({
     timelineRef.current?.kill();
     timelineRef.current = null;
     stage.innerHTML = sanitizeSvg(svg);
+    const svgEl = stage.querySelector("svg");
+    const w = Number(svgEl?.getAttribute("width")) || 0;
+    const h = Number(svgEl?.getAttribute("height")) || 0;
+    setDims(w > 0 && h > 0 ? { w, h } : null);
     motion.crossFade(stage, 0.2);
     if (animations.length > 0 && !motion.prefersReduced()) {
       timelineRef.current = animate(stage, animations, gsap) as gsap.core.Timeline;
@@ -172,22 +182,26 @@ export function PreviewPane({
   };
 
   // ——— Coordenadas pic do cursor (rodapé) ———
-  // Cliente → unidades do viewBox via CTM do <svg> (inclui o scale(zoom) CSS),
-  // depois → pic pelo mapeamento resolvido sob demanda (`getPicMap`). Atualiza
-  // em rAF p/ não re-renderizar a cada pixel de movimento.
+  // Cliente → unidades do viewBox pela RAZÃO rect/viewBox do próprio <svg>
+  // (getBoundingClientRect inclui QUALQUER transform por construção — o
+  // `getScreenCTM()` do Chromium ignora `scale()` CSS de ancestral, o que
+  // desviava as coordenadas por um fator ~zoom), depois → pic pelo mapeamento
+  // sob demanda (`getPicMap`). Atualiza em rAF p/ não re-renderizar por pixel.
   const updateCoords = (clientX: number, clientY: number) => {
     if (!getPicMap) return;
     cancelAnimationFrame(coordsRafRef.current);
     coordsRafRef.current = requestAnimationFrame(() => {
       const svgEl = stageRef.current?.querySelector("svg");
-      const ctm = svgEl?.getScreenCTM();
-      const map = ctm ? getPicMap() : null;
+      const vb = svgEl?.viewBox?.baseVal;
+      const r = svgEl?.getBoundingClientRect();
+      const map = vb && vb.width > 0 && vb.height > 0 && r && r.width > 0 ? getPicMap() : null;
       if (!map) {
         setCoords(null);
         return;
       }
-      const p = new DOMPoint(clientX, clientY).matrixTransform(ctm!.inverse());
-      const pic = svgToPic(map, p.x, p.y);
+      const x = vb!.x + ((clientX - r!.left) / r!.width) * vb!.width;
+      const y = vb!.y + ((clientY - r!.top) / r!.height) * vb!.height;
+      const pic = svgToPic(map, x, y);
       setCoords((prev) =>
         prev && Math.abs(prev.x - pic.x) < 0.005 && Math.abs(prev.y - pic.y) < 0.005 ? prev : pic,
       );
@@ -199,6 +213,16 @@ export function PreviewPane({
   };
 
   const scrubbable = !!scroll && animations.length > 0 && !motion.prefersReduced();
+
+  // Ao mudar o ZOOM, recentra o conteúdo (era o comportamento visual do
+  // transform-origin center; agora que o zoom dimensiona o layout, o scroll
+  // precisa acompanhar). Pan não passa por aqui — só o zoom recentra.
+  useEffect(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    c.scrollLeft = (c.scrollWidth - c.clientWidth) / 2;
+    c.scrollTop = (c.scrollHeight - c.clientHeight) / 2;
+  }, [zoom]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -291,17 +315,27 @@ export function PreviewPane({
             {t("preview.loading")}
           </div>
         ) : (
-          <div className="flex min-h-full min-w-full items-center justify-center p-8">
+          /* O wrapper interno tem o tamanho REAL do zoom (w×zoom) → o
+             overflow-auto ganha área de rolagem nas 4 direções; `m-auto` centra
+             SEM clipar (justify-center deixaria esquerda/topo inalcançáveis). */
+          <div className="flex min-h-full min-w-full p-8">
             <div
-              ref={stageRef}
-              data-testid="preview-stage"
-              className="rpic-stage transition-opacity duration-200 [&_svg]:block"
-              style={{
-                transform: `scale(${zoom})`,
-                transformOrigin: "center center",
-                opacity: error ? 0.4 : 1,
-              }}
-            />
+              className="m-auto"
+              style={dims ? { width: dims.w * zoom, height: dims.h * zoom } : undefined}
+            >
+              <div
+                ref={stageRef}
+                data-testid="preview-stage"
+                className="rpic-stage transition-opacity duration-200 [&_svg]:block"
+                style={{
+                  transform: `scale(${zoom})`,
+                  transformOrigin: "top left",
+                  width: dims?.w,
+                  height: dims?.h,
+                  opacity: error ? 0.4 : 1,
+                }}
+              />
+            </div>
           </div>
         )}
         {error && !loading && (
