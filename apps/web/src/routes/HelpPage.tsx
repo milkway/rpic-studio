@@ -111,8 +111,8 @@ const sections: Section[] = [
   {
     title: { en: "Circuits (flip the switch in the editor)", pt: "Circuitos (ligue o interruptor no editor)" },
     intro: {
-      en: "The native library ships ~79 electrical-element macros that connect two named points.",
-      pt: "A biblioteca nativa traz ~79 macros de elementos elétricos que conectam dois pontos nomeados.",
+      en: "The native library ships ~80 electrical-element macros that connect named points — the Circuits menu in the editor inserts any of them.",
+      pt: "A biblioteca nativa traz ~80 macros de elementos elétricos que conectam pontos nomeados — o menu Circuitos do editor insere qualquer uma delas.",
     },
     rows: [
       ["A:(0,0); B:(2,0)", { en: "declare nodes as positions", pt: "declare os nós como posições" }],

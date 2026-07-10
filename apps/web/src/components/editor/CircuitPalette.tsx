@@ -15,6 +15,9 @@ const GROUP_LABEL_KEY: Record<CircuitGroup, MessageKey> = {
   passive: "circuitPalette.group.passive",
   source: "circuitPalette.group.source",
   semiconductor: "circuitPalette.group.semiconductor",
+  logic: "circuitPalette.group.logic",
+  measure: "circuitPalette.group.measure",
+  electromech: "circuitPalette.group.electromech",
   connector: "circuitPalette.group.connector",
 };
 
@@ -35,7 +38,8 @@ export function CircuitPalette({ onInsert }: CircuitPaletteProps) {
           </Button>
         </PopoverTrigger>
       </Tip>
-      <PopoverContent className="w-72" data-testid="circuits-palette">
+      {/* catálogo completo (~80 macros) — rola dentro do popover */}
+      <PopoverContent className="max-h-[min(70vh,34rem)] w-80 overflow-y-auto" data-testid="circuits-palette">
         <p className="mb-2 font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
           {t("circuitPalette.title")}
         </p>

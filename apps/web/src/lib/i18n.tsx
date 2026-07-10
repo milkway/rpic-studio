@@ -41,7 +41,10 @@ const en = {
   "circuitPalette.group.passive": "Passive",
   "circuitPalette.group.source": "Sources",
   "circuitPalette.group.semiconductor": "Semiconductors",
-  "circuitPalette.group.connector": "Connectors",
+  "circuitPalette.group.logic": "Logic & ICs",
+  "circuitPalette.group.measure": "Meters & annotations",
+  "circuitPalette.group.electromech": "Electromechanical & transducers",
+  "circuitPalette.group.connector": "Connectors & switches",
 
   // CSS custom
   "css.title": "Diagram CSS",
@@ -339,7 +342,10 @@ const pt: Record<MessageKey, string> = {
   "circuitPalette.group.passive": "Passivos",
   "circuitPalette.group.source": "Fontes",
   "circuitPalette.group.semiconductor": "Semicondutores",
-  "circuitPalette.group.connector": "Conectores",
+  "circuitPalette.group.logic": "Lógica e CIs",
+  "circuitPalette.group.measure": "Medidores e anotações",
+  "circuitPalette.group.electromech": "Eletromecânicos e transdutores",
+  "circuitPalette.group.connector": "Conectores e chaves",
 
   // CSS custom
   "css.title": "CSS do diagrama",

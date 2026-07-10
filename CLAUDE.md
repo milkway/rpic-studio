@@ -185,11 +185,14 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   **v0.4.1** = zoom dimensiona o layout → pan nas 4 direções e coords exatas sob zoom, **v0.5.0** =
   engine 0.10.0: type/scramble/wiggle + draw parcial + draggable ligado no preview, **v0.5.1** =
   inspetor reconhece cor em VARIÁVEL/`0x…`/expressão (`outlined accent`) — substitui em vez de
-  duplicar; `COLOR_TOKEN` no `objectEdit.ts`).
+  duplicar; `COLOR_TOKEN` no `objectEdit.ts`, **v0.6.0** = paleta de circuitos completa: ~80 macros).
 - **Paleta de circuitos** (`components/editor/CircuitPalette.tsx` + `lib/circuitCatalog.ts`): menu no
-  header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — 14
-  macros circuit_macros com sintaxe de DOIS pontos nomeados (`resistor(A,B)`; centrados `ground(P)`),
-  garante `copy "circuits"` idempotente (`ensureCircuitsCopy`) e nomes de ponto `Ckt{n}` sem colisão.
+  header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — o
+  catálogo COMPLETO das ~80 macros públicas da biblioteca (7 grupos; popover com scroll). Assinaturas:
+  DOIS pontos (`resistor(A,B)`), UM ponto centrado (`ground(P)`, gates, transistores), TRÊS pontos
+  (`spdt`) e string final (`meter(A,B,"V")`, `ic_block(C,"IC1")`, `iecgate(C,"&")`, `clabel(P,"v1")`).
+  O `circuitCatalog.test.ts` compila TODO snippet no WASM real — pega drift de assinatura num bump.
+  Garante `copy "circuits"` idempotente (`ensureCircuitsCopy`) e nomes de ponto `Ckt{n}` sem colisão.
   O `detectCircuits` já liga o flag sozinho. O `ObjectsOverlay` (estilo) fica por cima do render dos
   circuitos como de qualquer pic. O Popover fecha ao inserir.
 - **Render server-side** (`routes/render.rs`, `POST /api/render` → svg|png|pdf): pic é NÃO
