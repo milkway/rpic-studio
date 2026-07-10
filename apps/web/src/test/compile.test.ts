@@ -81,4 +81,50 @@ describe("compilador rpic (WASM real)", () => {
     expect(w!.found).toBe("crimsom");
     expect(w!.hint).toContain("crimson");
   });
+
+  // rpic 0.10.0
+  it("warning invalid_color carrega span (rpic-lang#333) — jump/sublinhado no editor", () => {
+    const out = compile('box "a"\nbox outlined "crimsom"');
+    const w = out.warnings.find((d) => d.kind === "invalid_color")!;
+    expect(w.line).toBe(2);
+    expect(w.col).not.toBeNull();
+    expect(w.end_col).not.toBeNull();
+  });
+
+  it("draw from/to entra no manifesto como fração (só quando presente)", () => {
+    const out = compile('L: line right 1\nanimate L with "draw" from 40% to 0.6');
+    expect(out.animations[0]).toMatchObject({ effect: "draw", drawFrom: 0.4, drawTo: 0.6 });
+    const plain = compile('L: line right 1\nanimate L with "draw"');
+    expect(plain.animations[0].drawFrom).toBeUndefined();
+    expect(plain.animations[0].drawTo).toBeUndefined();
+  });
+
+  it("type/scramble/wiggle entram no manifesto com suas cláusulas", () => {
+    const out = compile(
+      'B: box "b"\nT: "hello" at B.s - (0, 0.4)\nU: "WORLD" at B.n + (0, 0.4)\n' +
+        'animate T with "type" by word\nanimate U with "scramble" by "01"\nanimate B with "wiggle" wiggles 8',
+    );
+    expect(out.animations).toHaveLength(3);
+    expect(out.animations[0]).toMatchObject({ effect: "type", unit: "word" });
+    expect(out.animations[1]).toMatchObject({ effect: "scramble", chars: "01" });
+    expect(out.animations[2]).toMatchObject({ effect: "wiggle", wiggles: 8 });
+    // o backend SVG quebra o alvo de `type` em tspans .rpic-ch p/ o stagger
+    expect(out.svg).toContain('class="rpic-ch"');
+  });
+
+  it("draggable vira interactions[] no bundle (ausente sem a diretiva)", () => {
+    const out = compile(
+      "Field: box wid 2 ht 1.5\nChip: box wid 0.5 ht 0.3 at Field.c\ndraggable Chip inertia bounds Field",
+    );
+    expect(out.interactions).toHaveLength(1);
+    expect(out.interactions![0]).toMatchObject({ kind: "drag", inertia: true });
+    expect(out.interactions![0].bounds).toBeDefined();
+    const plain = compile('box "a"');
+    expect(plain.interactions).toBeUndefined();
+  });
+
+  it("cláusulas fora do efeito certo geram os warnings 0.10.0", () => {
+    const out = compile('B: box "b"\nanimate B with "fade" wiggles 3');
+    expect(out.warnings.some((w) => w.kind === "wiggles_without_wiggle")).toBe(true);
+  });
 });

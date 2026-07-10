@@ -22,19 +22,22 @@ const STATIC: Completion[] = [
     "estilo",
   ),
   ...group(["bold", "italic", "font", "fontsize", "ljust", "rjust", "above", "below", "rotated"], "property", "texto"),
-  // animação (extensão animate — rpic 0.8.x)
+  // animação (extensão animate — rpic 0.8.x; type/scramble/wiggle e draw from/to — 0.10.0)
   { label: "animate", type: "keyword", detail: "animação" },
   ...group(
-    ["with", "along", "into", "out", "stagger", "for", "at", "after", "delay", "repeat", "yoyo", "ease", "scroll"],
+    ["with", "along", "into", "out", "stagger", "for", "at", "after", "delay", "repeat", "yoyo", "ease", "scroll", "by", "wiggles"],
     "property",
     "animação",
   ),
-  ...(["pop", "fade", "draw", "slide", "move", "highlight", "morph"] as const).map((e) => ({
+  ...(["pop", "fade", "draw", "slide", "move", "highlight", "morph", "type", "scramble", "wiggle"] as const).map((e) => ({
     label: `"${e}"`,
     type: "constant",
     detail: "efeito de animação",
     apply: `"${e}"`,
   })),
+  // interação (diretiva draggable — rpic 0.10.0)
+  { label: "draggable", type: "keyword", detail: "arrastável (GSAP Draggable)" },
+  ...group(["inertia", "bounds"], "property", "draggable"),
   { label: ".PS", type: "keyword", detail: "início do diagrama" },
   { label: ".PE", type: "keyword", detail: "fim do diagrama" },
   { label: "canvas", type: "keyword", detail: "página de tamanho fixo" },

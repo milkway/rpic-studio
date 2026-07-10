@@ -261,3 +261,30 @@ test("com o canvas rolado, o handle continua alinhado ao objeto (sem deslocament
   expect(Math.abs(handleBox!.y - svgBox!.y)).toBeLessThan(2);
   expect(Math.abs(handleBox!.x - svgBox!.x)).toBeLessThan(2);
 });
+
+test("draggable (0.10.0): arrastar a forma move o <g> real, sem virar pan do canvas", async ({ page }) => {
+  await loadDraft(page, 'Field: box wid 2.5 ht 1.6\nChip: box "drag" fit at Field.c\ndraggable Chip bounds Field');
+  const chip = page.locator('[data-testid="preview-stage"] svg #s1');
+  const canvas = page.getByTestId("preview-canvas");
+  const before = await chip.boundingBox();
+  const scrollBefore = await canvas.evaluate((el) => ({ x: el.scrollLeft, y: el.scrollTop }));
+  expect(before).toBeTruthy();
+
+  // O gesto cai no HANDLE do overlay (que cobre o SVG): o pointerdown é
+  // reencaminhado ao <g> e o GSAP Draggable assume; os moves vão pelo document.
+  await page.mouse.move(before!.x + before!.width / 2, before!.y + before!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(before!.x + before!.width / 2 + 60, before!.y + before!.height / 2 + 30, { steps: 10 });
+  await page.mouse.up();
+
+  // O <g> se moveu de verdade (transform do Draggable)…
+  await expect
+    .poll(async () => {
+      const after = await chip.boundingBox();
+      return Math.hypot(after!.x - before!.x, after!.y - before!.y);
+    })
+    .toBeGreaterThan(20);
+  // …e o canvas NÃO rolou junto (o pan pula alvos arrastáveis).
+  const scrollAfter = await canvas.evaluate((el) => ({ x: el.scrollLeft, y: el.scrollTop }));
+  expect(scrollAfter).toEqual(scrollBefore);
+});

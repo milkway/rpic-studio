@@ -120,6 +120,42 @@ animate A with "morph" into B for 1.2 repeat -1 yoyo ease "power1.inOut"
 .PE`,
   },
   {
+    id: "textreveal",
+    title: { en: "Text reveals (type · scramble · wiggle)", pt: "Textos revelados (type · scramble · wiggle)" },
+    description: {
+      en: "The 0.10 effects: a caption types itself out, a transmission decodes, the box shakes for attention.",
+      pt: "Os efeitos da 0.10: uma legenda se digita sozinha, uma transmissão é decodificada e a caixa balança pedindo atenção.",
+    },
+    tags: ["animation", "extensions"],
+    circuits: false,
+    source: `.PS
+margin = 0.3
+B: box "release notes" fit fill 0.95
+T1: "typed one letter at a time" at B.s - (0, 0.45)
+T2: "DECODING TRANSMISSION" at B.n + (0, 0.45)
+animate B with "draw" from 0% to 60% for 0.8
+animate T1 with "type" for 1.2 after B
+animate T2 with "scramble" by "01" for 1.4 after T1
+animate B with "wiggle" wiggles 8 after T2
+.PE`,
+  },
+  {
+    id: "draggable",
+    title: { en: "Draggable (interactive)", pt: "Arrastável (interativo)" },
+    description: {
+      en: "The draggable directive makes a shape grabbable in the preview — with momentum, confined to the field's box.",
+      pt: "A diretiva draggable deixa a forma agarrável no preview — com inércia, confinada à caixa do campo.",
+    },
+    tags: ["animation", "extensions"],
+    circuits: false,
+    source: `.PS
+margin = 0.3
+Field: box wid 2.6 ht 1.7 fill 0.98
+Chip: box "drag me" fit fill 0.9 rad 0.06 at Field.c
+draggable Chip inertia bounds Field
+.PE`,
+  },
+  {
     id: "pipeline",
     title: { en: "Kernighan's pipeline", pt: "Pipeline do Kernighan" },
     description: {

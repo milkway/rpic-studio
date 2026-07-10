@@ -16,6 +16,9 @@ interface Props {
   /** Código-fonte atual + escrita — habilita estilizar por-linha (setObjectAttr). */
   source?: string;
   onSourceChange?: (s: string) => void;
+  /** Ids com `draggable` (rpic 0.10.0): o GSAP Draggable escuta no `<g>` do SVG,
+   *  mas o overlay fica POR CIMA — o pointerdown é reencaminhado ao grupo. */
+  draggableIds?: string[];
 }
 
 const SHAPE_TAGS = /^(rect|circle|ellipse|line|path|polygon|polyline)$/;
@@ -120,7 +123,7 @@ interface OBox {
  * (`file` ausente — exclui macros de `copy`/circuits) são interativos.
  * É a base p/ editar visualmente pic "já pronto"; estilo-por-linha vem depois.
  */
-export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSourceChange }: Props) {
+export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSourceChange, draggableIds }: Props) {
   const { t } = useI18n();
   const overlayRef = useRef<HTMLDivElement>(null);
   const [boxes, setBoxes] = useState<OBox[]>([]);
@@ -351,6 +354,14 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
               e.stopPropagation();
               const id = pickObjectAt(e.clientX, e.clientY);
               if (id) setSel(id);
+              // Objeto `draggable`: o Draggable do GSAP escuta no `<g>` do SVG,
+              // que este handle cobre — reencaminha o pointerdown pro grupo (os
+              // moves/up seguintes o Draggable pega no document). A seleção acima
+              // continua valendo (arrastar também seleciona).
+              if (id && draggableIds?.includes(id)) {
+                const g = stageRef.current?.querySelector(`[id="${id}"]`);
+                g?.dispatchEvent(new PointerEvent("pointerdown", e.nativeEvent));
+              }
             }}
             onDoubleClick={(e) => {
               const id = pickObjectAt(e.clientX, e.clientY);

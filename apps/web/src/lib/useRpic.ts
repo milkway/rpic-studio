@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { compile, ensureRpic, type Anim, type CompileError, type Diagnostic, type ObjectGeometry } from "./rpic";
+import { compile, ensureRpic, type Anim, type CompileError, type Diagnostic, type Interaction, type ObjectGeometry } from "./rpic";
 import { detectTexLabels } from "./detect";
 import { solvePicMapping, type PicMapping } from "./picCoords";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -26,6 +26,8 @@ export interface RpicState {
   objects: ObjectGeometry[];
   /** `animate scroll` no fonte — o preview troca autoplay por scrub (0.8.x). */
   scroll: boolean;
+  /** Alvos da diretiva `draggable` (0.10.0) — o preview liga o GSAP Draggable. */
+  interactions: Interaction[];
   /** Mapeamento SVG→pic da ÚLTIMA compilação boa, resolvido SOB DEMANDA (faz um
    *  shadow compile com sondas na 1ª chamada por versão; depois é cache). */
   getPicMapping: () => PicMapping | null;
@@ -48,6 +50,7 @@ const INITIAL: Omit<RpicState, "getPicMapping"> = {
   version: 0,
   objects: [],
   scroll: false,
+  interactions: [],
 };
 
 /** Atraso extra antes de EXIBIR um erro ("lazy red"): sucesso aparece na hora,
@@ -131,6 +134,7 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
         version: versionRef.current,
         objects: bundle.objects ?? [],
         scroll: bundle.scroll ?? false,
+        interactions: bundle.interactions ?? [],
       }));
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);

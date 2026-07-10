@@ -85,8 +85,8 @@ const sections: Section[] = [
   {
     title: { en: "Animation (rpic extension)", pt: "Animação (extensão rpic)" },
     intro: {
-      en: "animate builds a GSAP timeline played in the preview. Effects: draw, fade, pop, slide, move, highlight, morph.",
-      pt: "animate gera uma timeline GSAP tocada no preview. Efeitos: draw, fade, pop, slide, move, highlight, morph.",
+      en: "animate builds a GSAP timeline played in the preview. Effects: draw, fade, pop, slide, move, highlight, morph, type, scramble, wiggle.",
+      pt: "animate gera uma timeline GSAP tocada no preview. Efeitos: draw, fade, pop, slide, move, highlight, morph, type, scramble, wiggle.",
     },
     rows: [
       ['animate 1st box with "pop" for 0.4', { en: "effect with a duration", pt: "efeito com duração" }],
@@ -101,6 +101,11 @@ const sections: Section[] = [
       ["animate [ … ] with \"pop\" stagger 0.1", { en: "fan an effect across a block", pt: "espalha um efeito pelo bloco" }],
       ['animate B with "fade" out', { en: "play the effect as an exit", pt: "toca o efeito como saída" }],
       ["animate scroll", { en: "scrub the timeline (slider in the preview; ScrollTrigger on your site)", pt: "arrastar a timeline (slider no preview; ScrollTrigger no seu site)" }],
+      ['animate L with "draw" from 20% to 80%', { en: "trace only a window of the stroke", pt: "traça só um trecho do traço" }],
+      ['animate T with "type" by word', { en: "typewriter label, by char or word", pt: "legenda datilografada, por letra ou palavra" }],
+      ['animate T with "scramble" by "01"', { en: "decode-style reveal (custom charset)", pt: "revelação decodificada (charset custom)" }],
+      ['animate B with "wiggle" wiggles 8', { en: "attention shake, n oscillations", pt: "balanço de atenção, n oscilações" }],
+      ["draggable Chip inertia bounds Field", { en: "grabbable in the browser (momentum, confined)", pt: "agarrável no navegador (inércia, confinado)" }],
     ],
   },
   {

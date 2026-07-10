@@ -441,6 +441,7 @@ export function EditorPage() {
             onJumpToLine={(line, col) => codeRef.current?.focusAt(line, col ?? 1)}
             onSourceChange={setSource}
             scroll={rpic.scroll}
+            interactions={rpic.interactions}
             getPicMap={rpic.getPicMapping}
           />
         </section>

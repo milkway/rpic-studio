@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { gsap } from "@/lib/gsap";
+import { gsap, Draggable } from "@/lib/gsap";
 import { Copy, Loader2, Minus, Plus, RotateCcw, Scan } from "lucide-react";
 import { motion } from "@rpic/design-system";
 import { useI18n } from "@/lib/i18n";
 import { copyText } from "@/lib/exports";
-import { animate, type Anim, type ObjectGeometry } from "@/lib/rpic";
+import { animate, interactive, type Anim, type Interaction, type ObjectGeometry } from "@/lib/rpic";
 import { formatPicPoint, svgToPic, type PicMapping } from "@/lib/picCoords";
 import { sanitizeSvg } from "@/lib/sanitize";
 import { type CanvasSettings } from "@/lib/storage";
@@ -37,6 +37,8 @@ interface PreviewPaneProps {
   onSourceChange?: (s: string) => void;
   /** `animate scroll` no fonte: troca autoplay por um scrubber de timeline. */
   scroll?: boolean;
+  /** Alvos da diretiva `draggable` (0.10.0) — ligados no GSAP Draggable. */
+  interactions?: Interaction[];
   /** Mapeamento SVG→pic sob demanda (coordenadas do cursor no rodapé). */
   getPicMap?: () => PicMapping | null;
 }
@@ -57,11 +59,13 @@ export function PreviewPane({
   source,
   onSourceChange,
   scroll,
+  interactions,
   getPicMap,
 }: PreviewPaneProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
+  const draggablesRef = useRef<{ kill: () => void }[]>([]);
   const [zoom, setZoom] = useState(1);
   // Tamanho NATURAL do SVG (attrs width/height) — o zoom precisa dimensionar o
   // LAYOUT (não só o transform): `scale()` sozinho não cria área de rolagem no
@@ -99,11 +103,21 @@ export function PreviewPane({
         setScrub(0);
       }
     }
-  }, [svg, version, animations, scroll]);
+    // Diretiva `draggable` (0.10.0): liga o GSAP Draggable nos alvos do
+    // manifesto. Interação iniciada pelo usuário — vale mesmo com
+    // prefers-reduced-motion (não é autoplay). Instâncias antigas morrem junto
+    // com o SVG reinjetado; matar explícito evita listeners órfãos.
+    draggablesRef.current.forEach((d) => d.kill());
+    draggablesRef.current = [];
+    if (interactions && interactions.length > 0) {
+      draggablesRef.current = interactive(stage, interactions, Draggable) as { kill: () => void }[];
+    }
+  }, [svg, version, animations, scroll, interactions]);
 
   useEffect(
     () => () => {
       timelineRef.current?.kill();
+      draggablesRef.current.forEach((d) => d.kill());
       cancelAnimationFrame(coordsRafRef.current);
     },
     [],
@@ -154,6 +168,15 @@ export function PreviewPane({
     if (e.button !== 0 && e.button !== 1) return;
     const c = canvasRef.current;
     if (!c) return;
+    // Sobre um objeto `draggable`, o gesto pertence ao GSAP Draggable — pan
+    // simultâneo faria o canvas rolar junto do arrasto. (elementsFromPoint,
+    // não e.target: o overlay de seleção cobre o SVG.)
+    if (interactions?.length) {
+      for (const el of document.elementsFromPoint(e.clientX, e.clientY)) {
+        const g = el.closest("g[id]");
+        if (g && interactions.some((it) => it.id === g.id)) return;
+      }
+    }
     panRef.current = { x: e.clientX, y: e.clientY, sl: c.scrollLeft, st: c.scrollTop, panning: false };
   };
   const onPanMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -354,6 +377,7 @@ export function PreviewPane({
             onJumpToLine={onJumpToLine}
             source={source}
             onSourceChange={onSourceChange}
+            draggableIds={interactions?.map((it) => it.id)}
           />
         )}
       </div>

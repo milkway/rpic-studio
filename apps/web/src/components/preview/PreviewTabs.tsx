@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Copy } from "lucide-react";
 import { cn } from "@rpic/design-system";
-import type { Anim, ObjectGeometry } from "@/lib/rpic";
+import type { Anim, Interaction, ObjectGeometry } from "@/lib/rpic";
 import type { PicMapping } from "@/lib/picCoords";
 import type { CanvasSettings } from "@/lib/storage";
 import { copyText, formatXml, toMarkdownSnippet } from "@/lib/exports";
@@ -44,6 +44,8 @@ interface PreviewTabsProps {
   onSourceChange?: (s: string) => void;
   /** `animate scroll` no fonte — o PreviewPane troca autoplay por scrubber. */
   scroll?: boolean;
+  /** Alvos da diretiva `draggable` (0.10.0) — o PreviewPane liga o Draggable. */
+  interactions?: Interaction[];
   /** Mapeamento SVG→pic sob demanda (coordenadas do cursor no rodapé). */
   getPicMap?: () => PicMapping | null;
 }

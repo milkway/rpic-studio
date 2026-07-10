@@ -32,17 +32,23 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
 - **Releases do rpic**: o workflow `.github/workflows/rpic-release-watch.yml` abre uma issue
   com checklist de investigação quando o rpic-lang taggeia versão nova (compara com a versão
   do lockfile). Ao atualizar a dependência, rodar a suíte completa — `compile.test.ts` valida
-  todos os exemplos no WASM real e pega drift de comportamento. **Atual: v0.9.0** (`thin` = 2/3 do
-  `linethick`; cores em VARIÁVEIS/expressões em posição de cor — `accent = 0x…; box shaded accent`,
-  `shaded (expr)`; nomes dvips/xcolor resolvem p/ RGB; warning `invalid_color` no bundle com hint
-  "did you mean" — o `errorInfo.ts` tem caso localizado e `compile.test.ts` cobre tudo isso; FIX do
-  gradient+hatch #273 — gradiente vira underlay, não repete por tile; tipos TS do `Anim`/`Bundle.scroll`
-  agora completos no npm; labels standalone entram nos bounds; hardening contra input hostil).
-  0.8.x trouxe o subsistema de animação (efeitos `slide`/`move`/`highlight`/`morph` além de
-  `draw`/`fade`/`pop`, `out`, `repeat`/`yoyo`/`ease`, `stagger`, `animate scroll`; o player npm converte
-  formas em `<path>` p/ `move`/`morph`). O pin fica em TRÊS lugares:
+  todos os exemplos no WASM real e pega drift de comportamento. **Atual: v0.10.0** (efeitos de TEXTO
+  `type` — tspans `.rpic-ch` nativos, `by word` — e `scramble` — `by "chars"`, ScrambleTextPlugin;
+  `wiggle` com `wiggles <n>` — ease `wiggle(n)` do CustomWiggle; `draw from 40% to 0.6` recorta o
+  traço por fração — `drawFrom`/`drawTo` no manifesto, sem plugin; diretiva **`draggable <place>
+  [inertia] [bounds <place>] [x|y]`** — NÃO é efeito animate — vira array top-level `interactions`
+  no bundle e o helper npm `interactive(root, interactions, Draggable)` liga o GSAP Draggable — no
+  app o `PreviewPane` liga/mata as instâncias, o pan PULA alvos arrastáveis e o `ObjectsOverlay`
+  REENCAMINHA o pointerdown ao `<g>` (o overlay cobre o SVG, senão o Draggable nunca vê o evento);
+  warnings novos `by_without_type`/`by_without_scramble`/`wiggles_without_wiggle` caem no default do
+  `errorInfo.ts`; FIX #333: `invalid_color` agora traz span line/col/end_col → jump/sublinhado
+  funcionam sozinhos). 0.9.0: `thin` = 2/3 do `linethick`; cores em variáveis/expressões; nomes
+  dvips/xcolor; warning `invalid_color` com "did you mean" (caso localizado no `errorInfo.ts`); FIX
+  gradient+hatch #273. 0.8.x trouxe o subsistema de animação (efeitos `slide`/`move`/`highlight`/
+  `morph` além de `draw`/`fade`/`pop`, `out`, `repeat`/`yoyo`/`ease`, `stagger`, `animate scroll`; o
+  player npm converte formas em `<path>` p/ `move`/`morph`). O pin fica em TRÊS lugares:
   `apps/web/package.json` E a raiz `package.json` (web WASM `@strategicprojects/rpic`), e a git-dep
-  da API em `apps/api/Cargo.toml` (`rpic-core`/`rpic-render` na `tag = "v0.9.0"`). Depois de mudar a
+  da API em `apps/api/Cargo.toml` (`rpic-core`/`rpic-render` na `tag = "v0.10.0"`). Depois de mudar a
   tag, rodar `cargo update --manifest-path apps/api/Cargo.toml -p rpic-core -p rpic-render` — editar
   só o `Cargo.toml` deixa o `Cargo.lock` STALE (foi assim que o lock ficou preso no v0.7.0 dois bumps
   seguidos; o Docker do servidor resolvia sozinho e mascarava). Obs.: o sqlx 0.9 do lock exige
@@ -176,7 +182,8 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   declaradas em `vite-env.d.ts`. A versão do studio é PRÓPRIA (SemVer independente do engine; **v0.2.0**
   = animação 0.8.x, **v0.3.0** = engine 0.9.0 com `thin`/cores-variáveis/warnings, **v0.4.0** =
   pan por arrasto + coordenadas pic com cópia + scrubber de `animate scroll` + thin/xcolor na UI,
-  **v0.4.1** = zoom dimensiona o layout → pan nas 4 direções e coords exatas sob zoom).
+  **v0.4.1** = zoom dimensiona o layout → pan nas 4 direções e coords exatas sob zoom, **v0.5.0** =
+  engine 0.10.0: type/scramble/wiggle + draw parcial + draggable ligado no preview).
 - **Paleta de circuitos** (`components/editor/CircuitPalette.tsx` + `lib/circuitCatalog.ts`): menu no
   header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — 14
   macros circuit_macros com sintaxe de DOIS pontos nomeados (`resistor(A,B)`; centrados `ground(P)`),
