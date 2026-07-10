@@ -187,7 +187,8 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   inspetor reconhece cor em VARIÁVEL/`0x…`/expressão (`outlined accent`) — substitui em vez de
   duplicar; `COLOR_TOKEN` no `objectEdit.ts`, **v0.6.0** = paleta de circuitos completa: ~80 macros,
   **v0.7.0** = topbar/menus responsivos p/ mobile (hambúrguer <md, rótulos `max-sm:hidden`, header do
-  code pane com overflow-x) + ícones WASM na paleta de circuitos).
+  code pane com overflow-x) + ícones WASM na paleta de circuitos, **v0.7.1** = clone de realce SEGUE
+  o transform do alvo no rAF — sem fantasma ao arrastar objeto `draggable`).
 - **Paleta de circuitos** (`components/editor/CircuitPalette.tsx` + `lib/circuitCatalog.ts`): menu no
   header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — o
   catálogo COMPLETO das ~80 macros públicas da biblioteca (7 grupos; popover com scroll). Assinaturas:

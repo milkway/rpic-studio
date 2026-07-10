@@ -287,4 +287,19 @@ test("draggable (0.10.0): arrastar a forma move o <g> real, sem virar pan do can
   // …e o canvas NÃO rolou junto (o pan pula alvos arrastáveis).
   const scrollAfter = await canvas.evaluate((el) => ({ x: el.scrollLeft, y: el.scrollTop }));
   expect(scrollAfter).toEqual(scrollBefore);
+
+  // O contorno de seleção (clone) SEGUE o objeto arrastado — sem "fantasma"
+  // pairando na posição antiga (o rAF copia o transform do alvo pro clone).
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const g = document.querySelector('[data-testid="preview-stage"] svg #s1');
+        const hl = document.querySelector('[data-hl^="sel:"]');
+        if (!g || !hl) return "sem clone";
+        return (g.getAttribute("transform") ?? "") === (hl.getAttribute("transform") ?? "")
+          ? "ok"
+          : "divergente";
+      }),
+    )
+    .toBe("ok");
 });

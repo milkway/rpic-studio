@@ -266,10 +266,28 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
     // se o alvo mudou, troca em UM frame; some com a seleção/hover ou some junto na
     // reinjeção do SVG e é RECRIADO. `id` nulo (ou hover == seleção) remove o clone.
     const cssEsc = (s: string) => (typeof CSS !== "undefined" && CSS.escape ? CSS.escape(s) : s);
+    // O clone é uma CÓPIA estática — se o alvo se mover DEPOIS (GSAP escreve o
+    // atributo `transform` no <g>: draggable, wiggle, slide…), o contorno
+    // ficaria pairando na posição velha ("ruído" de um segundo objeto). A cada
+    // frame, copia o transform do alvo pro clone.
+    const followTransform = (clone: SVGElement, target: SVGElement) => {
+      const tf = target.getAttribute("transform");
+      if (tf !== clone.getAttribute("transform")) {
+        if (tf === null) clone.removeAttribute("transform");
+        else clone.setAttribute("transform", tf);
+      }
+    };
     const reconcile = (svg: SVGElement, role: "sel" | "hover", id: string | null) => {
       const key = id ? `${role}:${id}` : "";
       const existing = svg.querySelector<SVGElement>(`[data-hl^="${role}:"]`);
-      if ((existing?.getAttribute("data-hl") ?? "") === key) return; // já correto
+      if ((existing?.getAttribute("data-hl") ?? "") === key) {
+        // alvo igual: mantém o clone (sem churn), mas SEGUE o transform dele
+        if (existing && id) {
+          const target = svg.querySelector<SVGElement>(`#${cssEsc(id)}`);
+          if (target) followTransform(existing, target);
+        }
+        return;
+      }
       existing?.remove();
       if (!id) return;
       const target = svg.querySelector<SVGElement>(`#${cssEsc(id)}`);
