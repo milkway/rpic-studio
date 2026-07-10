@@ -183,7 +183,9 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   = animação 0.8.x, **v0.3.0** = engine 0.9.0 com `thin`/cores-variáveis/warnings, **v0.4.0** =
   pan por arrasto + coordenadas pic com cópia + scrubber de `animate scroll` + thin/xcolor na UI,
   **v0.4.1** = zoom dimensiona o layout → pan nas 4 direções e coords exatas sob zoom, **v0.5.0** =
-  engine 0.10.0: type/scramble/wiggle + draw parcial + draggable ligado no preview).
+  engine 0.10.0: type/scramble/wiggle + draw parcial + draggable ligado no preview, **v0.5.1** =
+  inspetor reconhece cor em VARIÁVEL/`0x…`/expressão (`outlined accent`) — substitui em vez de
+  duplicar; `COLOR_TOKEN` no `objectEdit.ts`).
 - **Paleta de circuitos** (`components/editor/CircuitPalette.tsx` + `lib/circuitCatalog.ts`): menu no
   header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — 14
   macros circuit_macros com sintaxe de DOIS pontos nomeados (`resistor(A,B)`; centrados `ground(P)`),

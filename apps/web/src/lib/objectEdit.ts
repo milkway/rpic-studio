@@ -36,15 +36,29 @@ function fmtNum(n: number): string {
   return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)));
 }
 
+// UM token em posição de cor (rpic 0.9.0): string `"crimson"`, expressão entre
+// parênteses `(mist + 0x101010)` (um nível — sem parênteses aninhados), literal
+// `0x1b5e20`, ou bareword (variável `accent` / nome de cor). Sem reconhecer as
+// formas sem aspas, o inspetor não achava o atributo existente e ANEXAVA outro
+// (`outlined accent outlined "darkorange"`) em vez de substituir.
+const COLOR_TOKEN = String.raw`(?:"(?:[^"\\]|\\.)*"|\([^()]*\)|0[xX][0-9a-fA-F]+|[A-Za-z_]\w*)`;
+const colorRe = (kw: string) =>
+  new RegExp(String.raw`\b${kw}\s+(?:"((?:[^"\\]|\\.)*)"|(\([^()]*\)|0[xX][0-9a-fA-F]+|[A-Za-z_]\w*))`);
+/** Valor da cor: conteúdo da string (sem aspas) ou o texto cru (variável/0x/expr). */
+function readColor(stmt: string, kw: string): string | undefined {
+  const m = colorRe(kw).exec(stmt);
+  return m ? (m[1] ?? m[2]) : undefined;
+}
+
 /** Regex do atributo existente (p/ substituir/remover) e o texto novo a inserir
  *  (ou "" p/ remover). `value` = cor (nome/#hex), "hatch"|"crosshatch",
  *  "dashed"|"dotted", número (thick), ou undefined/null p/ remover. */
 function attrSpec(kind: AttrKind, value: string | number | undefined): { re: RegExp; add: string } {
   switch (kind) {
     case "fill":
-      return { re: /\s*\bshaded\s+"(?:[^"\\]|\\.)*"/g, add: value ? `shaded "${value}"` : "" };
+      return { re: new RegExp(String.raw`\s*\bshaded\s+${COLOR_TOKEN}`, "g"), add: value ? `shaded "${value}"` : "" };
     case "stroke":
-      return { re: /\s*\boutlined\s+"(?:[^"\\]|\\.)*"/g, add: value ? `outlined "${value}"` : "" };
+      return { re: new RegExp(String.raw`\s*\boutlined\s+${COLOR_TOKEN}`, "g"), add: value ? `outlined "${value}"` : "" };
     case "hatch":
       return { re: /\s*\b(?:crosshatch|hatch)\b/g, add: value ? String(value) : "" };
     case "hatchAngle":
@@ -56,11 +70,11 @@ function attrSpec(kind: AttrKind, value: string | number | undefined): { re: Reg
       // regex remove ambas p/ não duplicar ao reescrever.
       return { re: /\s*\bhatch(?:wid|width)\s+[\d.]+/g, add: value != null && value !== "" ? `hatchwid ${fmtNum(Number(value))}` : "" };
     case "hatchColor":
-      return { re: /\s*\bhatchcolor\s+"(?:[^"\\]|\\.)*"/g, add: value ? `hatchcolor "${value}"` : "" };
+      return { re: new RegExp(String.raw`\s*\bhatchcolor\s+${COLOR_TOKEN}`, "g"), add: value ? `hatchcolor "${value}"` : "" };
     case "gradient":
       // par de cores `gradient "a" "b"` (o UI compõe as duas strings já com aspas
-      // em `value`). A regex casa as DUAS strings p/ não deixar sobra ao remover.
-      return { re: /\s*\bgradient\s+"(?:[^"\\]|\\.)*"\s+"(?:[^"\\]|\\.)*"/g, add: value ? `gradient ${value}` : "" };
+      // em `value`). A regex casa os DOIS tokens p/ não deixar sobra ao remover.
+      return { re: new RegExp(String.raw`\s*\bgradient\s+${COLOR_TOKEN}\s+${COLOR_TOKEN}`, "g"), add: value ? `gradient ${value}` : "" };
     case "gradientAngle":
       return { re: /\s*\bgradientangle\s+-?[\d.]+/g, add: value != null && value !== "" ? `gradientangle ${fmtNum(Number(value))}` : "" };
     case "dash":
@@ -171,8 +185,10 @@ export interface ObjectAttrs {
 }
 
 /** Lê os atributos GERENCIÁVEIS da statement em (line, col) — p/ o inspetor do
- *  overlay universal refletir o estado atual. Só reconhece as formas que o
- *  editor escreve (`shaded "…"`, `outlined "…"`, hatch/crosshatch, dash, thick). */
+ *  overlay universal refletir o estado atual. Cores em QUALQUER forma do rpic
+ *  (`shaded "…"`, variável `outlined accent`, `0x…`, expressão `( … )`) — as
+ *  não-string voltam como texto cru (não casam swatch, mas o inspetor as vê e
+ *  SUBSTITUI em vez de duplicar). */
 export function readObjectAttrs(source: string, line: number, col: number | undefined): ObjectAttrs {
   const lines = source.split("\n");
   const li = line - 1;
@@ -181,10 +197,10 @@ export function readObjectAttrs(source: string, line: number, col: number | unde
   const start = Math.max(0, (col ?? 1) - 1);
   const stmt = text.slice(start, statementEnd(text, start));
   const out: ObjectAttrs = {};
-  const fill = /\bshaded\s+"((?:[^"\\]|\\.)*)"/.exec(stmt);
-  if (fill) out.fill = fill[1];
-  const stroke = /\boutlined\s+"((?:[^"\\]|\\.)*)"/.exec(stmt);
-  if (stroke) out.stroke = stroke[1];
+  const fill = readColor(stmt, "shaded");
+  if (fill !== undefined) out.fill = fill;
+  const stroke = readColor(stmt, "outlined");
+  if (stroke !== undefined) out.stroke = stroke;
   // Hachura: a keyword `hatch`/`crosshatch` OU qualquer parâmetro órfão
   // (`hatchsep`/`hatchcolor`/`hatchwid`/`hatchangle`) — no rpic um parâmetro
   // SOZINHO já cria uma hachura default. Inferir dos parâmetros faz o inspetor
@@ -203,12 +219,13 @@ export function readObjectAttrs(source: string, line: number, col: number | unde
   if (hSep) out.hatchSep = +hSep[1];
   const hWid = /\bhatch(?:wid|width)\s+([\d.]+)/.exec(stmt);
   if (hWid) out.hatchWid = +hWid[1];
-  const hColor = /\bhatchcolor\s+"((?:[^"\\]|\\.)*)"/.exec(stmt);
-  if (hColor) out.hatchColor = hColor[1];
-  const grad = /\bgradient\s+"((?:[^"\\]|\\.)*)"\s+"((?:[^"\\]|\\.)*)"/.exec(stmt);
+  const hColor = readColor(stmt, "hatchcolor");
+  if (hColor !== undefined) out.hatchColor = hColor;
+  const grad = new RegExp(String.raw`\bgradient\s+(${COLOR_TOKEN})\s+(${COLOR_TOKEN})`).exec(stmt);
   if (grad) {
-    out.gradientFrom = grad[1];
-    out.gradientTo = grad[2];
+    const unquote = (t: string) => (t.startsWith('"') ? t.slice(1, -1) : t);
+    out.gradientFrom = unquote(grad[1]);
+    out.gradientTo = unquote(grad[2]);
   }
   const gAngle = /\bgradientangle\s+(-?[\d.]+)/.exec(stmt);
   if (gAngle) out.gradientAngle = +gAngle[1];

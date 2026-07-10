@@ -150,3 +150,39 @@ describe("setObjectAttr", () => {
     expect(setObjectAttr(withThin, 1, 1, "thin", undefined)).toBe("box");
   });
 });
+
+describe("cores em variáveis/expressões (0.9.0) — substituir, não duplicar", () => {
+  it("outlined <variável>: trocar a cor SUBSTITUI (não anexa outro outlined)", () => {
+    const src = 'A: box "accent" outlined accent';
+    expect(setObjectAttr(src, 1, 1, "stroke", "darkorange")).toBe('A: box "accent" outlined "darkorange"');
+  });
+
+  it("repara statement já duplicada (outlined var + outlined string → um só)", () => {
+    const src = 'B: box "mist" shaded mist outlined accent outlined "darkorange"';
+    expect(setObjectAttr(src, 1, 1, "stroke", "crimson")).toBe('B: box "mist" shaded mist outlined "crimson"');
+  });
+
+  it("shaded <expr entre parênteses> e literal 0x… também substituem", () => {
+    const src = 'C: circle "tint" rad 0.3 shaded (mist + 0x101010) outlined accent';
+    expect(setObjectAttr(src, 1, 1, "fill", "lightblue")).toBe('C: circle "tint" rad 0.3 outlined accent shaded "lightblue"');
+    expect(setObjectAttr("box shaded 0x1b5e20", 1, 1, "fill", "white")).toBe('box shaded "white"');
+  });
+
+  it("readObjectAttrs devolve o texto cru das formas sem aspas", () => {
+    const attrs = readObjectAttrs('box shaded (mist + 0x101010) outlined accent hatchcolor 0x333333', 1, 1);
+    expect(attrs.fill).toBe("(mist + 0x101010)");
+    expect(attrs.stroke).toBe("accent");
+    expect(attrs.hatchColor).toBe("0x333333");
+  });
+
+  it("gradient com cores bareword: lê o par e substitui sem sobra", () => {
+    const src = "box gradient mist accent";
+    expect(readObjectAttrs(src, 1, 1)).toMatchObject({ gradientFrom: "mist", gradientTo: "accent" });
+    expect(setObjectAttr(src, 1, 1, "gradient", '"gold" "white"')).toBe('box gradient "gold" "white"');
+    expect(setObjectAttr(src, 1, 1, "gradient", undefined)).toBe("box");
+  });
+
+  it("remover a cor em forma de variável limpa o token inteiro", () => {
+    expect(setObjectAttr("box outlined accent", 1, 1, "stroke", undefined)).toBe("box");
+  });
+});
