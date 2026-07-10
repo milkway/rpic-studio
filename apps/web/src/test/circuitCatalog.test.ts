@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { ready } from "@strategicprojects/rpic";
 import { compile } from "@/lib/rpic";
-import { CIRCUIT_ELEMENTS, insertCircuitElement } from "@/lib/circuitCatalog";
+import { CIRCUIT_ELEMENTS, circuitIconSource, insertCircuitElement } from "@/lib/circuitCatalog";
 
 const require = createRequire(import.meta.url);
 
@@ -23,6 +23,14 @@ describe("paleta de circuitos (WASM real)", () => {
       expect(out.svg, `elemento "${el.id}" deve gerar SVG`).toContain("<svg");
       // desenhou geometria de verdade (não só o canvas vazio)
       expect(out.objects.length, `elemento "${el.id}" deve criar objetos`).toBeGreaterThan(0);
+    }
+  });
+
+  it("todos os ícones da paleta compilam (thumbnail = desenho real)", () => {
+    for (const el of CIRCUIT_ELEMENTS) {
+      const out = compile(circuitIconSource(el), { circuits: true });
+      expect(out.svg, `ícone "${el.id}" deve gerar SVG`).toContain("<svg");
+      expect(out.objects.length, `ícone "${el.id}" deve desenhar algo`).toBeGreaterThan(0);
     }
   });
 

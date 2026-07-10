@@ -87,6 +87,22 @@ body {
   background-position: center;
 }
 
+/* Ícone de elemento na paleta de circuitos: o SVG compilado pelo próprio rpic,
+   encaixado na caixinha e TINGIDO com currentColor — os traços saem pretos do
+   compilador e sumiriam no tema escuro. (CSS vence atributo de apresentação.) */
+.ckt-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.ckt-icon svg [stroke]:not([stroke="none"]) {
+  stroke: currentColor;
+}
+.ckt-icon svg [fill]:not([fill="none"]),
+.ckt-icon svg text {
+  fill: currentColor;
+}
+
 /* Scrollbars discretas, cor de tinta diluída. */
 * {
   scrollbar-width: thin;

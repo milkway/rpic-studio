@@ -79,7 +79,7 @@ export function EditorToolbar({
             data-testid="save-button"
           >
             <Save size={14} />
-            {t("toolbar.save")}
+            <span className="max-sm:hidden">{t("toolbar.save")}</span>
           </Button>
         </Tip>
       )}
@@ -89,7 +89,7 @@ export function EditorToolbar({
           <DropdownTrigger asChild>
             <Button variant="ghost" size="sm" data-testid="export-button">
               <Download size={14} />
-              {t("toolbar.export")}
+              <span className="max-sm:hidden">{t("toolbar.export")}</span>
             </Button>
           </DropdownTrigger>
         </Tip>

@@ -145,6 +145,16 @@ export const CIRCUIT_ELEMENTS: CircuitElement[] = [
   el("connector", "spdt", "Switch (SPDT)", "Chave (SPDT)", 3),
 ];
 
+/** Fonte pic mínima do ÍCONE de um elemento (thumbnail da paleta): o próprio
+ *  macro desenhado entre pontos curtos, compilado no WASM com `circuits: true`.
+ *  O ícone é sempre fiel ao render real — e o teste da paleta compila todos. */
+export function circuitIconSource(el: CircuitElement): string {
+  const extra = el.extra !== undefined ? `, "${el.extra}"` : "";
+  if (el.terminals === 1) return `.PS\nA:(0,0)\n${el.macro}(A${extra})\n.PE`;
+  if (el.terminals === 3) return `.PS\nA:(0,0); B:(0.9,0.22); C:(0.9,-0.22)\n${el.macro}(A, B, C)\n.PE`;
+  return `.PS\nA:(0,0); B:(0.9,0)\n${el.macro}(A, B${extra})\n.PE`;
+}
+
 const POINT_PREFIX = "Ckt";
 const STEP_Y = 0.9;
 const SPAN_X = 1.3;

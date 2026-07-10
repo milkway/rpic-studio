@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
-import { Moon, Sun } from "lucide-react";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { Menu, Moon, Sun } from "lucide-react";
 import { asset, cn } from "@rpic/design-system";
 import { useI18n, type Locale } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
@@ -77,49 +77,76 @@ interface AppShellProps {
   children: ReactNode;
 }
 
-/** Casca do app: topbar fina + conteúdo em altura total. */
+/** Casca do app: topbar fina + conteúdo em altura total. Em telas ESTREITAS
+ *  (<md) a nav colapsa num menu hambúrguer e a marca perde o "studio" — senão a
+ *  linha (marca + 4 links + ações + idioma/tema/login) estoura e os controles da
+ *  direita somem clipados. */
 export function AppShell({ actions, children }: AppShellProps) {
   const { t } = useI18n();
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const { data: me } = useMe();
   // "Editor" cobre o rascunho (/) e diagramas salvos (/e/:id)
   const editorActive = pathname === "/" || pathname.startsWith("/e/");
+  const links = [
+    { to: "/", label: t("nav.editor"), active: editorActive },
+    { to: "/exemplos", label: t("nav.examples") },
+    { to: "/bindings", label: t("nav.bindings") },
+    { to: "/ajuda", label: t("nav.help") },
+    ...(me?.is_admin ? [{ to: "/usuarios", label: t("nav.users") }] : []),
+  ];
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-13 shrink-0 items-center gap-5 border-b border-(--color-border) bg-(--color-surface) px-4">
-        <Link to="/" className="flex items-center gap-2.5" aria-label={t("nav.home")}>
+      <header className="flex h-13 shrink-0 items-center gap-2.5 border-b border-(--color-border) bg-(--color-surface) px-3 md:gap-5 md:px-4">
+        <Link to="/" className="flex shrink-0 items-center gap-2.5" aria-label={t("nav.home")}>
           {/* Logo oficial do rpic — um "r" desenhado no próprio rpic (blueprint). */}
           <img src={asset("brand/logo.svg")} alt="" width="27" height="27" />
           <span className="text-[17px] leading-none">
             <span className="brand-r">R</span>
             <span className="brand-pic">PIC</span>
-            <span className="font-display ml-1.5 font-medium text-(--color-text-muted)">
+            <span className="font-display ml-1.5 font-medium text-(--color-text-muted) max-sm:hidden">
               studio
             </span>
           </span>
         </Link>
-        <nav className="flex items-center gap-1">
-          <NavLink to="/" className={() => navLinkClass({ isActive: editorActive })}>
-            {t("nav.editor")}
-          </NavLink>
-          <NavLink to="/exemplos" className={navLinkClass}>
-            {t("nav.examples")}
-          </NavLink>
-          <NavLink to="/bindings" className={navLinkClass}>
-            {t("nav.bindings")}
-          </NavLink>
-          <NavLink to="/ajuda" className={navLinkClass}>
-            {t("nav.help")}
-          </NavLink>
-          {me?.is_admin ? (
-            <NavLink to="/usuarios" className={navLinkClass}>
-              {t("nav.users")}
+        <nav className="flex items-center gap-1 max-md:hidden">
+          {links.map((l) => (
+            <NavLink
+              key={l.to}
+              to={l.to}
+              className={l.active !== undefined ? () => navLinkClass({ isActive: l.active! }) : navLinkClass}
+            >
+              {l.label}
             </NavLink>
-          ) : null}
+          ))}
         </nav>
-        <div className="ml-auto flex items-center gap-1.5">
+        <DropdownMenu>
+          <DropdownTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("nav.home")}
+              data-testid="nav-menu"
+              className="md:hidden"
+            >
+              <Menu size={16} />
+            </Button>
+          </DropdownTrigger>
+          <DropdownContent align="start" className="min-w-40">
+            {links.map((l) => (
+              <DropdownItem
+                key={l.to}
+                onSelect={() => navigate(l.to)}
+                className={cn((l.active ?? pathname === l.to) && "bg-(--color-surface-muted) text-(--color-text)")}
+              >
+                {l.label}
+              </DropdownItem>
+            ))}
+          </DropdownContent>
+        </DropdownMenu>
+        <div className="ml-auto flex min-w-0 items-center gap-1.5">
           {actions}
-          <div className="ml-1.5 flex items-center gap-1 border-l border-(--color-border) pl-3">
+          <div className="ml-1.5 flex shrink-0 items-center gap-1 border-l border-(--color-border) pl-3 max-sm:ml-0 max-sm:pl-2">
             <Tip label={t("locale.label")}>
               <span>
                 <LocaleSwitcher />

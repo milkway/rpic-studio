@@ -326,9 +326,12 @@ export function EditorPage() {
       >
         {/* Painel nanquim: o código */}
         <section className="flex min-h-0 min-w-0 flex-col bg-(--color-ink)">
-          <div className="flex h-10 shrink-0 items-center gap-2 border-b border-(--color-ink-border) px-3">
+          {/* Em telas estreitas: título encolhe, rótulos viram só ícone (nos
+              menus) e o overflow-x é a rede de segurança — sem ele a lixeira
+              (ml-auto) some clipada. */}
+          <div className="flex h-10 shrink-0 items-center gap-2 overflow-x-auto border-b border-(--color-ink-border) px-3">
             <span
-              className="max-w-44 truncate font-mono text-[11px] tracking-widest text-(--color-ink-muted) uppercase"
+              className="max-w-44 shrink-0 truncate font-mono text-[11px] tracking-widest text-(--color-ink-muted) uppercase max-sm:max-w-20"
               data-testid="doc-title"
             >
               {savedMode ? (diagram.data?.title ?? "…") : t("editor.draft")}
@@ -338,7 +341,7 @@ export function EditorPage() {
               <DropdownTrigger asChild>
                 <Button variant="ink-ghost" size="sm" data-testid="examples-menu">
                   <BookOpen size={13} />
-                  {t("editor.examples")}
+                  <span className="max-sm:hidden">{t("editor.examples")}</span>
                   <ChevronDown size={12} />
                 </Button>
               </DropdownTrigger>
@@ -360,7 +363,7 @@ export function EditorPage() {
                 className={cn(defaultsOpen && "bg-(--color-ink-raised) text-(--color-ink-text)")}
               >
                 <SlidersHorizontal size={13} />
-                {t("defaults.button")}
+                <span className="max-sm:hidden">{t("defaults.button")}</span>
               </Button>
             </Tip>
             <CircuitPalette onInsert={insertCircuit} />

@@ -72,7 +72,7 @@ export function ShareDialog({ source, circuits, diagramId, shareSlug }: ShareDia
       <DialogTrigger asChild>
         <Button variant="primary" size="sm" data-testid="share-button">
           <Link2 size={14} />
-          {t("share.button")}
+          <span className="max-sm:hidden">{t("share.button")}</span>
         </Button>
       </DialogTrigger>
       <DialogContent title={t("share.title")} description={t("share.desc")}>
