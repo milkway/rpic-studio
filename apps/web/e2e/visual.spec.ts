@@ -303,3 +303,31 @@ test("draggable (0.10.0): arrastar a forma move o <g> real, sem virar pan do can
     )
     .toBe("ok");
 });
+
+test("inspetor: × fecha, Esc desseleciona e minimizar vira chip mantendo a seleção", async ({ page }) => {
+  await loadDraft(page, 'box "A"');
+  const insp = page.getByTestId("objects-inspector");
+
+  // × fecha (desseleciona)
+  await page.getByTestId("objects-handle").first().click();
+  await expect(insp).toBeVisible({ timeout: 5_000 });
+  await page.getByTestId("objects-close").click();
+  await expect(insp).not.toBeVisible();
+
+  // Esc desseleciona
+  await page.getByTestId("objects-handle").first().click();
+  await expect(insp).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(insp).not.toBeVisible();
+
+  // minimizar → chip no lugar do painel, contorno de seleção segue vivo
+  await page.getByTestId("objects-handle").first().click();
+  await expect(insp).toBeVisible();
+  await page.getByTestId("objects-minimize").click();
+  await expect(insp).not.toBeVisible();
+  await expect(page.getByTestId("objects-inspector-min")).toBeVisible();
+  await expect(page.locator('[data-hl^="sel:"]')).toHaveCount(1); // seleção mantida
+  // expandir de volta
+  await page.getByTestId("objects-expand").click();
+  await expect(insp).toBeVisible();
+});

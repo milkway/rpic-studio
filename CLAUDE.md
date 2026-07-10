@@ -100,6 +100,9 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   fino/hachura — daí o clone. O clone é só DOM vivo (sem `id`): não entra nos exports (que usam a
   string `bakedSvg`) nem vira handle. As caixas são posicionadas relativas ao rect do PRÓPRIO overlay (não ao canvas) —
   auto-contido e invariante a scroll/layout.
+  O inspetor tem × (fecha), Esc desseleciona (listener só COM seleção — não rouba o Esc de dialogs)
+  e minimizar (−): vira um CHIP `tipo · linha` mantendo seleção/contorno (estado PEGAJOSO — não
+  reseta ao trocar de objeto; expandir clicando no chip).
   Clicar → inspetor; duplo-clique → pula pra linha (`onJumpToLine`); clicar no VAZIO desseleciona
   (`objects-deselect`) — mas só o CLIQUE LIMPO (down+up sem mover >4px): arrasto a partir do vazio é
   PAN do canvas e não pode perder a seleção. O inspetor escreve o atributo NA STATEMENT do objeto via
@@ -188,7 +191,8 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   duplicar; `COLOR_TOKEN` no `objectEdit.ts`, **v0.6.0** = paleta de circuitos completa: ~80 macros,
   **v0.7.0** = topbar/menus responsivos p/ mobile (hambúrguer <md, rótulos `max-sm:hidden`, header do
   code pane com overflow-x) + ícones WASM na paleta de circuitos, **v0.7.1** = clone de realce SEGUE
-  o transform do alvo no rAF — sem fantasma ao arrastar objeto `draggable`).
+  o transform do alvo no rAF — sem fantasma ao arrastar objeto `draggable`, **v0.8.0** = inspetor
+  com × / Esc / minimizar-para-chip).
 - **Paleta de circuitos** (`components/editor/CircuitPalette.tsx` + `lib/circuitCatalog.ts`): menu no
   header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — o
   catálogo COMPLETO das ~80 macros públicas da biblioteca (7 grupos; popover com scroll). Assinaturas:

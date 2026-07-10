@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { Minus, X } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import { useI18n } from "@/lib/i18n";
 import { type ObjectGeometry } from "@/lib/rpic";
@@ -128,6 +129,10 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
   const overlayRef = useRef<HTMLDivElement>(null);
   const [boxes, setBoxes] = useState<OBox[]>([]);
   const [sel, setSel] = useState<string | null>(null);
+  // Inspetor minimizado: só o chip (tipo · linha) fica visível, a SELEÇÃO e o
+  // contorno permanecem — p/ quando o painel cobre a parte do desenho em edição.
+  // Escolha PEGAJOSA (não reseta ao trocar de objeto): foi decisão do usuário.
+  const [minimized, setMinimized] = useState(false);
   const boxesRef = useRef<OBox[]>([]);
   const selRef = useRef<string | null>(null);
   const hoverRef = useRef<string | null>(null);
@@ -218,6 +223,17 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
 
   useEffect(() => {
     selRef.current = sel;
+  }, [sel]);
+
+  // Esc desseleciona (fecha o inspetor). Listener só existe COM seleção — não
+  // interfere no Esc de dialogs/popovers quando nada está selecionado.
+  useEffect(() => {
+    if (!sel) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSel(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [sel]);
 
   useEffect(() => {
@@ -402,25 +418,71 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
         );
       })}
 
+      {/* Inspetor MINIMIZADO: só o chip (tipo · linha) — a seleção/contorno
+          continuam; clicar no chip expande de volta. */}
+      {selBox && selBox.line && minimized && (
+        <div
+          className="pointer-events-auto absolute top-2 right-2 flex items-center gap-1.5 rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) py-1 pr-1 pl-2.5 shadow-lg"
+          data-testid="objects-inspector-min"
+        >
+          <button
+            className="cursor-pointer font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase hover:text-(--color-text)"
+            onClick={() => setMinimized(false)}
+            title={t("visual.objectsExpand")}
+            data-testid="objects-expand"
+          >
+            {selBox.kind} · {t("visual.objectsLine", { line: String(selBox.line) })}
+          </button>
+          <button
+            className="cursor-pointer rounded-(--radius-sm) p-0.5 text-(--color-text-muted) hover:bg-(--color-surface-muted) hover:text-(--color-text)"
+            onClick={() => setSel(null)}
+            aria-label={t("visual.objectsClose")}
+            title={t("visual.objectsClose")}
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
       {/* Inspetor de ESTILO por-linha: escreve o atributo na statement do objeto
           (funciona sobre qualquer pic; não move/redimensiona — posição pode ser
           relativa). */}
-      {selBox && selBox.line && (
+      {selBox && selBox.line && !minimized && (
         <div
           className="pointer-events-auto absolute top-2 right-2 max-h-[calc(100%-1rem)] w-60 overflow-auto rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) p-3 shadow-lg"
           data-testid="objects-inspector"
         >
-          <div className="mb-2 flex items-baseline justify-between">
+          <div className="mb-2 flex items-center justify-between gap-1">
             <span className="font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
               {selBox.kind}
             </span>
-            <button
-              className="font-mono text-[10px] text-(--color-accent) hover:underline"
-              onClick={() => selBox.line && onJumpToLine?.(selBox.line, selBox.col ?? undefined)}
-              data-testid="objects-goto"
-            >
-              {t("visual.objectsLine", { line: String(selBox.line) })} ↦
-            </button>
+            <span className="flex items-center gap-0.5">
+              <button
+                className="mr-1 cursor-pointer font-mono text-[10px] text-(--color-accent) hover:underline"
+                onClick={() => selBox.line && onJumpToLine?.(selBox.line, selBox.col ?? undefined)}
+                data-testid="objects-goto"
+              >
+                {t("visual.objectsLine", { line: String(selBox.line) })} ↦
+              </button>
+              <button
+                className="cursor-pointer rounded-(--radius-sm) p-0.5 text-(--color-text-muted) hover:bg-(--color-surface-muted) hover:text-(--color-text)"
+                onClick={() => setMinimized(true)}
+                aria-label={t("visual.objectsMin")}
+                title={t("visual.objectsMin")}
+                data-testid="objects-minimize"
+              >
+                <Minus size={12} />
+              </button>
+              <button
+                className="cursor-pointer rounded-(--radius-sm) p-0.5 text-(--color-text-muted) hover:bg-(--color-surface-muted) hover:text-(--color-text)"
+                onClick={() => setSel(null)}
+                aria-label={t("visual.objectsClose")}
+                title={t("visual.objectsClose")}
+                data-testid="objects-close"
+              >
+                <X size={12} />
+              </button>
+            </span>
           </div>
           {/* Macro/laço: o estilo entra no bloco e vale p/ TODAS as instâncias. */}
           {affectsAll && (
