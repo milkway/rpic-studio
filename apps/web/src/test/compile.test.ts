@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { ready } from "@strategicprojects/rpic";
 import { compile, errorPosition } from "@/lib/rpic";
+import { sanitizeSvg } from "@/lib/sanitize";
 import { examples } from "@/lib/examples";
 
 const require = createRequire(import.meta.url);
@@ -126,5 +127,19 @@ describe("compilador rpic (WASM real)", () => {
   it("cláusulas fora do efeito certo geram os warnings 0.10.0", () => {
     const out = compile('B: box "b"\nanimate B with "fade" wiggles 3');
     expect(out.warnings.some((w) => w.kind === "wiggles_without_wiggle")).toBe(true);
+  });
+
+  // rpic 0.11.0
+  it("link embrulha o objeto num <a> e SOBREVIVE ao sanitizeSvg (preview clicável)", () => {
+    const out = compile('B: box "docs" link "https://rpic.dev"\nC: box "x"\nlink C "https://rpic.dev/docs"');
+    expect(out.svg).toContain('href="https://rpic.dev"');
+    expect(out.svg).toContain('href="https://rpic.dev/docs"'); // forma statement
+    expect(out.svg).toContain('class="rpic-link"');
+    // objects[] carrega a chave link (o inspetor lê/edita)
+    expect(out.objects[0].link).toBe("https://rpic.dev");
+    // DOMPurify (perfil svg) precisa MANTER o <a href> — senão o link some no preview
+    const clean = sanitizeSvg(out.svg);
+    expect(clean).toContain('href="https://rpic.dev"');
+    expect(clean).toContain("<a ");
   });
 });

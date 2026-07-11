@@ -62,6 +62,7 @@ const sections: Section[] = [
       ["wid 1.2 ht 0.6 / same", { en: "dimensions (same repeats the last ones)", pt: "dimensões (same repete as últimas)" }],
       ["hatch / crosshatch hatchangle 30", { en: "hatching (extension)", pt: "hachuras (extensão)" }],
       ['gradient / opacity 0.5 / class "my-css"', { en: "visual extensions", pt: "extensões visuais" }],
+      ['box "docs" link "https://rpic.dev"', { en: "clickable hyperlink in the SVG (also: link A \"url\")", pt: "hyperlink clicável no SVG (também: link A \"url\")" }],
       ['"text" above / below / ljust / rjust', { en: "text placement", pt: "posição do texto" }],
     ],
   },

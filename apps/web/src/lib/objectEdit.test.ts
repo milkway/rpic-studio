@@ -186,3 +186,13 @@ describe("cores em variáveis/expressões (0.9.0) — substituir, não duplicar"
     expect(setObjectAttr("box outlined accent", 1, 1, "stroke", undefined)).toBe("box");
   });
 });
+
+describe("link (0.11.0)", () => {
+  it("anexa, substitui (último vence) e remove o hyperlink", () => {
+    const withLink = setObjectAttr('box "docs"', 1, 1, "link", "https://rpic.dev");
+    expect(withLink).toBe('box "docs" link "https://rpic.dev"');
+    expect(readObjectAttrs(withLink, 1, 1).link).toBe("https://rpic.dev");
+    expect(setObjectAttr(withLink, 1, 1, "link", "https://rpic.dev/docs")).toBe('box "docs" link "https://rpic.dev/docs"');
+    expect(setObjectAttr(withLink, 1, 1, "link", undefined)).toBe('box "docs"');
+  });
+});

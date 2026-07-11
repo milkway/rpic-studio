@@ -12,7 +12,7 @@ const RE = {
   ordinal: /^(?:\d+(?:st|nd|rd|th)(?:\s+last)?|last|here)\b/,
   control: /^(?:define|undef|if|then|else|for|do|copy|print|reset|exec|sh|command|animate)\b/,
   extension:
-    /^(?:fit|behind|close|crosshatch|hatchangle|hatchsep|hatchwidth|hatchwid|hatchcolor|hatch|opacity|gradientangle|gradient|class|texlabels|bracepos|labeloffset|topmargin|rightmargin|bottommargin|leftmargin|margin|dotrad|draggable|inertia|bounds|wiggles)\b/,
+    /^(?:fit|behind|close|crosshatch|hatchangle|hatchsep|hatchwidth|hatchwid|hatchcolor|hatch|opacity|gradientangle|gradient|class|link|texlabels|bracepos|labeloffset|topmargin|rightmargin|bottommargin|leftmargin|margin|dotrad|draggable|inertia|bounds|wiggles)\b/,
   primitive: /^(?:box|circle|ellipse|line|arrow|arc|spline|move|brace|dot)\b/,
   attribute:
     /^(?:at|with|after|from|to|by|chop|fill|same|invis|invisible|solid|dashed|dotted|thick|thin|up|down|left|right|ljust|rjust|above|below|between|of|the|way|heading|wid|width|ht|height|rad|radius|diam|diameter|shaded|outlined|colored|coloured|color|colour|cw|ccw|dotstart|dotend|along|into|out|stagger|delay|repeat|yoyo|ease|scroll)\b/,

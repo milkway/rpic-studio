@@ -110,7 +110,10 @@ rpic.renderSvg('A:(0,0); B:(2,0)\\nresistor(A,B)', { circuits: true });
 
 // math TeX: build opcional (RaTeX), buscado so quando pedido
 await rpic.ready(undefined, { math: true });
-rpic.renderSvg('box "$-\\\\frac{T}{2}$" fit', { texlabels: true });`,
+rpic.renderSvg('box "$-\\\\frac{T}{2}$" fit', { texlabels: true });
+
+// so o player (0.11): p/ SVG pre-renderizado (rpic --json), zero wasm
+import { animate, interactive } from "@strategicprojects/rpic/player";`,
     usageLang: "xml",
     docs: {
       label: "npmjs.com/package/@strategicprojects/rpic",

@@ -429,6 +429,24 @@ D: box "done" class "svc ok"
 # ───────────────────────`,
   },
   {
+    id: "links",
+    title: { en: "Clickable links", pt: "Links clicáveis" },
+    description: {
+      en: "The link extension (0.11) wraps a shape in an SVG hyperlink — click it in the exported SVG. Inline or as a statement.",
+      pt: "A extensão link (0.11) embrulha a forma num hyperlink SVG — clicável no SVG exportado. Inline ou como statement.",
+    },
+    tags: ["extensions"],
+    circuits: false,
+    source: `.PS
+right; boxwid = 1; boxht = 0.5
+Site: box "rpic.dev" link "https://rpic.dev" shaded "mintcream" outlined "seagreen"
+arrow
+Docs: box "docs" shaded "mintcream" outlined "seagreen"
+link Docs "https://rpic.dev/docs"
+"click a box (in the exported SVG)" at Site.s - (0, 0.4) ljust
+.PE`,
+  },
+  {
     id: "hatch",
     title: { en: "Hatching and fills", pt: "Hachuras e preenchimento" },
     description: {

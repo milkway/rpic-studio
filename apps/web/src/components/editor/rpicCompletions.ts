@@ -22,6 +22,8 @@ const STATIC: Completion[] = [
     "estilo",
   ),
   ...group(["bold", "italic", "font", "fontsize", "ljust", "rjust", "above", "below", "rotated"], "property", "texto"),
+  // hyperlink em objeto (rpic 0.11.0): atributo inline ou statement `link A "url"`
+  { label: "link", type: "property", detail: "hyperlink (SVG)" },
   // animação (extensão animate — rpic 0.8.x; type/scramble/wiggle e draw from/to — 0.10.0)
   { label: "animate", type: "keyword", detail: "animação" },
   ...group(

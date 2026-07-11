@@ -30,7 +30,8 @@ export type AttrKind =
   | "rad"
   | "diam"
   | "rotated"
-  | "opacity";
+  | "opacity"
+  | "link";
 
 function fmtNum(n: number): string {
   return Number.isInteger(n) ? String(n) : String(Number(n.toFixed(3)));
@@ -109,6 +110,9 @@ function attrSpec(kind: AttrKind, value: string | number | undefined): { re: Reg
       return { re: /\s*\brotated\s+-?[\d.]+/g, add: value != null && value !== "" ? `rotated ${fmtNum(Number(value))}` : "" };
     case "opacity":
       return { re: /\s*\bopacity\s+[\d.]+/g, add: value != null && value !== "" ? `opacity ${fmtNum(Number(value))}` : "" };
+    case "link":
+      // hyperlink (0.11.0) — sempre string entre aspas; reaplicar substitui
+      return { re: /\s*\blink\s+"(?:[^"\\]|\\.)*"/g, add: value ? `link "${value}"` : "" };
   }
 }
 
@@ -182,6 +186,7 @@ export interface ObjectAttrs {
   diam?: number;
   rotated?: number;
   opacity?: number;
+  link?: string;
 }
 
 /** Lê os atributos GERENCIÁVEIS da statement em (line, col) — p/ o inspetor do
@@ -251,5 +256,7 @@ export function readObjectAttrs(source: string, line: number, col: number | unde
   if (rotated) out.rotated = +rotated[1];
   const opacity = /\bopacity\s+([\d.]+)/.exec(stmt);
   if (opacity) out.opacity = +opacity[1];
+  const link = /\blink\s+"((?:[^"\\]|\\.)*)"/.exec(stmt);
+  if (link) out.link = link[1];
   return out;
 }

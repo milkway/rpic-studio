@@ -32,7 +32,12 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
 - **Releases do rpic**: o workflow `.github/workflows/rpic-release-watch.yml` abre uma issue
   com checklist de investigação quando o rpic-lang taggeia versão nova (compara com a versão
   do lockfile). Ao atualizar a dependência, rodar a suíte completa — `compile.test.ts` valida
-  todos os exemplos no WASM real e pega drift de comportamento. **Atual: v0.10.0** (efeitos de TEXTO
+  todos os exemplos no WASM real e pega drift de comportamento. **Atual: v0.11.0** (`link "<url>"` —
+  hyperlink por objeto, inline OU statement `link A "url"`; o SVG embrulha o `<g id="sN">` num
+  `<a class="rpic-link">`, URLs validadas contra XSS, `objects[].link` no bundle — o inspetor tem
+  campo de URL (`objects-link`, kind "link" no `objectEdit.ts`) e o DOMPurify PRESERVA o `<a href>`
+  (testado); npm ganhou o player standalone `@strategicprojects/rpic/player` (zero-wasm, citado na
+  BindingsPage) e o CLI o modo `--html`; SVG-only: PNG/PDF idênticos sem o link). 0.10.0: efeitos de TEXTO
   `type` — tspans `.rpic-ch` nativos, `by word` — e `scramble` — `by "chars"`, ScrambleTextPlugin;
   `wiggle` com `wiggles <n>` — ease `wiggle(n)` do CustomWiggle; `draw from 40% to 0.6` recorta o
   traço por fração — `drawFrom`/`drawTo` no manifesto, sem plugin; diretiva **`draggable <place>
@@ -48,7 +53,7 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   `morph` além de `draw`/`fade`/`pop`, `out`, `repeat`/`yoyo`/`ease`, `stagger`, `animate scroll`; o
   player npm converte formas em `<path>` p/ `move`/`morph`). O pin fica em TRÊS lugares:
   `apps/web/package.json` E a raiz `package.json` (web WASM `@strategicprojects/rpic`), e a git-dep
-  da API em `apps/api/Cargo.toml` (`rpic-core`/`rpic-render` na `tag = "v0.10.0"`). Depois de mudar a
+  da API em `apps/api/Cargo.toml` (`rpic-core`/`rpic-render` na `tag = "v0.11.0"`). Depois de mudar a
   tag, rodar `cargo update --manifest-path apps/api/Cargo.toml -p rpic-core -p rpic-render` — editar
   só o `Cargo.toml` deixa o `Cargo.lock` STALE (foi assim que o lock ficou preso no v0.7.0 dois bumps
   seguidos; o Docker do servidor resolvia sozinho e mascarava). Obs.: o sqlx 0.9 do lock exige
@@ -192,7 +197,8 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   **v0.7.0** = topbar/menus responsivos p/ mobile (hambúrguer <md, rótulos `max-sm:hidden`, header do
   code pane com overflow-x) + ícones WASM na paleta de circuitos, **v0.7.1** = clone de realce SEGUE
   o transform do alvo no rAF — sem fantasma ao arrastar objeto `draggable`, **v0.8.0** = inspetor
-  com × / Esc / minimizar-para-chip).
+  com × / Esc / minimizar-para-chip, **v0.9.0** = engine 0.11.0: `link` clicável — exemplo, ajuda,
+  autocomplete, highlight e campo de URL no inspetor).
 - **Paleta de circuitos** (`components/editor/CircuitPalette.tsx` + `lib/circuitCatalog.ts`): menu no
   header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — o
   catálogo COMPLETO das ~80 macros públicas da biblioteca (7 grupos; popover com scroll). Assinaturas:
