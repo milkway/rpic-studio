@@ -331,3 +331,21 @@ test("inspetor: × fecha, Esc desseleciona e minimizar vira chip mantendo a sele
   await page.getByTestId("objects-expand").click();
   await expect(insp).toBeVisible();
 });
+
+test("inspetor: campo LINK fica acima da dobra e escreve `link \"url\"` na linha", async ({ page }) => {
+  await loadDraft(page, 'box "docs"');
+  await page.getByTestId("objects-handle").first().click();
+  const link = page.getByTestId("objects-link");
+  await expect(link).toBeVisible({ timeout: 5_000 });
+  // Acima da dobra: o painel rola, e no fim o campo ficava invisível — deve
+  // estar no primeiro bloco (perto do topo do inspetor).
+  const inp = await link.boundingBox();
+  const insp = await page.getByTestId("objects-inspector").boundingBox();
+  expect(inp!.y - insp!.y).toBeLessThan(120);
+  await link.fill("https://rpic.dev");
+  await link.blur();
+  await expect(page.getByTestId("code-pane")).toContainText('box "docs" link "https://rpic.dev"', { timeout: 5_000 });
+  await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok");
+  // e o preview ganha o <a> clicável
+  await expect(page.locator('[data-testid="preview-stage"] svg a[href="https://rpic.dev"]')).toHaveCount(1);
+});

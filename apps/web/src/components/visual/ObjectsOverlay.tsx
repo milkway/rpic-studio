@@ -495,6 +495,30 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
           )}
           {canStyle && (
           <>
+          {/* Hyperlink (rpic 0.11.0): `link "url"` embrulha o <g> num <a> no SVG
+              exportado. Vazio = remove. NO TOPO do painel de propósito: o inspetor
+              rola (conteúdo > altura) e no fim ele ficava invisível abaixo da
+              dobra. `key` reseta o input ao trocar de objeto. */}
+          <div className="mb-2">
+            <span className="mb-1 block font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
+              {t("visual.inspector.link")}
+            </span>
+            <input
+              type="url"
+              key={`${sel}:${attrs.link ?? ""}`}
+              defaultValue={attrs.link ?? ""}
+              placeholder="https://…"
+              onBlur={(e) => {
+                const v = e.target.value.trim();
+                if (v !== (attrs.link ?? "")) setAttr("link", v || undefined);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+              }}
+              data-testid="objects-link"
+              className="h-7 w-full rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-2 text-xs text-(--color-text)"
+            />
+          </div>
           {/* Preenchimento/traço/hachura/gradiente/espessura só p/ FORMAS: no rpic
               texto não é colorível por atributo (só via `class`+CSS) e vários desses
               não se aplicam. Texto mostra só fonte/alinhamento/rotação. */}
@@ -707,29 +731,6 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
                 />
               </div>
             )}
-          </div>
-          {/* Hyperlink (rpic 0.11.0): `link "url"` embrulha o <g> num <a> no
-              SVG exportado. Vazio = remove. `key` reseta o input ao trocar de
-              objeto (defaultValue não re-renderiza sozinho). */}
-          <div className="mt-2 border-t border-(--color-border) pt-2">
-            <span className="mb-1 block font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
-              {t("visual.inspector.link")}
-            </span>
-            <input
-              type="url"
-              key={`${sel}:${attrs.link ?? ""}`}
-              defaultValue={attrs.link ?? ""}
-              placeholder="https://…"
-              onBlur={(e) => {
-                const v = e.target.value.trim();
-                if (v !== (attrs.link ?? "")) setAttr("link", v || undefined);
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-              }}
-              data-testid="objects-link"
-              className="h-7 w-full rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-2 text-xs text-(--color-text)"
-            />
           </div>
           </>
           )}

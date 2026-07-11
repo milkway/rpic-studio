@@ -200,7 +200,9 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   com × / Esc / minimizar-para-chip, **v0.9.0** = engine 0.11.0: `link` clicável — exemplo, ajuda,
   autocomplete, highlight e campo de URL no inspetor, **v0.9.1** = header do preview responsivo:
   abas curtas IMG/MD/PY no mobile + overflow-x, e o grid vertical do EditorPage trava a coluna com
-  `gridTemplateColumns: minmax(0,1fr)` — sem isso conteúdo largo ALARGAVA a página inteira no celular).
+  `gridTemplateColumns: minmax(0,1fr)` — sem isso conteúdo largo ALARGAVA a página inteira no celular,
+  **v0.9.2** = campo LINK movido pro TOPO do inspetor — o painel ROLA e no fim ele ficava invisível
+  abaixo da dobra; e2e afirma o campo perto do topo).
 - **Paleta de circuitos** (`components/editor/CircuitPalette.tsx` + `lib/circuitCatalog.ts`): menu no
   header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — o
   catálogo COMPLETO das ~80 macros públicas da biblioteca (7 grupos; popover com scroll). Assinaturas:
