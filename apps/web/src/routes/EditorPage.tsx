@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { BookOpen, ChevronDown, Eraser, SlidersHorizontal } from "lucide-react";
+import { BookOpen, ChevronDown, Copy, Eraser, SlidersHorizontal } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import { AppShell } from "@/components/app-shell/AppShell";
 import { CodePane, type CodePaneHandle } from "@/components/editor/CodePane";
@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/DropdownMenu";
 import { Tip } from "@/components/ui/Tooltip";
 import { useToast } from "@/components/ui/Toast";
+import { copyText } from "@/lib/exports";
 import { useRpic } from "@/lib/useRpic";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
@@ -373,7 +374,21 @@ export function EditorPage() {
             </Tip>
             <CircuitPalette onInsert={insertCircuit} />
             <CssPanel source={doc.source} onSourceChange={setSource} />
-            <div className="ml-auto flex items-center gap-3">
+            <div className="ml-auto flex items-center gap-1">
+              <Tip label={t("editor.copyCode")}>
+                <Button
+                  variant="ink-ghost"
+                  size="icon-sm"
+                  aria-label={t("editor.copyCode")}
+                  data-testid="copy-code-button"
+                  onClick={async () => {
+                    await copyText(doc.source);
+                    toast(t("preview.copiedToClipboard"));
+                  }}
+                >
+                  <Copy size={14} />
+                </Button>
+              </Tip>
               <Tip label={t("editor.clear")}>
                 <Button
                   variant="ink-ghost"

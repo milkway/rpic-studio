@@ -349,3 +349,27 @@ test("inspetor: campo LINK fica acima da dobra e escreve `link \"url\"` na linha
   // e o preview ganha o <a> clicável
   await expect(page.locator('[data-testid="preview-stage"] svg a[href="https://rpic.dev"]')).toHaveCount(1);
 });
+
+test("link por STATEMENT (`link Docs \"url\"`) aparece e edita no inspetor", async ({ page }) => {
+  await loadDraft(page, 'Site: box "site" link "https://rpic.dev"\nDocs: box "docs" at Site.e + (1.5, 0)\nlink Docs "https://rpic.dev/docs"');
+  await expect(page.getByTestId("objects-handle")).toHaveCount(2, { timeout: 5_000 });
+  // seleciona o Docs (2º objeto) — o link vem da statement, não da linha dele
+  await page.getByTestId("objects-handle").nth(1).click();
+  const link = page.getByTestId("objects-link");
+  await expect(link).toHaveValue("https://rpic.dev/docs", { timeout: 5_000 });
+  // editar troca a URL NA STATEMENT (não duplica inline — o último venceria)
+  await link.fill("https://rpic.dev/ajuda");
+  await link.blur();
+  await expect(page.getByTestId("code-pane")).toContainText('link Docs "https://rpic.dev/ajuda"', { timeout: 5_000 });
+  await expect(page.getByTestId("code-pane")).not.toContainText('box "docs" at Site.e + (1.5, 0) link');
+  await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok");
+});
+
+test("botão copiar código pic copia o fonte inteiro", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await loadDraft(page, 'box "copie-me"');
+  await page.getByTestId("copy-code-button").click();
+  await expect
+    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+    .toContain('box "copie-me"');
+});

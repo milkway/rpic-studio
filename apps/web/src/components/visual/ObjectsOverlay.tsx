@@ -4,7 +4,7 @@ import { cn } from "@rpic/design-system";
 import { useI18n } from "@/lib/i18n";
 import { type ObjectGeometry } from "@/lib/rpic";
 import { FILL_COLORS, FONT_SIZES, STROKE_COLORS } from "@/lib/palette";
-import { readObjectAttrs, setObjectAttr, type AttrKind } from "@/lib/objectEdit";
+import { readLabelLink, readObjectAttrs, setLabelLink, setObjectAttr, type AttrKind } from "@/lib/objectEdit";
 import { Seg, Swatches } from "./inspectorControls";
 import { ObjectFontPicker } from "./ObjectFontPicker";
 
@@ -153,6 +153,21 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
     return /[{}]/.test(source.split("\n")[selBox.line - 1] ?? "");
   })();
   const attrs = canStyle ? readObjectAttrs(source!, selBox!.line!, selBox!.col) : {};
+  // Link: inline na statement OU statement por rótulo (`link Docs "url"`) —
+  // sem a 2ª forma o campo aparecia vazio p/ objetos linkados via statement.
+  // A escrita segue a forma existente (editar inline não adiantaria: a
+  // statement vem depois e, no rpic, o último vence).
+  const selLabel = lineLabel(source, selBox?.line);
+  const stmtLink = canStyle && selLabel ? readLabelLink(source!, selLabel) : undefined;
+  const linkValue = attrs.link ?? stmtLink;
+  const setLink = (v: string | undefined) => {
+    if (!canStyle) return;
+    if (attrs.link === undefined && stmtLink !== undefined && selLabel) {
+      onSourceChange!(setLabelLink(source!, selLabel, v));
+    } else {
+      setAttr("link", v);
+    }
+  };
   const setAttr = (kind: AttrKind, value: string | number | undefined) => {
     if (!canStyle) return;
     onSourceChange!(setObjectAttr(source!, selBox!.line!, selBox!.col, kind, value));
@@ -505,12 +520,12 @@ export function ObjectsOverlay({ objects, stageRef, onJumpToLine, source, onSour
             </span>
             <input
               type="url"
-              key={`${sel}:${attrs.link ?? ""}`}
-              defaultValue={attrs.link ?? ""}
+              key={`${sel}:${linkValue ?? ""}`}
+              defaultValue={linkValue ?? ""}
               placeholder="https://…"
               onBlur={(e) => {
                 const v = e.target.value.trim();
-                if (v !== (attrs.link ?? "")) setAttr("link", v || undefined);
+                if (v !== (linkValue ?? "")) setLink(v || undefined);
               }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") (e.target as HTMLInputElement).blur();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readObjectAttrs, setObjectAttr } from "./objectEdit";
+import { readLabelLink, readObjectAttrs, setLabelLink, setObjectAttr } from "./objectEdit";
 
 describe("setObjectAttr", () => {
   it("anexa fill (shaded) a uma statement sem estilo", () => {
@@ -194,5 +194,24 @@ describe("link (0.11.0)", () => {
     expect(readObjectAttrs(withLink, 1, 1).link).toBe("https://rpic.dev");
     expect(setObjectAttr(withLink, 1, 1, "link", "https://rpic.dev/docs")).toBe('box "docs" link "https://rpic.dev/docs"');
     expect(setObjectAttr(withLink, 1, 1, "link", undefined)).toBe('box "docs"');
+  });
+});
+
+describe("link por statement (`link Docs \"url\"`)", () => {
+  const src = 'Site: box "site" link "https://a.dev"\nDocs: box "docs"\nlink Docs "https://a.dev/docs"';
+  it("lê a URL da statement por rótulo", () => {
+    expect(readLabelLink(src, "Docs")).toBe("https://a.dev/docs");
+    expect(readLabelLink(src, "Site")).toBeUndefined(); // Site é inline, não statement
+  });
+  it("troca a URL preservando a statement", () => {
+    expect(setLabelLink(src, "Docs", "https://b.dev")).toContain('link Docs "https://b.dev"');
+  });
+  it("remove a linha inteira quando a URL é apagada", () => {
+    const out = setLabelLink(src, "Docs", undefined);
+    expect(out).not.toContain("link Docs");
+    expect(out.split("\n")).toHaveLength(2);
+  });
+  it("não faz nada sem statement correspondente", () => {
+    expect(setLabelLink(src, "Nada", "https://x.dev")).toBe(src);
   });
 });

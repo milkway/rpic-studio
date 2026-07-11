@@ -260,3 +260,30 @@ export function readObjectAttrs(source: string, line: number, col: number | unde
   if (link) out.link = link[1];
   return out;
 }
+
+// A extensão `link` (0.11.0) tem DUAS formas: atributo inline na statement do
+// objeto (coberto por read/setObjectAttr) e STATEMENT à parte por referência —
+// `link Docs "https://…"`. O inspetor precisa das duas, senão o link "some" p/
+// objetos linkados pela statement (e escrever inline nem adiantaria: no rpic o
+// último vence, e a statement vem depois). Cobrimos a referência por RÓTULO
+// (`lineLabel` do objeto); ordinais (`link 1st box "…"`) ficam de fora.
+const labelLinkRe = (label: string) =>
+  new RegExp(String.raw`^([ \t]*link[ \t]+${label}[ \t]+)"((?:[^"\\]|\\.)*)"[ \t]*$`, "m");
+
+/** URL da statement `link <label> "url"`, se existir no documento. */
+export function readLabelLink(source: string, label: string): string | undefined {
+  return labelLinkRe(label).exec(source)?.[2];
+}
+
+/** Troca a URL da statement `link <label> "…"` — ou REMOVE a linha (url vazia). */
+export function setLabelLink(source: string, label: string, url: string | undefined): string {
+  const re = labelLinkRe(label);
+  if (!re.test(source)) return source;
+  if (url) return source.replace(re, `$1"${url}"`);
+  // remover: apaga a linha inteira (splice não deixa linha vazia em NENHUMA
+  // ponta — regex com \n engolia a quebra errada quando era a última linha)
+  const lines = source.split("\n");
+  const idx = lines.findIndex((l) => labelLinkRe(label).test(l));
+  if (idx >= 0) lines.splice(idx, 1);
+  return lines.join("\n");
+}

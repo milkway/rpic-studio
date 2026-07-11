@@ -202,7 +202,9 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   abas curtas IMG/MD/PY no mobile + overflow-x, e o grid vertical do EditorPage trava a coluna com
   `gridTemplateColumns: minmax(0,1fr)` — sem isso conteúdo largo ALARGAVA a página inteira no celular,
   **v0.9.2** = campo LINK movido pro TOPO do inspetor — o painel ROLA e no fim ele ficava invisível
-  abaixo da dobra; e2e afirma o campo perto do topo).
+  abaixo da dobra; e2e afirma o campo perto do topo, **v0.10.0** = campo LINK lê/edita TAMBÉM a forma
+  statement `link Docs "url"` (`readLabelLink`/`setLabelLink` — editar inline não adiantaria, o último
+  vence; ordinais `link 1st box` fora) + botão copiar código pic no header do code pane).
 - **Paleta de circuitos** (`components/editor/CircuitPalette.tsx` + `lib/circuitCatalog.ts`): menu no
   header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — o
   catálogo COMPLETO das ~80 macros públicas da biblioteca (7 grupos; popover com scroll). Assinaturas:

@@ -191,6 +191,7 @@ const en = {
   "editor.circuitsTip": "Enables resistor(), lamp(), and_gate()…",
   "editor.circuitsAuto": "Turned on automatically — the code calls circuit-library macros",
   "editor.clear": "Clear editor",
+  "editor.copyCode": "Copy pic code",
   "editor.notFound": "Diagram not found",
 
   // toasts genéricos
@@ -489,6 +490,7 @@ const pt: Record<MessageKey, string> = {
   "editor.circuitsTip": "Habilita resistor(), lamp(), and_gate()…",
   "editor.circuitsAuto": "Ligado automaticamente — o código chama macros da biblioteca de circuitos",
   "editor.clear": "Limpar editor",
+  "editor.copyCode": "Copiar código pic",
   "editor.notFound": "Diagrama não encontrado",
 
   "toast.imageCopied": "Imagem copiada",
