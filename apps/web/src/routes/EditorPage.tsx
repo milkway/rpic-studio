@@ -320,7 +320,12 @@ export function EditorPage() {
         className="grid h-full min-h-0"
         style={
           vertical
-            ? { gridTemplateRows: `minmax(120px, ${split * 100}%) 6px minmax(0, 1fr)` }
+            ? {
+                gridTemplateRows: `minmax(120px, ${split * 100}%) 6px minmax(0, 1fr)`,
+                // trava a coluna implícita: sem isso, conteúdo largo (header do
+                // preview) ALARGA a página inteira no mobile (scroll do body)
+                gridTemplateColumns: "minmax(0, 1fr)",
+              }
             : { gridTemplateColumns: `minmax(280px, ${split * 100}%) 6px minmax(0, 1fr)` }
         }
       >

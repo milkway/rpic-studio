@@ -198,7 +198,9 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   code pane com overflow-x) + ícones WASM na paleta de circuitos, **v0.7.1** = clone de realce SEGUE
   o transform do alvo no rAF — sem fantasma ao arrastar objeto `draggable`, **v0.8.0** = inspetor
   com × / Esc / minimizar-para-chip, **v0.9.0** = engine 0.11.0: `link` clicável — exemplo, ajuda,
-  autocomplete, highlight e campo de URL no inspetor).
+  autocomplete, highlight e campo de URL no inspetor, **v0.9.1** = header do preview responsivo:
+  abas curtas IMG/MD/PY no mobile + overflow-x, e o grid vertical do EditorPage trava a coluna com
+  `gridTemplateColumns: minmax(0,1fr)` — sem isso conteúdo largo ALARGAVA a página inteira no celular).
 - **Paleta de circuitos** (`components/editor/CircuitPalette.tsx` + `lib/circuitCatalog.ts`): menu no
   header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — o
   catálogo COMPLETO das ~80 macros públicas da biblioteca (7 grupos; popover com scroll). Assinaturas:

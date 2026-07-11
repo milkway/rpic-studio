@@ -63,17 +63,26 @@ const MD_LABELS = {
   },
 };
 
-function TabButton({ value, children }: { value: TabValue; children: string }) {
+function TabButton({ value, short, children }: { value: TabValue; short?: string; children: string }) {
   return (
     <Tabs.Trigger
       value={value}
       className={cn(
-        "cursor-pointer rounded-(--radius-sm) px-2.5 py-1 font-mono text-[11px] tracking-wide uppercase",
+        "shrink-0 cursor-pointer rounded-(--radius-sm) px-2.5 py-1 font-mono text-[11px] tracking-wide uppercase max-sm:px-1.5",
         "text-(--color-text-muted) transition-colors hover:text-(--color-text)",
         "data-[state=active]:bg-(--color-surface-muted) data-[state=active]:text-(--color-text)",
       )}
     >
-      {children}
+      {/* rótulo curto no mobile (MD/PY) — senão as abas empurram os controles
+          de zoom/ajuste/grade p/ fora da tela */}
+      {short ? (
+        <>
+          <span className="sm:hidden">{short}</span>
+          <span className="max-sm:hidden">{children}</span>
+        </>
+      ) : (
+        children
+      )}
     </Tabs.Trigger>
   );
 }
@@ -86,11 +95,11 @@ export function PreviewTabs({ source, circuits, canvas, onCanvasChange, ...props
   const { dark } = useTheme();
 
   const tabsList = (
-    <Tabs.List className="flex items-center gap-1">
-      <TabButton value="imagem">{t("preview.tabImage")}</TabButton>
+    <Tabs.List className="flex items-center gap-1 max-sm:gap-0.5">
+      <TabButton value="imagem" short="IMG">{t("preview.tabImage")}</TabButton>
       <TabButton value="svg">SVG</TabButton>
-      <TabButton value="markdown">Markdown</TabButton>
-      <TabButton value="python">Python</TabButton>
+      <TabButton value="markdown" short="MD">Markdown</TabButton>
+      <TabButton value="python" short="PY">Python</TabButton>
       <TabButton value="r">R</TabButton>
     </Tabs.List>
   );
@@ -129,9 +138,9 @@ export function PreviewTabs({ source, circuits, canvas, onCanvasChange, ...props
           />
         ) : (
           <div className="flex h-full min-h-0 flex-col">
-            <div className="flex h-10 shrink-0 items-center gap-1.5 border-b border-(--color-border) bg-(--color-surface) px-3">
+            <div className="flex h-10 min-w-0 shrink-0 items-center gap-1.5 overflow-x-auto border-b border-(--color-border) bg-(--color-surface) px-3">
               {tabsList}
-              <div className="ml-auto">
+              <div className="ml-auto shrink-0">
                 <Button
                   variant="ghost"
                   size="sm"

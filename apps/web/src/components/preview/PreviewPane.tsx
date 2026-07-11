@@ -249,9 +249,12 @@ export function PreviewPane({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-10 shrink-0 items-center gap-1.5 border-b border-(--color-border) bg-(--color-surface) px-3">
+      {/* Em telas estreitas as abas + controles passam da largura: o header
+          rola horizontalmente DENTRO de si (min-w-0 + overflow-x) — sem isso o
+          transbordo alarga a página inteira no mobile. */}
+      <div className="flex h-10 min-w-0 shrink-0 items-center gap-1.5 overflow-x-auto border-b border-(--color-border) bg-(--color-surface) px-3 max-sm:px-1.5">
         {tabs}
-        <div className="ml-auto flex items-center gap-0.5">
+        <div className="ml-auto flex shrink-0 items-center gap-0.5">
           {animations.length > 0 && !scrubbable && (
             <Tip label={t("preview.replayTip")}>
               <Button
@@ -282,7 +285,7 @@ export function PreviewPane({
               title={t("preview.scrub")}
               aria-label={t("preview.scrub")}
               data-testid="scroll-scrub"
-              className="w-28 accent-(--color-accent)"
+              className="w-28 accent-(--color-accent) max-sm:w-16"
             />
           )}
           <Tip label={t("preview.zoomOut")}>
