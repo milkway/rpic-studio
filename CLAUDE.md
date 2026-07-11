@@ -217,6 +217,14 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   de ponto `Ckt{n}` sem colisão.
   O `detectCircuits` já liga o flag sozinho. O `ObjectsOverlay` (estilo) fica por cima do render dos
   circuitos como de qualquer pic. O Popover fecha ao inserir.
+- **Mobile/responsivo** (regras que evitam regressão): o layout VERTICAL do editor TRAVA a coluna
+  (`gridTemplateColumns: "minmax(0,1fr)"` no grid do `EditorPage`) — sem isso QUALQUER conteúdo
+  largo (ex.: header do preview) ALARGA a página inteira no celular (body com scroll horizontal,
+  topbar "cortada"). Headers de painel levam `min-w-0 + overflow-x-auto` como rede de segurança.
+  Padrões: rótulo de botão some `<sm` (`<span className="max-sm:hidden">` — fica ícone+Tip); nav da
+  topbar vira HAMBÚRGUER `<md` (`nav-menu`); abas do preview têm rótulo curto no mobile (IMG/MD/PY);
+  popovers largos levam `max-w-[calc(100vw-…)]`. Conferir com Playwright em viewport 390px:
+  `document.documentElement.scrollWidth` deve ser 390.
 - **Render server-side** (`routes/render.rs`, `POST /api/render` → svg|png|pdf): pic é NÃO
   confiável (`IncludePolicy::Deny`), CPU-bound em `spawn_blocking`, math via `ensure_math()`.
   Param `google_font` restrito ao `GOOGLE_FONTS` allowlist (mitiga SSRF) e casa a fonte no
