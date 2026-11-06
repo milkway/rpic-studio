@@ -235,3 +235,24 @@ test("probe no celular (toque) não alarga a página", async ({ browser }, info)
   await page.screenshot({ path: info.outputPath("simulate-probe-mobile.png") });
   await ctx.close();
 });
+
+test("scrubber do .tran: arrastar e animar o cursor de tempo", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWith(page, RC2, "light");
+  await page.getByRole("tab", { name: /Simulate|SIM/ }).click();
+  await page.getByTestId("sim-run").click();
+  await expect(page.getByTestId("sim-status")).toHaveAttribute("data-state", "done", {
+    timeout: 20_000,
+  });
+  const time = page.getByTestId("sim-scrubber-time");
+  await expect(time).toHaveText("—");
+  await page.getByTestId("sim-scrubber-range").fill("500");
+  await expect(time).toHaveText("6 ms");
+  await expect(page.getByTestId("sim-cursor").first()).toBeVisible();
+  await expect(page.getByTestId("sim-legend-value").first()).toContainText(/= .* V/);
+  await page.screenshot({ path: info.outputPath("simulate-scrubber.png") });
+  // play varre até o fim (12 ms) e para sozinho
+  await page.getByTestId("sim-scrubber-play").click();
+  await expect(time).toHaveText("12 ms", { timeout: 8_000 });
+  await expect(page.getByTestId("sim-scrubber-play")).toHaveAttribute("aria-pressed", "false");
+});

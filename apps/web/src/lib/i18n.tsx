@@ -212,6 +212,10 @@ const en = {
   "sim.probeHint": "Click or tap a wire or dot to plot (or hide) its voltage",
   "sim.probeFull": "At most {n} traces — hide one first",
   "sim.probeNet": "Probe {trace}",
+  "sim.time": "Time cursor",
+  "sim.play": "Play the time cursor",
+  "sim.pause": "Pause",
+  "sim.clearCursor": "Hide the time cursor",
 
   // editor
   "editor.draft": "draft",
@@ -542,6 +546,10 @@ const pt: Record<MessageKey, string> = {
   "sim.probeHint": "Clique ou toque num fio ou ponto para plotar (ou esconder) a tensão dele",
   "sim.probeFull": "No máximo {n} traços — esconda um antes",
   "sim.probeNet": "Sondar {trace}",
+  "sim.time": "Cursor de tempo",
+  "sim.play": "Animar o cursor de tempo",
+  "sim.pause": "Pausar",
+  "sim.clearCursor": "Esconder o cursor de tempo",
 
   "editor.draft": "rascunho",
   "editor.examples": "Exemplos",

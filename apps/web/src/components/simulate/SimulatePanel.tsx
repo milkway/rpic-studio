@@ -12,13 +12,14 @@ import {
   traceShapes,
   type Probes,
 } from "@/lib/simFigure";
-import { formatSI, hasScale, plotSeries } from "@/lib/waveform";
+import { finiteRange, formatSI, hasScale, plotSeries } from "@/lib/waveform";
 import { useSimulation } from "@/lib/useSimulation";
 import type { WorkerFactory } from "@/lib/simClient";
 import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { SimFigure, type ProbeNet } from "./SimFigure";
+import { TimeScrubber } from "./TimeScrubber";
 import { groupByUnit, MAX_TRACES, traceStyle, WaveformChart } from "./WaveformChart";
 import { NetlistBlock, ScalarTable, SimDiagnostics } from "./SimResultParts";
 
@@ -63,6 +64,8 @@ export function SimulatePanel({
   const [hoverNet, setHoverNet] = useState<string | null>(null);
   /** Traços ligados (probe por clique na figura) → slot de cor; `null` = padrão. */
   const [probes, setProbes] = useState<Probes>(null);
+  /** Instante do scrubber de .tran (s); `null` = sem cursor. */
+  const [cursor, setCursor] = useState<number | null>(null);
   const toast = useToast();
 
   const running = sim.status === "running";
@@ -121,6 +124,12 @@ export function SimulatePanel({
     setProbes(null);
     setHoverNet(null);
   }, [sim.run]);
+  // scrubber só no transiente (escala em segundos)
+  const timeRange = useMemo(
+    () => (series && series.scale.unit === "s" ? finiteRange(series.scale.values) : null),
+    [series],
+  );
+  useEffect(() => setCursor(null), [series]);
 
   const highlight = useMemo(() => {
     if (!map) return [];
@@ -270,6 +279,14 @@ export function SimulatePanel({
                 {plot.plotname}
               </h3>
             )}
+            {timeRange && (
+              <TimeScrubber
+                min={timeRange[0]}
+                max={timeRange[1]}
+                value={cursor}
+                onChange={setCursor}
+              />
+            )}
             {/* um gráfico por unidade (V, A…): nunca dois eixos y */}
             {groups.map((g, gi) => (
               <div
@@ -283,6 +300,7 @@ export function SimulatePanel({
                   more={gi === groups.length - 1 ? more : 0}
                   focus={chartFocus}
                   onFocus={setFocus}
+                  cursor={timeRange ? cursor : null}
                 />
               </div>
             ))}

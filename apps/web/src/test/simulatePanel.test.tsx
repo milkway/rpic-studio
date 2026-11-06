@@ -138,6 +138,23 @@ describe("SimulatePanel", () => {
     expect(probed.style.getPropertyValue("--probe-color")).toMatch(/var\(--color-trace-\d\)/);
   });
 
+  it("scrubber do .tran: cursor de tempo nos gráficos + valores na legenda", async () => {
+    render(<SimulatePanel source={RC_FIGURE} active workerFactory={() => new InlineWorker()} />);
+    fireEvent.click(screen.getByTestId("sim-run"));
+    await waitFor(() =>
+      expect(screen.getByTestId("sim-status")).toHaveAttribute("data-state", "done"),
+    );
+    expect(screen.queryByTestId("sim-cursor")).toBeNull();
+    // fim do intervalo (5 ms): v(vout) ≈ 4.97 V
+    fireEvent.change(screen.getByTestId("sim-scrubber-range"), { target: { value: "1000" } });
+    expect(screen.getByTestId("sim-scrubber-time").textContent).toBe("5 ms");
+    expect(screen.getAllByTestId("sim-cursor")).toHaveLength(2); // V e A
+    const values = screen.getAllByTestId("sim-legend-value").map((v) => v.textContent);
+    expect(values.some((v) => /4\.96\d? V/.test(v ?? ""))).toBe(true);
+    fireEvent.click(screen.getByTestId("sim-scrubber-clear"));
+    expect(screen.queryByTestId("sim-cursor")).toBeNull();
+  });
+
   it("erro de extração mostra diagnóstico que pula para a linha", async () => {
     const jumps: [number, number?][] = [];
     const src =
