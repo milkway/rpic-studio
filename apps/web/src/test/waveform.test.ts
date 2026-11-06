@@ -9,7 +9,6 @@ import {
   paddedDomain,
   plotSeries,
 } from "@/lib/waveform";
-import { stripDotLines } from "@/lib/simFigure";
 
 function plot(partial: Partial<Plot>): Plot {
   return {
@@ -141,14 +140,5 @@ describe("plotSeries", () => {
         }),
       ),
     ).toBe(false);
-  });
-});
-
-describe("stripDotLines", () => {
-  it("apaga cartões ponto mantendo .PS/.PE e a contagem de linhas", () => {
-    const src = ".PS\nspice = 1\n.tran 1u 1m\n  .model D1 D\n.PE\n";
-    const out = stripDotLines(src);
-    expect(out).toBe(".PS\nspice = 1\n\n\n.PE\n");
-    expect(out.split("\n").length).toBe(src.split("\n").length);
   });
 });

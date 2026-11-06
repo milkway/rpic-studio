@@ -1,25 +1,8 @@
-// Figura do painel Simular: o SVG que o usuário vê precisa vir EXATAMENTE do
-// texto que o dune compilou (`prelude() + "\n" + fonte`, com a biblioteca de
-// circuitos) — só assim os ids `<g id="sN">` batem com o `map` do extrator
-// (`elements[].shapes`, `nets[].shapes`). O preview do editor NÃO serve: ele
-// compila o fonte cru, sem o prelude. O painel compila a PRÓPRIA figura.
+// Formas da figura simulada por nome: o `map` do extrator aponta os grupos
+// `<g id="sN">` da figura compilada COM o prelude do dune — a que o worker
+// desenha com `renderPic` (o preview do editor compila o fonte cru, outra
+// numeração). Aqui só a resolução nome → ids, pura.
 import type { OverlayMap } from "./dune";
-
-/** Linhas `.algo` (cartões SPICE passados adiante: `.tran`, `.ac`, `.model`…)
- *  exceto `.PS`/`.PE`. O rpic do Studio (0.11) não aceita linhas-ponto (o
- *  rpic-core ≥ 0.13, que o dune usa, as repassa sem gerar forma). Trocamos por
- *  linha VAZIA — a contagem de linhas e a numeração das formas não mudam.
- *  Remover quando o Studio subir para o rpic ≥ 0.13. */
-const DOT_LINE = /^[ \t]*\.(?!PS\b|PE\b)[^\n]*/gm;
-
-export function stripDotLines(source: string): string {
-  return source.replace(DOT_LINE, "");
-}
-
-/** Texto que o painel compila no rpic para desenhar a figura da simulação. */
-export function composeSimFigure(preludeText: string, source: string): string {
-  return `${preludeText}\n${stripDotLines(source)}`;
-}
 
 /** Ids `sN` de um elemento (refdes, sem caixa). */
 export function elementShapes(map: OverlayMap, refdes: string): number[] {

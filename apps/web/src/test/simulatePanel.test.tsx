@@ -3,8 +3,7 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { ready as rpicReady } from "@strategicprojects/rpic";
-import { ensureDune, prelude, simulatePic } from "@/lib/dune";
+import { ensureDune, renderPic, simulatePic } from "@/lib/dune";
 import { handleSimRequest, type SimRequest, type SimResponse } from "@/lib/simProtocol";
 import type { WorkerLike } from "@/lib/simClient";
 import { SimulatePanel } from "@/components/simulate/SimulatePanel";
@@ -13,7 +12,6 @@ import { RC_FIGURE } from "./fixtures-sim";
 const require = createRequire(import.meta.url);
 
 beforeAll(async () => {
-  await rpicReady(readFileSync(require.resolve("@strategicprojects/rpic/pkg/rpic_wasm_bg.wasm")));
   await ensureDune(
     readFileSync(require.resolve("@strategicprojects/dune-sim/pkg/dune_wasm_bg.wasm")),
   );
@@ -26,7 +24,7 @@ class InlineWorker implements WorkerLike {
   hold = false;
   postMessage(msg: SimRequest) {
     if (this.hold) return; // "simulação infinita": nunca responde
-    void handleSimRequest(msg, { ensure: () => ensureDune(), simulatePic, prelude }).then((res) =>
+    void handleSimRequest(msg, { ensure: () => ensureDune(), simulatePic, renderPic }).then((res) =>
       this.onmessage?.({ data: res } as MessageEvent<SimResponse>),
     );
   }

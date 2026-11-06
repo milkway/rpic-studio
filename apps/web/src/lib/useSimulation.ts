@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SimCancelled, SimClient, type WorkerFactory } from "./simClient";
-import type { SimFailure } from "./simProtocol";
+import type { SimFailure, SimFigureResult } from "./simProtocol";
 import type { PicRun } from "./dune";
 
 export type SimStatus = "idle" | "running" | "done" | "error" | "cancelled";
@@ -14,8 +14,8 @@ export interface SimulationState {
   ms: number | null;
   run: PicRun | null;
   failure: SimFailure | null;
-  /** Prelude pic do dune (vem do worker junto da resposta). */
-  prelude: string | null;
+  /** Figura da execução desenhada pelo rpic do dune (vem do worker). */
+  figure: SimFigureResult | null;
 }
 
 const IDLE: SimulationState = {
@@ -25,7 +25,7 @@ const IDLE: SimulationState = {
   ms: null,
   run: null,
   failure: null,
-  prelude: null,
+  figure: null,
 };
 
 /** Simulação no worker terminável. O wasm do dune só é carregado no 1º `start`. */
@@ -56,7 +56,7 @@ export function useSimulation(factory?: WorkerFactory) {
               ms: res.ms,
               run: res.run,
               failure: null,
-              prelude: res.prelude,
+              figure: res.figure,
             });
           } else {
             setState({
@@ -66,7 +66,7 @@ export function useSimulation(factory?: WorkerFactory) {
               ms: res.ms,
               run: null,
               failure: res.error,
-              prelude: res.prelude,
+              figure: res.figure,
             });
           }
         },
