@@ -57,6 +57,9 @@ interface WaveformChartProps {
   /** Traço em foco (hover na legenda) — vindo do painel p/ casar com a figura. */
   focus: string | null;
   onFocus: (name: string | null) => void;
+  /** Instante do scrubber de .tran (valor da escala) — cursor sólido + marcas
+   *  nos traços + valores na legenda; `null` = sem cursor. */
+  cursor?: number | null;
 }
 
 /** Gráfico SVG feito à mão: x = escala do plot (log p/ freq. > 1 década),
@@ -68,6 +71,7 @@ export function WaveformChart({
   more = 0,
   focus,
   onFocus,
+  cursor = null,
 }: WaveformChartProps) {
   const { t } = useI18n();
   const boxRef = useRef<HTMLDivElement>(null);
@@ -138,6 +142,9 @@ export function WaveformChart({
   const hoverIdx = hoverX === null ? null : nearestIndex(xs, geom.invX(hoverX));
   const hoverPx =
     hoverIdx === null || !Number.isFinite(xs[hoverIdx]) ? null : geom.sx(xs[hoverIdx]);
+  const cursorIdx = cursor === null ? null : nearestIndex(xs, cursor);
+  const cursorPx =
+    cursorIdx === null || !Number.isFinite(xs[cursorIdx]) ? null : geom.sx(xs[cursorIdx]);
 
   return (
     <div className="space-y-2" data-testid="sim-chart">
@@ -228,6 +235,33 @@ export function WaveformChart({
               />
             );
           })}
+          {cursorIdx !== null && cursorPx !== null && (
+            <g data-testid="sim-cursor" pointerEvents="none">
+              <line
+                x1={cursorPx}
+                x2={cursorPx}
+                y1={M.top}
+                y2={M.top + geom.ph}
+                stroke="var(--color-text)"
+                strokeWidth={1.25}
+              />
+              {shown.map((tr, i) => {
+                const y = tr.values[cursorIdx];
+                if (!Number.isFinite(y)) return null;
+                return (
+                  <circle
+                    key={tr.name}
+                    cx={cursorPx}
+                    cy={geom.sy(y)}
+                    r={3.5}
+                    fill={colorOf(i).color}
+                    stroke="var(--color-surface)"
+                    strokeWidth={1.5}
+                  />
+                );
+              })}
+            </g>
+          )}
           {hoverPx !== null && (
             <line
               x1={hoverPx}
@@ -294,6 +328,11 @@ export function WaveformChart({
                 />
               </svg>
               {tr.name}
+              {cursorIdx !== null && (
+                <span className="text-(--color-text) tabular-nums" data-testid="sim-legend-value">
+                  = {formatSI(tr.values[cursorIdx], tr.unit, 4)}
+                </span>
+              )}
             </li>
           );
         })}
