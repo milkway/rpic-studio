@@ -1,4 +1,5 @@
 import { defineConfig } from "vitest/config";
+import { searchForWorkspaceRoot } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { createRequire } from "node:module";
@@ -16,6 +17,10 @@ const readVersion = (pkgJsonPath: string): string =>
 const rpicRoot = dirname(dirname(require.resolve("@strategicprojects/rpic/pkg/rpic_wasm_bg.wasm")));
 const appVersion = readVersion(fileURLToPath(new URL("./package.json", import.meta.url)));
 const rpicVersion = readVersion(join(rpicRoot, "package.json"));
+// O simulador dune (`@strategicprojects/dune-sim`) é dependência `file:` (link
+// para o repo do dune ao lado, até ser publicado no npm): o dev server precisa
+// poder servir o `.wasm` dele de fora da raiz do workspace.
+const duneRoot = dirname(dirname(require.resolve("@strategicprojects/dune-sim/pkg/dune_wasm_bg.wasm")));
 
 export default defineConfig({
   define: {
@@ -52,8 +57,11 @@ export default defineConfig({
       },
     },
   },
+  // O worker da simulação (lib/dune.worker.ts) importa módulos ES + o .wasm `?url`.
+  worker: { format: "es" },
   server: {
     port: 5173,
+    fs: { allow: [searchForWorkspaceRoot(process.cwd()), duneRoot] },
     proxy: {
       // Em dev, encaminha /api e /health para a API Rust (cookie first-party).
       "/api": { target: "http://localhost:8080", changeOrigin: true },

@@ -1,4 +1,4 @@
-import { detectCircuits, detectTexLabels } from "@/lib/detect";
+import { detectCircuits, detectSpice, detectTexLabels } from "@/lib/detect";
 
 describe("detectCircuits", () => {
   it("detecta chamadas a macros da biblioteca", () => {
@@ -32,5 +32,23 @@ describe("detectTexLabels", () => {
     expect(detectTexLabels('box "custa $10"')).toBe(false);
     expect(detectTexLabels("define node { circle $1 }")).toBe(false);
     expect(detectTexLabels('box "a"')).toBe(false);
+  });
+});
+
+describe("detectSpice", () => {
+  it("detecta a marca spice = 1 (com/sem espaços, após ;)", () => {
+    expect(detectSpice(".PS\nspice = 1\nR1: resistor(A,B,1k)\n.PE")).toBe(true);
+    expect(detectSpice("spice=1")).toBe(true);
+    expect(detectSpice("x = 2; spice = 1")).toBe(true);
+    expect(detectSpice("  spice = 1 # marca")).toBe(true);
+  });
+
+  it("não dispara em comentário, string, outro valor ou outro nome", () => {
+    expect(detectSpice("# spice = 1")).toBe(false);
+    expect(detectSpice('box "spice = 1"')).toBe(false);
+    expect(detectSpice("spice = 0")).toBe(false);
+    expect(detectSpice("spice = 10")).toBe(false);
+    expect(detectSpice("spice = 1.5")).toBe(false);
+    expect(detectSpice("myspice = 1")).toBe(false);
   });
 });

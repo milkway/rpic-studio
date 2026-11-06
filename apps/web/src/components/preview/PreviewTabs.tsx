@@ -10,13 +10,14 @@ import { toPythonSnippet, toRSnippet } from "@/lib/bindings";
 import { useI18n } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import { PreviewPane } from "./PreviewPane";
+import { SimulatePanel } from "@/components/simulate/SimulatePanel";
 import { ReadOnlyCode, type CodeLanguage } from "./ReadOnlyCode";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 
-type TabValue = "imagem" | "svg" | "markdown" | "python" | "r";
+type TabValue = "imagem" | "svg" | "markdown" | "python" | "r" | "simulate";
 
-const TAB_LANGUAGE: Record<Exclude<TabValue, "imagem">, CodeLanguage> = {
+const TAB_LANGUAGE: Record<Exclude<TabValue, "imagem" | "simulate">, CodeLanguage> = {
   svg: "xml",
   markdown: "markdown",
   python: "python",
@@ -90,6 +91,10 @@ function TabButton({ value, short, children }: { value: TabValue; short?: string
 /** Painel direito: imagem ao vivo ou código pronto (SVG, Markdown, Python, R). */
 export function PreviewTabs({ source, circuits, canvas, onCanvasChange, ...props }: PreviewTabsProps) {
   const [tab, setTab] = useState<TabValue>("imagem");
+  // O painel Simular fica MONTADO depois da 1ª visita (resultado e worker
+  // sobrevivem à troca de aba); só a figura dele desmonta quando oculto.
+  const [simVisited, setSimVisited] = useState(false);
+  if (tab === "simulate" && !simVisited) setSimVisited(true);
   const toast = useToast();
   const { t, locale } = useI18n();
   const { dark } = useTheme();
@@ -101,6 +106,7 @@ export function PreviewTabs({ source, circuits, canvas, onCanvasChange, ...props
       <TabButton value="markdown" short="MD">Markdown</TabButton>
       <TabButton value="python" short="PY">Python</TabButton>
       <TabButton value="r">R</TabButton>
+      <TabButton value="simulate" short={t("sim.tabShort")}>{t("sim.tab")}</TabButton>
     </Tabs.List>
   );
 
@@ -136,7 +142,7 @@ export function PreviewTabs({ source, circuits, canvas, onCanvasChange, ...props
             onCanvasChange={onCanvasChange}
             tabs={tabsList}
           />
-        ) : (
+        ) : tab === "simulate" ? null : (
           <div className="flex h-full min-h-0 flex-col">
             <div className="flex h-10 min-w-0 shrink-0 items-center gap-1.5 overflow-x-auto border-b border-(--color-border) bg-(--color-surface) px-3">
               {tabsList}
@@ -159,6 +165,16 @@ export function PreviewTabs({ source, circuits, canvas, onCanvasChange, ...props
               language={TAB_LANGUAGE[tab]}
               dark={dark}
               testid={`code-view-${tab}`}
+            />
+          </div>
+        )}
+        {simVisited && (
+          <div className={cn("h-full min-h-0", tab !== "simulate" && "hidden")}>
+            <SimulatePanel
+              source={source}
+              active={tab === "simulate"}
+              tabs={tab === "simulate" ? tabsList : null}
+              onJumpToLine={props.onJumpToLine}
             />
           </div>
         )}

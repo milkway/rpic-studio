@@ -161,3 +161,26 @@ body {
 .rpic-stage .pulse rect {
   animation: rpic-pulse 1.2s infinite;
 }
+
+/* Painel Simular: realce das formas da figura (hover em legenda, linha do
+   netlist ou tabela). Recolore o TRAÇO (um drop-shadow some em traço fino —
+   ver ObjectsOverlay) com largura constante em px de tela e apaga o resto. */
+.sim-figure g[id^="s"] {
+  transition: opacity 120ms ease;
+}
+.sim-figure.has-hl g[id^="s"]:not(.sim-hl) {
+  opacity: 0.28;
+}
+.sim-figure .sim-hl :is(path, line, polyline, polygon, circle, ellipse, rect) {
+  stroke: var(--color-sim-highlight);
+  stroke-width: 2.25px;
+  vector-effect: non-scaling-stroke;
+}
+.sim-figure .sim-hl text {
+  fill: var(--color-sim-highlight);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sim-figure g[id^="s"] {
+    transition: none;
+  }
+}
