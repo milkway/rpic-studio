@@ -139,3 +139,99 @@ test("mobile 390px: aba SIM + painel não alargam a página", async ({ page }, i
   await expect(page.getByTestId("sim-run")).toBeEnabled();
   await page.screenshot({ path: info.outputPath("simulate-mobile.png") });
 });
+
+// Duas etapas RC com fios explícitos nas redes A e Out (alvo do probe).
+const RC2 = `.PS
+spice = 1
+In: (0,1.5); A: (2.25,1.5); Out: (4.5,1.5)
+V1: vsource(In, (0,0), PULSE(0 5 0 1u 1u 10m 20m))
+R1: resistor(In, (1.5,1.5), 1k)
+line from (1.5,1.5) to A
+C1: capacitor(A, (2.25,0), 1u)
+R2: resistor(A, (3.75,1.5), 4.7k)
+line from (3.75,1.5) to Out
+C2: capacitor(Out, (4.5,0), 470n)
+line from (0,0) to (4.5,0)
+ground((1.125,0))
+dot at In; dot at A; dot at Out
+.tran 20u 12m
+.PE
+`;
+
+/** Centro (px de página) do 1º clone de acerto da rede — o fio. Um fio
+ *  horizontal tem altura 0: o Playwright o acha "invisível", daí o mouse. */
+async function netPoint(page: Page, net: string) {
+  return page
+    .locator(`.sim-hit[data-net="${net}"]`)
+    .first()
+    .evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+}
+
+test("probe: clicar num fio liga/desliga v(rede); hover realça; toque no celular", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWith(page, RC2, "light");
+  await page.getByRole("tab", { name: /Simulate|SIM/ }).click();
+  await page.getByTestId("sim-run").click();
+  await expect(page.getByTestId("sim-status")).toHaveAttribute("data-state", "done", {
+    timeout: 20_000,
+  });
+  const legend = page.getByTestId("sim-legend");
+  await expect(legend.first()).toContainText("v(a)");
+  const fig = page.getByTestId("sim-figure");
+  const a = await netPoint(page, "A");
+
+  // hover a poucos px do fio (traço de acerto largo): cursor de mão + realce
+  await page.mouse.move(a.x, a.y + 4);
+  await expect(fig).toHaveClass(/has-hl/);
+  expect(
+    await page.evaluate(({ x, y }) => getComputedStyle(document.elementFromPoint(x, y)!).cursor, {
+      x: a.x,
+      y: a.y + 4,
+    }),
+  ).toBe("pointer");
+
+  // clique desliga v(a); o fio perde a cor do traço; clique liga de novo
+  await page.mouse.click(a.x, a.y + 4);
+  await expect(legend.filter({ hasText: "v(a)" })).toHaveCount(0);
+  await expect(page.locator('.sim-hit[data-net="A"][role="button"]')).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  await page.mouse.click(a.x, a.y + 4);
+  await expect(legend.first()).toContainText("v(a)");
+  await expect(fig.locator(".sim-probe").first()).toBeAttached();
+  await page.mouse.move(5, 5);
+  await page.screenshot({ path: info.outputPath("simulate-probe.png") });
+
+  // teclado: Tab até o alvo da rede, Enter alterna
+  await page.locator('.sim-hit[data-net="Out"][role="button"]').focus();
+  await page.keyboard.press("Enter");
+  await expect(legend.filter({ hasText: "v(out)" })).toHaveCount(0);
+});
+
+test("probe no celular (toque) não alarga a página", async ({ browser }, info) => {
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  const page = await ctx.newPage();
+  await openWith(page, RC2, "light");
+  await page.getByRole("tab", { name: /Simulate|SIM/ }).click();
+  await page.getByTestId("sim-run").click();
+  await expect(page.getByTestId("sim-status")).toHaveAttribute("data-state", "done", {
+    timeout: 20_000,
+  });
+  const out = await netPoint(page, "Out");
+  // o toque a alguns px do fio ainda acerta (caixa de toque + ajuste do Chromium)
+  await page.touchscreen.tap(out.x, out.y + 6);
+  await expect(page.getByTestId("sim-legend").filter({ hasText: "v(out)" })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  await page.screenshot({ path: info.outputPath("simulate-probe-mobile.png") });
+  await ctx.close();
+});

@@ -171,6 +171,59 @@ body {
 .sim-figure.has-hl g[id^="s"]:not(.sim-hl) {
   opacity: 0.28;
 }
+/* Probe por clique: rede LIGADA no gráfico fica na cor do traço dela
+   (`--probe-color`, posto inline pelo SimFigure). Antes do .sim-hl: o realce
+   do hover vence. */
+.sim-figure .sim-probe :is(path, line, polyline, polygon, circle, ellipse, rect) {
+  stroke: var(--probe-color);
+  stroke-width: 2.5px;
+  vector-effect: non-scaling-stroke;
+}
+.sim-figure .sim-probe circle:not([fill="none"]) {
+  fill: var(--probe-color);
+}
+/* Camada de acerto: clones transparentes das formas de rede com traço LARGO
+   em px de tela (fio fino e ponto pequeno clicáveis; mais largo no toque).
+   Com probe ligado, SÓ eles recebem ponteiro — nada desenhado depois os cobre. */
+.sim-figure.probe-on svg * {
+  pointer-events: none;
+}
+.sim-figure .sim-hit {
+  cursor: pointer;
+  outline: none;
+}
+.sim-figure .sim-hit :is(path, line, polyline, polygon, circle, ellipse, rect) {
+  stroke: transparent;
+  fill: none;
+  stroke-width: 14px;
+  vector-effect: non-scaling-stroke;
+  pointer-events: stroke;
+}
+.sim-figure .sim-hit circle {
+  pointer-events: all;
+}
+.sim-figure .sim-hit text {
+  display: none;
+}
+.sim-figure .sim-hit:focus-visible :is(path, line, polyline, polygon, circle, ellipse, rect) {
+  stroke: var(--color-accent);
+  stroke-opacity: 0.35;
+}
+/* Caixa de toque (SimFigure `addTouchPad`): só no ponteiro grosso — no mouse
+   o traço largo já basta e a caixa de um fio diagonal pegaria demais. */
+.sim-figure .sim-hit rect.sim-hit-pad {
+  fill: transparent;
+  stroke: none;
+  pointer-events: none;
+}
+@media (pointer: coarse) {
+  .sim-figure .sim-hit :is(path, line, polyline, polygon, circle, ellipse, rect) {
+    stroke-width: 24px;
+  }
+  .sim-figure .sim-hit rect.sim-hit-pad {
+    pointer-events: all;
+  }
+}
 .sim-figure .sim-hl :is(path, line, polyline, polygon, circle, ellipse, rect) {
   stroke: var(--color-sim-highlight);
   stroke-width: 2.25px;

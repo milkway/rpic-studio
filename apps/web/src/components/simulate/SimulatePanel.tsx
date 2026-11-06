@@ -3,14 +3,23 @@ import { Loader2, Play, Square, Zap } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import type { OverlayMap, Plot, SimDiagnostic } from "@/lib/dune";
 import { detectSpice } from "@/lib/detect";
-import { netlistLineShapes, traceShapes } from "@/lib/simFigure";
+import {
+  netlistLineShapes,
+  netShapes,
+  netTraceName,
+  probeSlots,
+  toggleProbe,
+  traceShapes,
+  type Probes,
+} from "@/lib/simFigure";
 import { formatSI, hasScale, plotSeries } from "@/lib/waveform";
 import { useSimulation } from "@/lib/useSimulation";
 import type { WorkerFactory } from "@/lib/simClient";
 import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/Button";
-import { SimFigure } from "./SimFigure";
-import { groupByUnit, MAX_TRACES, WaveformChart } from "./WaveformChart";
+import { useToast } from "@/components/ui/Toast";
+import { SimFigure, type ProbeNet } from "./SimFigure";
+import { groupByUnit, MAX_TRACES, traceStyle, WaveformChart } from "./WaveformChart";
 import { NetlistBlock, ScalarTable, SimDiagnostics } from "./SimResultParts";
 
 interface SimulatePanelProps {
@@ -51,6 +60,10 @@ export function SimulatePanel({
   const [plotIdx, setPlotIdx] = useState(0);
   const [focus, setFocus] = useState<string | null>(null);
   const [hoverLine, setHoverLine] = useState<string | null>(null);
+  const [hoverNet, setHoverNet] = useState<string | null>(null);
+  /** Traços ligados (probe por clique na figura) → slot de cor; `null` = padrão. */
+  const [probes, setProbes] = useState<Probes>(null);
+  const toast = useToast();
 
   const running = sim.status === "running";
   const failure = sim.failure;
@@ -61,8 +74,38 @@ export function SimulatePanel({
   const scalars = plots.filter((p) => !hasScale(p));
   const plot = swept[Math.min(plotIdx, swept.length - 1)] ?? null;
   const series = useMemo(() => (plot ? plotSeries(plot) : null), [plot]);
-  const groups = useMemo(() => (series ? groupByUnit(series) : []), [series]);
-  const more = series ? Math.max(0, series.traces.length - MAX_TRACES) : 0;
+  const traceNames = useMemo(() => series?.traces.map((tr) => tr.name) ?? [], [series]);
+  // traços visíveis na ordem do rawfile, cada um com o seu slot de cor
+  const visible = useMemo(() => {
+    if (!series) return [];
+    const slots = probeSlots(probes, traceNames, MAX_TRACES);
+    return series.traces.flatMap((trace) => {
+      const index = slots.get(trace.name.toLowerCase());
+      return index === undefined ? [] : [{ trace, index }];
+    });
+  }, [series, probes, traceNames]);
+  const groups = useMemo(
+    () => groupByUnit(visible, [...new Set(series?.traces.map((tr) => tr.unit))]),
+    [visible, series],
+  );
+  const more = series ? series.traces.length - visible.length : 0;
+  // redes clicáveis: as que têm `v(rede)` no plot; cor = a do traço, se ligado
+  const probeNets: ProbeNet[] = useMemo(() => {
+    if (!map) return [];
+    return map.nets.flatMap((net) => {
+      const trace = netTraceName(traceNames, net.name);
+      if (!trace || net.shapes.length === 0) return [];
+      const on = visible.find((v) => v.trace.name === trace);
+      return [
+        {
+          name: net.name,
+          trace,
+          shapes: net.shapes,
+          color: on ? traceStyle(on.index).color : null,
+        },
+      ];
+    });
+  }, [map, traceNames, visible]);
   const diagnostics: SimDiagnostic[] = useMemo(() => {
     if (failure) {
       // `pic` com erro: os diagnósticos do lançamento JÁ são os da extração
@@ -73,14 +116,29 @@ export function SimulatePanel({
     return [...(pic?.diagnostics ?? []), ...(sim.run?.diagnostics ?? [])];
   }, [failure, pic, sim.run]);
 
-  useEffect(() => setPlotIdx(0), [sim.run]);
+  useEffect(() => {
+    setPlotIdx(0);
+    setProbes(null);
+    setHoverNet(null);
+  }, [sim.run]);
 
   const highlight = useMemo(() => {
     if (!map) return [];
     if (hoverLine !== null) return netlistLineShapes(map, hoverLine);
+    if (hoverNet !== null) return netShapes(map, hoverNet);
     if (focus !== null) return traceShapes(map, focus);
     return [];
-  }, [map, focus, hoverLine]);
+  }, [map, focus, hoverLine, hoverNet]);
+  // hover numa rede da figura também destaca o traço dela no gráfico
+  const chartFocus = focus ?? (hoverNet !== null ? netTraceName(traceNames, hoverNet) : null);
+
+  const toggleNet = (net: string) => {
+    const trace = netTraceName(traceNames, net);
+    if (!trace) return;
+    const r = toggleProbe(probes, traceNames, trace, MAX_TRACES);
+    if (r.full) toast(t("sim.probeFull", { n: String(MAX_TRACES) }));
+    else setProbes(r.probes);
+  };
 
   const stale = sim.source !== null && sim.source !== source && !running;
   const run = () => sim.start(source);
@@ -128,7 +186,21 @@ export function SimulatePanel({
           continua à vista enquanto se rola até eles. */}
       {active && sim.figure && pic && (
         <div className="shrink-0 border-b border-(--color-border) bg-(--color-paper) px-4 py-3">
-          <SimFigure figure={sim.figure} highlight={highlight} />
+          <SimFigure
+            figure={sim.figure}
+            highlight={highlight}
+            nets={probeNets}
+            onToggleNet={toggleNet}
+            onHoverNet={setHoverNet}
+          />
+          {probeNets.length > 0 && (
+            <p
+              className="mt-1.5 text-center font-mono text-[10.5px] text-(--color-text-muted)"
+              data-testid="sim-probe-hint"
+            >
+              {t("sim.probeHint")}
+            </p>
+          )}
         </div>
       )}
 
@@ -209,7 +281,7 @@ export function SimulatePanel({
                   series={series}
                   traces={g.traces}
                   more={gi === groups.length - 1 ? more : 0}
-                  focus={focus}
+                  focus={chartFocus}
                   onFocus={setFocus}
                 />
               </div>

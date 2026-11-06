@@ -209,6 +209,9 @@ const en = {
   "sim.value": "Value",
   "sim.noPlots": "The deck has no analysis (add e.g. {code}).",
   "sim.chartLabel": "{plot}: {n} traces versus {scale}",
+  "sim.probeHint": "Click or tap a wire or dot to plot (or hide) its voltage",
+  "sim.probeFull": "At most {n} traces — hide one first",
+  "sim.probeNet": "Probe {trace}",
 
   // editor
   "editor.draft": "draft",
@@ -536,6 +539,9 @@ const pt: Record<MessageKey, string> = {
   "sim.value": "Valor",
   "sim.noPlots": "O deck não tem análise (adicione p.ex. {code}).",
   "sim.chartLabel": "{plot}: {n} traços em função de {scale}",
+  "sim.probeHint": "Clique ou toque num fio ou ponto para plotar (ou esconder) a tensão dele",
+  "sim.probeFull": "No máximo {n} traços — esconda um antes",
+  "sim.probeNet": "Sondar {trace}",
 
   "editor.draft": "rascunho",
   "editor.examples": "Exemplos",

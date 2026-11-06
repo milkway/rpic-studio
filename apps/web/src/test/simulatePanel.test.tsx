@@ -94,6 +94,50 @@ describe("SimulatePanel", () => {
     expect(fig.querySelectorAll(".sim-hl").length).toBeGreaterThan(0);
   });
 
+  it("probe: clicar numa rede da figura liga/desliga v(rede) e pinta a rede", async () => {
+    render(<SimulatePanel source={RC_FIGURE} active workerFactory={() => new InlineWorker()} />);
+    fireEvent.click(screen.getByTestId("sim-run"));
+    await waitFor(() =>
+      expect(screen.getByTestId("sim-status")).toHaveAttribute("data-state", "done"),
+    );
+    const fig = await screen.findByTestId("sim-figure");
+    const legendText = () =>
+      screen
+        .getAllByTestId("sim-legend")
+        .map((l) => l.textContent ?? "")
+        .join(" ")
+        .toLowerCase();
+    expect(legendText()).toContain("v(vout)");
+    // a rede Vout (o ponto) tem clone de acerto; a terra não é sondável
+    const hit = await waitFor(() => {
+      const h = fig.querySelector('.sim-hit[data-net="Vout"][role="button"]');
+      expect(h).not.toBeNull();
+      return h!;
+    });
+    expect(fig.querySelector('.sim-hit[data-net="0"]')).toBeNull();
+    expect(hit.hasAttribute("id")).toBe(false);
+    // ligada por padrão → pintada na cor do traço
+    expect(hit.getAttribute("aria-pressed")).toBe("true");
+    expect(fig.querySelectorAll(".sim-probe").length).toBeGreaterThan(0);
+
+    // hover realça a rede na figura
+    fireEvent.pointerOver(hit);
+    expect(fig.classList.contains("has-hl")).toBe(true);
+    fireEvent.pointerLeave(fig);
+    expect(fig.classList.contains("has-hl")).toBe(false);
+
+    // clique desliga: some do gráfico e da cor
+    fireEvent.click(hit);
+    expect(legendText()).not.toContain("v(vout)");
+    expect(legendText()).toContain("v(vin)");
+    expect(hit.getAttribute("aria-pressed")).toBe("false");
+    // teclado (Enter) liga de novo, com a cor do traço no grupo original
+    fireEvent.keyDown(hit, { key: "Enter" });
+    expect(legendText()).toContain("v(vout)");
+    const probed = fig.querySelector<SVGElement>(".sim-probe")!;
+    expect(probed.style.getPropertyValue("--probe-color")).toMatch(/var\(--color-trace-\d\)/);
+  });
+
   it("erro de extração mostra diagnóstico que pula para a linha", async () => {
     const jumps: [number, number?][] = [];
     const src =
