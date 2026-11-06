@@ -204,7 +204,8 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   **v0.9.2** = campo LINK movido pro TOPO do inspetor — o painel ROLA e no fim ele ficava invisível
   abaixo da dobra; e2e afirma o campo perto do topo, **v0.10.0** = campo LINK lê/edita TAMBÉM a forma
   statement `link Docs "url"` (`readLabelLink`/`setLabelLink` — editar inline não adiantaria, o último
-  vence; ordinais `link 1st box` fora) + botão copiar código pic no header do code pane).
+  vence; ordinais `link 1st box` fora) + botão copiar código pic no header do code pane, **v0.11.0** =
+  painel Simular (dune): forma de onda, netlist, diagnósticos e realce na figura).
 - **Paleta de circuitos** (`components/editor/CircuitPalette.tsx` + `lib/circuitCatalog.ts`): menu no
   header do code pane (ao lado de Examples/Defaults) que INSERE código (não é objeto visual) — o
   catálogo COMPLETO das ~80 macros públicas da biblioteca (7 grupos; popover com scroll). Assinaturas:
@@ -235,6 +236,32 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   fontdb** (`db.faces()…families`), NÃO a string pedida — Merriweather e afins têm nameID
   diferente e não casam com `set_sans_serif_family("Merriweather")`. Carrega os 4 estilos
   (400/700 × normal/italic) p/ negrito/itálico usarem o glyph real, não sintetizado.
+
+- **Painel Simular (dune, fase 6 do projeto dune)** — aba `SIMULATE`/`SIM` no `PreviewTabs`
+  (`components/simulate/`). Simula figuras marcadas `spice = 1` (`detectSpice` em `detect.ts`)
+  com o `@strategicprojects/dune-sim` — HOJE dependência `file:../../../dune/crates/dune-wasm/npm`
+  (repo do dune ao lado; rodar `./build.sh` lá antes do `npm install`; `server.fs.allow` no
+  `vite.config.ts` libera o `.wasm` no dev). **CI e `deploy.sh` não enxergam o `file:`** — trocar
+  por versão do npm quando o pacote for publicado. O wasm roda SÓ num **Web Worker terminável**
+  (`lib/dune.worker.ts`; Cancelar = `terminate()`, o wasm não se interrompe): `lib/dune.ts`
+  (`ensureDune()` à la `ensureRpic`, `.wasm` `?url`, `worker.format: "es"`) é importado só pelo
+  worker → o wasm (~2 MB) só baixa no 1º Run. Protocolo puro em `simProtocol.ts`
+  (`handleSimRequest`, erros serializados — `Error` perde `kind`/`diagnostics` no postMessage),
+  cliente em `simClient.ts` (um worker vivo; run novo cancela o anterior; fábrica injetável nos
+  testes), estado em `useSimulation`. **PEGADINHA dos ids**: o `map` do extrator aponta formas
+  `sN` da figura compilada COM o prelude do dune → o painel compila a PRÓPRIA figura
+  (`composeSimFigure` = `prelude() + "\n" + fonte`, `circuits: true`) a partir do fonte DA
+  EXECUÇÃO (não do editor ao vivo); o preview IMG não serve. O rpic 0.11 do Studio não aceita
+  linhas-ponto (`.tran`…) → `stripDotLines` as troca por linha vazia (mesma numeração; validado
+  contra o rpic 0.13 do dune: mesmos kinds/linhas por id) — remover ao subir p/ rpic ≥ 0.13.
+  A figura só monta com a aba VISÍVEL (o SVG repete ids/defs do preview) e fica fora da rolagem
+  (o realce segue à vista). Realce = classe `.sim-hl`/`.has-hl` (`global.css`): recolore o traço
+  com `--color-sim-highlight` e apaga o resto. Gráfico SVG à mão (`WaveformChart`, sem lib):
+  um gráfico POR UNIDADE (nunca dois eixos y), log em frequência > 1 década, |x| em complexo,
+  decimação min/max (~400 pts/traço, `waveform.ts`), ticks SI, crosshair+tooltip, até 8 traços
+  (7–8 = cores 1–2 tracejadas) + "(+N)". Cores `--color-trace-1..6` (validadas p/ CVD) num
+  `@theme static` — PEGADINHA: variável de `@theme` sem utility que a use é PODADA pelo
+  Tailwind v4; `stroke="var(…)"` em atributo SVG não conta. `.op`/`.tf` viram tabela.
 
 ## i18n
 
