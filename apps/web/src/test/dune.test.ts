@@ -2,21 +2,15 @@
 // com o rpic. Arquivo próprio: o init do wasm-bindgen é por módulo/arquivo.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { ready as rpicReady } from "@strategicprojects/rpic";
-import { ensureDune, prelude, simulatePic } from "@/lib/dune";
+import { ensureDune, renderPic, simulatePic } from "@/lib/dune";
 import { handleSimRequest } from "@/lib/simProtocol";
-import { compile } from "@/lib/rpic";
-import { composeSimFigure, elementShapes, netlistLineShapes, traceShapes } from "@/lib/simFigure";
+import { elementShapes, netlistLineShapes, traceShapes } from "@/lib/simFigure";
 import { hasScale, plotSeries } from "@/lib/waveform";
 import { DIVIDER_FIGURE, RC_FIGURE } from "./fixtures-sim";
 
 const require = createRequire(import.meta.url);
 const duneBytes = () =>
   readFileSync(require.resolve("@strategicprojects/dune-sim/pkg/dune_wasm_bg.wasm"));
-
-beforeAll(async () => {
-  await rpicReady(readFileSync(require.resolve("@strategicprojects/rpic/pkg/rpic_wasm_bg.wasm")));
-});
 
 describe("ensureDune (WASM real)", () => {
   it("bytes inválidos rejeitam e NÃO ficam cacheados; depois carrega", async () => {
@@ -74,14 +68,14 @@ describe("simulatePic", () => {
 });
 
 describe("protocolo do worker com o dune real", () => {
-  const api = { ensure: () => ensureDune(), simulatePic, prelude };
+  const api = { ensure: () => ensureDune(), simulatePic, renderPic };
 
-  it("ok traz run + prelude + tempo", async () => {
+  it("ok traz run + figura + tempo", async () => {
     const res = await handleSimRequest({ type: "run", id: 7, source: RC_FIGURE }, api);
     expect(res.type).toBe("ok");
     expect(res.id).toBe(7);
     if (res.type !== "ok") return;
-    expect(res.prelude).toContain("define resistor");
+    expect(res.figure.svg).toMatch(/^<svg/);
     expect(res.ms).toBeGreaterThanOrEqual(0);
     // sobrevive ao structured clone do postMessage
     expect(structuredClone(res).run.plots[0].npoints).toBe(res.run.plots[0].npoints);
@@ -96,6 +90,14 @@ describe("protocolo do worker com o dune real", () => {
     expect(res.error.kind).toBe("pic");
     expect(res.error.diagnostics.length).toBeGreaterThan(0);
     expect(res.error.pic?.netlist).toMatch(/^R1 /m);
+    // a figura sai mesmo quando a extração falha (o realce dos erros usa ela)
+    expect(res.figure?.svg).toMatch(/^<svg/);
+  });
+
+  it("figura que o rpic rejeita vira erro de figura, sem derrubar a resposta", async () => {
+    const res = await handleSimRequest({ type: "run", id: 3, source: ".PS\nbox wid\n.PE\n" }, api);
+    expect(res.type).toBe("error");
+    expect(res.figure?.error).toMatch(/expected an expression/);
   });
 
   it("falha de carga vira kind 'load'", async () => {
@@ -107,19 +109,18 @@ describe("protocolo do worker com o dune real", () => {
   });
 });
 
-describe("figura do painel = prelude + fonte (ids batem com o map)", () => {
-  it("o rpic do Studio desenha cada forma do map com o id certo", () => {
+describe("figura do painel = renderPic do dune (ids batem com o map)", () => {
+  it("cada forma do map existe como <g id=sN> no SVG do renderPic", () => {
     const run = simulatePic(RC_FIGURE);
-    const out = compile(composeSimFigure(prelude(), RC_FIGURE), { circuits: true });
-    const ids = new Set([...out.svg.matchAll(/<g id="s(\d+)"/g)].map((m) => Number(m[1])));
+    const svg = renderPic(RC_FIGURE);
+    const ids = new Set([...svg.matchAll(/<g id="s(\d+)"/g)].map((m) => Number(m[1])));
     const { map } = run.pic;
     for (const el of map.elements)
       for (const n of elementShapes(map, el.refdes)) expect(ids.has(n)).toBe(true);
     for (const net of map.nets) for (const n of net.shapes) expect(ids.has(n)).toBe(true);
-    // o 1º objeto de cada elemento é o texto do valor; o R1 tem o zigue-zague
+    // o 1º objeto de cada elemento é o texto do valor (o "1k" do R1)
     const r1 = elementShapes(map, "R1");
-    expect(out.objects[r1[0]].kind).toBe("text");
-    expect(out.objects.slice(r1[0], r1.at(-1)! + 1).some((o) => o.file === "circuits")).toBe(true);
+    expect(svg).toMatch(new RegExp(`<g id="s${r1[0]}">\\s*<text[^>]*>1k<`));
     // as formas de rede são do próprio fonte (fios/pontos/terra)
     const gnd = map.nets.find((n) => n.name === "0")!;
     expect(gnd.shapes.length).toBeGreaterThan(0);

@@ -21,14 +21,19 @@ export interface SimFailure {
   pic?: PicExtraction;
 }
 
+/** A figura da execução, desenhada pelo rpic do PRÓPRIO dune (`renderPic`):
+ *  os `<g id="sN">` batem com o `map` do extrator. `null` = wasm não carregou. */
+export type SimFigureResult =
+  { svg: string; error?: undefined } | { svg?: undefined; error: string };
+
 export type SimResponse =
-  | { type: "ok"; id: number; run: PicRun; prelude: string; ms: number }
-  | { type: "error"; id: number; error: SimFailure; prelude: string | null; ms: number };
+  | { type: "ok"; id: number; run: PicRun; figure: SimFigureResult; ms: number }
+  | { type: "error"; id: number; error: SimFailure; figure: SimFigureResult | null; ms: number };
 
 export interface SimApi {
   ensure: () => Promise<void>;
   simulatePic: (source: string, opts?: PicSimOptions) => PicRun;
-  prelude: () => string;
+  renderPic: (source: string) => string;
 }
 
 export function toSimFailure(e: unknown, fallbackKind = "internal"): SimFailure {
@@ -41,24 +46,33 @@ export function toSimFailure(e: unknown, fallbackKind = "internal"): SimFailure 
   };
 }
 
-/** Executa um pedido: carrega o wasm (1ª vez), simula, mede. Nunca lança. */
+function renderFigure(api: SimApi, source: string): SimFigureResult {
+  try {
+    return { svg: api.renderPic(source) };
+  } catch (e) {
+    return { error: toSimFailure(e, "pic").message };
+  }
+}
+
+/** Executa um pedido: carrega o wasm (1ª vez), desenha a figura, simula,
+ *  mede. Nunca lança. */
 export async function handleSimRequest(req: SimRequest, api: SimApi): Promise<SimResponse> {
   const t0 = performance.now();
   try {
     await api.ensure();
   } catch (e) {
-    return { type: "error", id: req.id, error: toSimFailure(e, "load"), prelude: null, ms: 0 };
+    return { type: "error", id: req.id, error: toSimFailure(e, "load"), figure: null, ms: 0 };
   }
-  const preludeText = api.prelude();
+  const figure = renderFigure(api, req.source);
   try {
     const run = api.simulatePic(req.source, req.opts);
-    return { type: "ok", id: req.id, run, prelude: preludeText, ms: performance.now() - t0 };
+    return { type: "ok", id: req.id, run, figure, ms: performance.now() - t0 };
   } catch (e) {
     return {
       type: "error",
       id: req.id,
       error: toSimFailure(e),
-      prelude: preludeText,
+      figure,
       ms: performance.now() - t0,
     };
   }

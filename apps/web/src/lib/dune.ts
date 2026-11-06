@@ -37,9 +37,13 @@ export function simulatePic(source: string, opts?: PicSimOptions): PicRun {
   return dune.simulatePic(source, opts);
 }
 
-/** O prelude pic do dune (macros `resistor(A,B,valor)` etc. com refdes/pinos). */
-export function prelude(): string {
-  return dune.prelude();
+/** SVG da figura compilada pelo rpic INTERNO do dune com o prelude — a MESMA
+ *  compilação que o `map` do extrator indexa: os `<g id="sN">` batem com
+ *  `elements[].shapes`/`nets[].shapes` qualquer que seja o rpic do Studio
+ *  (aceita as linhas `.tran`/`.ac`…, que o rpic 0.11 do Studio rejeita).
+ *  Lança `SimError` kind `pic` (um diagnóstico `compile`) se o rpic rejeitar. */
+export function renderPic(source: string): string {
+  return dune.renderPic(source);
 }
 
 export type { OverlayMap, PicExtraction, PicRun, PicSimOptions, Plot, SimDiagnostic, SimError };

@@ -31,7 +31,7 @@ function setup() {
 const okFor = (id: number): SimResponse => ({
   type: "ok",
   id,
-  prelude: "",
+  figure: { svg: "" },
   ms: 1,
   run: {
     plots: [],

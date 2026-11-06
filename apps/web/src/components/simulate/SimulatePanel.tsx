@@ -126,9 +126,9 @@ export function SimulatePanel({
 
       {/* A figura fica FORA da rolagem: o realce de legenda/netlist/tabela
           continua à vista enquanto se rola até eles. */}
-      {active && sim.prelude && sim.source && pic && (
+      {active && sim.figure && pic && (
         <div className="shrink-0 border-b border-(--color-border) bg-(--color-paper) px-4 py-3">
-          <SimFigure prelude={sim.prelude} source={sim.source} highlight={highlight} />
+          <SimFigure figure={sim.figure} highlight={highlight} />
         </div>
       )}
 
