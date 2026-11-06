@@ -1,6 +1,7 @@
 import type { Plot } from "@/lib/dune";
 import {
   decimateMinMax,
+  finiteRange,
   formatSI,
   hasScale,
   linearTicks,
@@ -51,8 +52,11 @@ describe("decimateMinMax", () => {
     for (let i = 1; i < seg.length; i++) expect(seg[i][0]).toBeGreaterThan(seg[i - 1][0]);
   });
 
-  it("null quebra o traço em segmentos", () => {
-    const segs = decimateMinMax([0, 1, 2, 3, 4], [1, 2, null, 4, 5]);
+  it("NaN/±inf quebram o traço em segmentos (Float64Array do dune)", () => {
+    const segs = decimateMinMax(
+      new Float64Array([0, 1, 2, 3, 4, 5]),
+      new Float64Array([1, 2, NaN, 4, 5, Infinity]),
+    );
     expect(segs).toEqual([
       [
         [0, 1],
@@ -98,6 +102,13 @@ describe("ticks e formatação SI", () => {
   it("nearestIndex", () => {
     expect(nearestIndex([0, 1, 2, 3], 2.4)).toBe(2);
     expect(nearestIndex([0, 1, 2, 3], 2.6)).toBe(3);
+    expect(nearestIndex(new Float64Array([0, 1, NaN, 3]), 2.9)).toBe(3);
+  });
+
+  it("finiteRange ignora NaN/±inf e aguenta milhões de pontos", () => {
+    expect(finiteRange(new Float64Array([NaN, 3, -Infinity, -2, 7]))).toEqual([-2, 7]);
+    const big = new Float64Array(3_000_000).map((_, i) => i);
+    expect(finiteRange(big)).toEqual([0, 2_999_999]); // Math.min(...big) estouraria a pilha
   });
 });
 
@@ -111,23 +122,13 @@ describe("plotSeries", () => {
         { name: "frequency", type: "frequency" },
         { name: "v(out)", type: "voltage" },
       ],
-      columns: [
-        [
-          [10, 0],
-          [100, 0],
-          [1000, 0],
-        ],
-        [
-          [3, 4],
-          [0, 1],
-          [null, 0],
-        ],
-      ],
+      // complexo: re,im intercalados
+      columns: [new Float64Array([10, 0, 100, 0, 1000, 0]), new Float64Array([3, 4, 0, 1, NaN, 0])],
     });
     const s = plotSeries(p);
     expect(s.scale.log).toBe(true);
-    expect(s.scale.values).toEqual([10, 100, 1000]);
-    expect(s.traces[0].values).toEqual([5, 1, null]);
+    expect([...s.scale.values]).toEqual([10, 100, 1000]);
+    expect([...s.traces[0].values]).toEqual([5, 1, NaN]);
   });
 
   it("op não tem escala", () => {

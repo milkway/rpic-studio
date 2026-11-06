@@ -2,7 +2,7 @@ import { useState } from "react";
 import { AlertTriangle, Check, ChevronRight, Copy, TriangleAlert } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import type { Plot, SimDiagnostic } from "@/lib/dune";
-import { columnValues, formatSI, isComplex, unitOf } from "@/lib/waveform";
+import { formatSI, isComplex, unitOf } from "@/lib/waveform";
 import { copyText } from "@/lib/exports";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/components/ui/Toast";
@@ -175,13 +175,13 @@ export function ScalarTable({
           {plot.variables.map((v, i) => {
             const unit = unitOf(v.type);
             let text: string;
+            const col = plot.columns[i];
             if (complex) {
-              const re = columnValues(plot, i, "re")[0];
-              const pair = (plot.columns[i] as [number | null, number | null][])[0];
-              const im = pair?.[1] ?? null;
-              text = `${formatSI(re, "", 4)} ${im !== null && im < 0 ? "−" : "+"} j${formatSI(im === null ? null : Math.abs(im), unit, 4)}`;
+              // re,im intercalados: o 1º ponto são col[0], col[1]
+              const [re, im] = [col[0], col[1]];
+              text = `${formatSI(re ?? null, "", 4)} ${im < 0 ? "−" : "+"} j${formatSI(im === undefined ? null : Math.abs(im), unit, 4)}`;
             } else {
-              text = formatSI((plot.columns[i] as (number | null)[])[0] ?? null, unit, 4);
+              text = formatSI(col[0] ?? null, unit, 4);
             }
             return (
               <tr

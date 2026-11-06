@@ -11,10 +11,10 @@ import type {
   Diagnostic as SimDiagnostic,
   OverlayMap,
   PicExtraction,
-  PicRun,
   PicSimOptions,
-  Plot,
   SimError,
+  TypedPicRun,
+  TypedPlot,
 } from "@strategicprojects/dune-sim";
 import wasmUrl from "@strategicprojects/dune-sim/pkg/dune_wasm_bg.wasm?url";
 
@@ -32,9 +32,11 @@ export function ensureDune(input: string | URL | BufferSource = wasmUrl): Promis
   return readyPromise;
 }
 
-/** Extrai o deck da figura e simula. Requer `ensureDune()` resolvido. */
+/** Extrai o deck da figura e simula. Colunas em `Float64Array` (complexo =
+ *  re,im intercalados; NaN/±inf preservados) em buffers PRÓPRIOS do JS — o
+ *  worker os TRANSFERE no `postMessage`, sem cópia. Requer `ensureDune()`. */
 export function simulatePic(source: string, opts?: PicSimOptions): PicRun {
-  return dune.simulatePic(source, opts);
+  return dune.simulatePicTyped(source, opts);
 }
 
 /** SVG da figura compilada pelo rpic INTERNO do dune com o prelude — a MESMA
@@ -46,4 +48,8 @@ export function renderPic(source: string): string {
   return dune.renderPic(source);
 }
 
-export type { OverlayMap, PicExtraction, PicRun, PicSimOptions, Plot, SimDiagnostic, SimError };
+/** Execução/plot com colunas tipadas — o que o painel consome. */
+export type PicRun = TypedPicRun;
+export type Plot = TypedPlot;
+
+export type { OverlayMap, PicExtraction, PicSimOptions, SimDiagnostic, SimError };

@@ -77,3 +77,13 @@ export async function handleSimRequest(req: SimRequest, api: SimApi): Promise<Si
     };
   }
 }
+
+/** Buffers das colunas da resposta, p/ a lista de transferables do
+ *  `postMessage` (o worker abre mão deles: zero cópia). Sem repetição — o
+ *  mesmo buffer duas vezes é `DataCloneError`. */
+export function transferablesOf(res: SimResponse): ArrayBuffer[] {
+  if (res.type !== "ok") return [];
+  const out = new Set<ArrayBuffer>();
+  for (const p of res.run.plots) for (const c of p.columns) out.add(c.buffer as ArrayBuffer);
+  return [...out];
+}

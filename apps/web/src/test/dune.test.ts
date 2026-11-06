@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { ensureDune, renderPic, simulatePic } from "@/lib/dune";
-import { handleSimRequest } from "@/lib/simProtocol";
+import { handleSimRequest, transferablesOf } from "@/lib/simProtocol";
 import { elementShapes, netlistLineShapes, traceShapes } from "@/lib/simFigure";
 import { hasScale, plotSeries } from "@/lib/waveform";
 import { DIVIDER_FIGURE, RC_FIGURE } from "./fixtures-sim";
@@ -77,8 +77,30 @@ describe("protocolo do worker com o dune real", () => {
     if (res.type !== "ok") return;
     expect(res.figure.svg).toMatch(/^<svg/);
     expect(res.ms).toBeGreaterThanOrEqual(0);
-    // sobrevive ao structured clone do postMessage
-    expect(structuredClone(res).run.plots[0].npoints).toBe(res.run.plots[0].npoints);
+    // colunas tipadas, uma por variável, cada uma com o próprio buffer
+    const plot = res.run.plots[0];
+    expect(plot.columns).toHaveLength(plot.variables.length);
+    for (const c of plot.columns) {
+      expect(c).toBeInstanceOf(Float64Array);
+      expect(c.length).toBe(plot.npoints);
+    }
+    const bufs = transferablesOf(res);
+    expect(bufs).toHaveLength(plot.columns.length);
+    // TRANSFERIDAS no postMessage: chegam íntegras e o lado do worker fica vazio
+    const last = plot.columns[1].at(-1);
+    const moved = structuredClone(res, { transfer: bufs });
+    expect(moved.type === "ok" && moved.run.plots[0].columns[1].at(-1)).toBe(last);
+    expect(plot.columns[1].length).toBe(0); // detached
+  });
+
+  it("plot complexo: re,im intercalados (2·npoints)", async () => {
+    const res = await handleSimRequest({ type: "run", id: 8, source: DIVIDER_FIGURE }, api);
+    if (res.type !== "ok") throw new Error("esperava ok");
+    const ac = res.run.plots.find((p) => /AC/.test(p.plotname))!;
+    expect(ac.columns[1].length).toBe(2 * ac.npoints);
+    expect(transferablesOf(res)).toHaveLength(
+      res.run.plots.reduce((n, p) => n + p.columns.length, 0),
+    );
   });
 
   it("erro vira SimFailure serializável (kind/diagnostics/pic)", async () => {

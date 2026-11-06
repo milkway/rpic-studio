@@ -2,18 +2,35 @@
 // a partir de um plot do rawfile, decimação min/max, ticks e prefixos SI.
 import type { Plot } from "./dune";
 
-export type Value = number | null;
+/** Valores de uma coluna: `Float64Array` do dune (NaN/±inf = ponto ausente,
+ *  quebra o traço) — ou qualquer array de números (testes). */
+export type Values = ArrayLike<number>;
 
 export interface Trace {
   name: string;
   unit: string;
-  values: Value[];
+  /** NaN = ponto ausente. */
+  values: Float64Array;
 }
 
 export interface Series {
   scale: Trace & { log: boolean };
   traces: Trace[];
   complex: boolean;
+}
+
+/** [min, max] dos valores finitos (laço — `Math.min(...arr)` estoura a pilha
+ *  com milhões de pontos). Sem nenhum finito → [Infinity, -Infinity]. */
+export function finiteRange(values: Values): [number, number] {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 0; i < values.length; i++) {
+    const v = values[i];
+    if (!Number.isFinite(v)) continue;
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  return [lo, hi];
 }
 
 /** Unidade SI pelo `type` da variável do rawfile. */
@@ -42,24 +59,24 @@ export function isComplex(plot: Plot): boolean {
   return /complex/i.test(plot.flags);
 }
 
-/** Coluna como reais: complexo → |valor| (a escala de freq. → parte real). */
-export function columnValues(plot: Plot, index: number, part: "abs" | "re" = "abs"): Value[] {
-  const col = plot.columns[index] as unknown[];
-  if (!isComplex(plot)) return col as Value[];
-  return (col as [Value, Value][]).map((pair) => {
-    if (!pair) return null;
-    const [re, im] = pair;
-    if (re === null || im === null) return null;
-    return part === "re" ? re : Math.hypot(re, im);
-  });
+/** Coluna como reais. Plot real: a PRÓPRIA coluna (sem cópia). Complexo
+ *  (re,im intercalados): |valor| — ou a parte real (escala de frequência). */
+export function columnValues(plot: Plot, index: number, part: "abs" | "re" = "abs"): Float64Array {
+  const col = plot.columns[index];
+  if (!isComplex(plot)) return col;
+  const n = col.length >> 1;
+  const out = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const re = col[2 * i];
+    out[i] = part === "re" ? re : Math.hypot(re, col[2 * i + 1]);
+  }
+  return out;
 }
 
 export function plotSeries(plot: Plot): Series {
   const [sv, ...rest] = plot.variables;
   const scaleValues = columnValues(plot, 0, "re");
-  const finite = scaleValues.filter((v): v is number => v !== null && Number.isFinite(v));
-  const lo = Math.min(...finite);
-  const hi = Math.max(...finite);
+  const [lo, hi] = finiteRange(scaleValues);
   // log só p/ frequência cobrindo mais de uma década (AC/noise)
   const log = sv.type.toLowerCase() === "frequency" && lo > 0 && hi / lo > 10;
   return {
@@ -74,19 +91,14 @@ export function plotSeries(plot: Plot): Series {
 }
 
 /** Decimação min/max: ~2 pontos por balde, na ordem do índice, preservando
- *  picos (um passo fino de tran não some). `null` quebra o traço → segmentos. */
-export function decimateMinMax(xs: Value[], ys: Value[], buckets = 200): [number, number][][] {
+ *  picos (um passo fino de tran não some). NaN/±inf quebra o traço → segmentos. */
+export function decimateMinMax(xs: Values, ys: Values, buckets = 200): [number, number][][] {
   const n = Math.min(xs.length, ys.length);
   // runs contíguos de pontos válidos
   const runs: [number, number][] = [];
   let start = -1;
   for (let i = 0; i <= n; i++) {
-    const ok =
-      i < n &&
-      xs[i] !== null &&
-      ys[i] !== null &&
-      Number.isFinite(xs[i]!) &&
-      Number.isFinite(ys[i]!);
+    const ok = i < n && Number.isFinite(xs[i]) && Number.isFinite(ys[i]);
     if (ok && start < 0) start = i;
     if (!ok && start >= 0) {
       runs.push([start, i]);
@@ -98,7 +110,7 @@ export function decimateMinMax(xs: Value[], ys: Value[], buckets = 200): [number
     const nb = Math.max(1, Math.round((buckets * len) / Math.max(n, 1)));
     if (len <= nb * 2) {
       const seg: [number, number][] = [];
-      for (let i = a; i < b; i++) seg.push([xs[i]!, ys[i]!]);
+      for (let i = a; i < b; i++) seg.push([xs[i], ys[i]]);
       return seg;
     }
     const seg: [number, number][] = [];
@@ -108,17 +120,17 @@ export function decimateMinMax(xs: Value[], ys: Value[], buckets = 200): [number
       let iMin = s;
       let iMax = s;
       for (let i = s; i < e; i++) {
-        if (ys[i]! < ys[iMin]!) iMin = i;
-        if (ys[i]! > ys[iMax]!) iMax = i;
+        if (ys[i] < ys[iMin]) iMin = i;
+        if (ys[i] > ys[iMax]) iMax = i;
       }
       const first = Math.min(iMin, iMax);
       const second = Math.max(iMin, iMax);
-      seg.push([xs[first]!, ys[first]!]);
-      if (second !== first) seg.push([xs[second]!, ys[second]!]);
+      seg.push([xs[first], ys[first]]);
+      if (second !== first) seg.push([xs[second], ys[second]]);
     }
     // o último ponto real fecha o traço (o fim da janela não "encolhe")
     const last = seg[seg.length - 1];
-    if (last[0] !== xs[b - 1]) seg.push([xs[b - 1]!, ys[b - 1]!]);
+    if (last[0] !== xs[b - 1]) seg.push([xs[b - 1], ys[b - 1]]);
     return seg;
   });
 }
@@ -195,16 +207,16 @@ export function formatSI(v: number | null, unit = "", digits = 3): string {
 }
 
 /** Índice do ponto de `xs` mais próximo de `x` (xs monotônico crescente). */
-export function nearestIndex(xs: Value[], x: number): number {
+export function nearestIndex(xs: Values, x: number): number {
   let lo = 0;
   let hi = xs.length - 1;
   while (hi - lo > 1) {
     const mid = (lo + hi) >> 1;
     const v = xs[mid];
-    if (v === null || v < x) lo = mid;
+    if (Number.isNaN(v) || v < x) lo = mid;
     else hi = mid;
   }
-  const dl = Math.abs((xs[lo] ?? Infinity) - x);
-  const dh = Math.abs((xs[hi] ?? Infinity) - x);
-  return dh < dl ? hi : lo;
+  const dist = (v: number | undefined) =>
+    v === undefined || Number.isNaN(v) ? Infinity : Math.abs(v - x);
+  return dist(xs[hi]) < dist(xs[lo]) ? hi : lo;
 }
