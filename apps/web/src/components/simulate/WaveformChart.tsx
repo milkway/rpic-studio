@@ -26,20 +26,25 @@ export function traceStyle(i: number): { color: string; dash?: string } {
   return { color: `var(--color-trace-${(i % 6) + 1})`, dash: i >= 6 ? "5 3" : undefined };
 }
 
-/** Traços do plot agrupados por unidade, na ordem do rawfile: um gráfico por
- *  unidade (V, A, …) — nunca dois eixos y; `index` = posição GLOBAL do traço,
- *  que fixa a cor (a cor segue a entidade, não a posição no grupo). */
+/** Traços VISÍVEIS (com o slot de cor) agrupados por unidade: um gráfico por
+ *  unidade (V, A, …) — nunca dois eixos y; `index` = slot da cor, que segue a
+ *  entidade (não a posição no grupo). Os grupos seguem `unitOrder` (a ordem do
+ *  plot inteiro): esconder `v(in)` não faz o gráfico de A pular p/ cima. */
 export function groupByUnit(
-  series: Series,
-  max = MAX_TRACES,
+  entries: { trace: Trace; index: number }[],
+  unitOrder: readonly string[] = [],
 ): { unit: string; traces: { trace: Trace; index: number }[] }[] {
   const groups: { unit: string; traces: { trace: Trace; index: number }[] }[] = [];
-  series.traces.slice(0, max).forEach((trace, index) => {
-    let g = groups.find((x) => x.unit === trace.unit);
-    if (!g) groups.push((g = { unit: trace.unit, traces: [] }));
-    g.traces.push({ trace, index });
-  });
-  return groups;
+  for (const e of entries) {
+    let g = groups.find((x) => x.unit === e.trace.unit);
+    if (!g) groups.push((g = { unit: e.trace.unit, traces: [] }));
+    g.traces.push(e);
+  }
+  const rank = (u: string) => {
+    const i = unitOrder.indexOf(u);
+    return i < 0 ? unitOrder.length : i;
+  };
+  return groups.sort((a, b) => rank(a.unit) - rank(b.unit));
 }
 
 interface WaveformChartProps {
