@@ -4,7 +4,12 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ensureDune, renderPic, simulatePic } from "@/lib/dune";
-import { handleSimRequest, type SimRequest, type SimResponse } from "@/lib/simProtocol";
+import {
+  handleSimRequest,
+  transferablesOf,
+  type SimRequest,
+  type SimResponse,
+} from "@/lib/simProtocol";
 import type { WorkerLike } from "@/lib/simClient";
 import { SimulatePanel } from "@/components/simulate/SimulatePanel";
 import { RC_FIGURE } from "./fixtures-sim";
@@ -25,7 +30,10 @@ class InlineWorker implements WorkerLike {
   postMessage(msg: SimRequest) {
     if (this.hold) return; // "simulação infinita": nunca responde
     void handleSimRequest(msg, { ensure: () => ensureDune(), simulatePic, renderPic }).then((res) =>
-      this.onmessage?.({ data: res } as MessageEvent<SimResponse>),
+      // como o worker real: os buffers das colunas são TRANSFERIDOS
+      this.onmessage?.({
+        data: structuredClone(res, { transfer: transferablesOf(res) }),
+      } as MessageEvent<SimResponse>),
     );
   }
   terminate() {

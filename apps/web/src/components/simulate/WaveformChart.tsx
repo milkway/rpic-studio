@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@rpic/design-system";
 import {
   decimateMinMax,
+  finiteRange,
   formatSI,
   linearTicks,
   logTicks,
@@ -85,9 +86,7 @@ export function WaveformChart({
   const xs = series.scale.values;
 
   const geom = useMemo(() => {
-    const finiteX = xs.filter((v): v is number => v !== null && Number.isFinite(v));
-    let x0 = Math.min(...finiteX);
-    let x1 = Math.max(...finiteX);
+    let [x0, x1] = finiteRange(xs);
     if (x0 === x1) {
       x0 -= 1;
       x1 += 1;
@@ -132,7 +131,8 @@ export function WaveformChart({
   const units = new Set(shown.map((tr) => tr.unit));
   const yUnit = units.size === 1 ? [...units][0] : "";
   const hoverIdx = hoverX === null ? null : nearestIndex(xs, geom.invX(hoverX));
-  const hoverPx = hoverIdx === null || xs[hoverIdx] === null ? null : geom.sx(xs[hoverIdx]!);
+  const hoverPx =
+    hoverIdx === null || !Number.isFinite(xs[hoverIdx]) ? null : geom.sx(xs[hoverIdx]);
 
   return (
     <div className="space-y-2" data-testid="sim-chart">
@@ -248,7 +248,7 @@ export function WaveformChart({
             {shown.map((tr, i) => (
               <div key={tr.name} className="flex items-center gap-1.5 text-(--color-text)">
                 <span className="inline-block h-0.5 w-3" style={{ background: colorOf(i).color }} />
-                {tr.name} = {formatSI(tr.values[hoverIdx] ?? null, tr.unit, 4)}
+                {tr.name} = {formatSI(tr.values[hoverIdx], tr.unit, 4)}
               </div>
             ))}
           </div>
