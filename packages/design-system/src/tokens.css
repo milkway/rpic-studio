@@ -58,6 +58,25 @@
   --shadow-pop: 0 8px 32px rgba(15, 40, 25, 0.16);
 }
 
+/* Tokens consumidos FORA das utilities (atributos SVG `stroke="var(…)"` no
+   gráfico do painel Simular, CSS do realce): `static` faz o Tailwind v4 emiti-los
+   sempre — no `@theme` normal, variável sem utility usada é podada do CSS. */
+@theme static {
+  /* Traços dos gráficos (painel Simular) — ordem FIXA, nunca ciclada: azul,
+     laranja, água, âmbar, magenta, violeta. Validados (dataviz validator) contra
+     --color-surface: CVD ΔE adjacente ≥ 9.1 claro / 8.4 escuro. Aqua/âmbar/
+     magenta ficam < 3:1 no claro → a legenda com nome é obrigatória (é). */
+  --color-trace-1: #2a78d6;
+  --color-trace-2: #eb6834;
+  --color-trace-3: #1baf7a;
+  --color-trace-4: #eda100;
+  --color-trace-5: #e87ba4;
+  --color-trace-6: #6250d6;
+  /* Realce de formas na figura da simulação — o papel é claro nos DOIS temas,
+     então um só valor (laranja-queimado, distinto do acento verde). */
+  --color-sim-highlight: #c2410c;
+}
+
 /* ---- Dark mode (classe .dark no <html>, como no site rpic.dev) ---- */
 .dark {
   --color-paper: #020617; /* slate-950 */
@@ -89,6 +108,14 @@
   --color-warning: #d4a72c;
   --color-danger: #ef9a9a;
   --color-danger-soft: #3b1513;
+
+  /* Traços no escuro: os mesmos matizes, passos escolhidos p/ o slate-900. */
+  --color-trace-1: #3987e5;
+  --color-trace-2: #d95926;
+  --color-trace-3: #199e70;
+  --color-trace-4: #c98500;
+  --color-trace-5: #d55181;
+  --color-trace-6: #9085e9;
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-card: 0 2px 14px rgba(0, 0, 0, 0.45);
