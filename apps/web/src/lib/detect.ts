@@ -109,3 +109,12 @@ export function detectTexLabels(source: string): boolean {
   }
   return false;
 }
+
+const SPICE_MARK = /(?:^|;)[ \t]*spice[ \t]*=[ \t]*1(?![\w.])/m;
+
+/** A figura está marcada para simulação (`spice = 1`, convenção do dune)?
+ *  Detecção barata, como `detectTexLabels`: ignora strings e comentários; o
+ *  extrator do dune é quem decide de verdade (diagnóstico `not-marked`). */
+export function detectSpice(source: string): boolean {
+  return SPICE_MARK.test(stripStringsAndComments(source));
+}
