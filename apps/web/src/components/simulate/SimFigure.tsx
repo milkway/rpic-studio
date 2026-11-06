@@ -18,6 +18,10 @@ export function SimFigure({ figure, highlight }: SimFigureProps) {
   const { t } = useI18n();
   const ref = useRef<HTMLDivElement>(null);
   const svg = useMemo(() => (figure.svg ? sanitizeSvg(figure.svg) : ""), [figure]);
+  // O MESMO objeto entre renders: o React 19 compara o `dangerouslySetInnerHTML`
+  // por identidade e, se for um objeto novo, reescreve o innerHTML — apagando
+  // as classes de realce a cada re-render que não mude o realce.
+  const html = useMemo(() => ({ __html: svg }), [svg]);
 
   // Realce: classe nos `<g id="sN">` — o CSS (global.css, `.sim-figure`) pinta
   // o traço com o token e apaga o resto. Idempotente a cada mudança.
@@ -44,7 +48,7 @@ export function SimFigure({ figure, highlight }: SimFigureProps) {
         "sim-figure flex justify-center rounded-(--radius-md) border border-(--color-border) bg-(--color-canvas) p-3",
         "[&_svg]:h-auto [&_svg]:max-h-48 [&_svg]:max-w-full",
       )}
-      dangerouslySetInnerHTML={{ __html: svg }}
+      dangerouslySetInnerHTML={html}
     />
   );
 }
