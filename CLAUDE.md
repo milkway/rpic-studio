@@ -239,29 +239,39 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
 
 - **Painel Simular (dune, fase 6 do projeto dune)** — aba `SIMULATE`/`SIM` no `PreviewTabs`
   (`components/simulate/`). Simula figuras marcadas `spice = 1` (`detectSpice` em `detect.ts`)
-  com o `@strategicprojects/dune-sim` — HOJE dependência `file:../../../dune/crates/dune-wasm/npm`
-  (repo do dune ao lado; rodar `./build.sh` lá antes do `npm install`; `server.fs.allow` no
-  `vite.config.ts` libera o `.wasm` no dev). **CI e `deploy.sh` não enxergam o `file:`** — trocar
-  por versão do npm quando o pacote for publicado. O wasm roda SÓ num **Web Worker terminável**
-  (`lib/dune.worker.ts`; Cancelar = `terminate()`, o wasm não se interrompe): `lib/dune.ts`
-  (`ensureDune()` à la `ensureRpic`, `.wasm` `?url`, `worker.format: "es"`) é importado só pelo
-  worker → o wasm (~2 MB) só baixa no 1º Run. Protocolo puro em `simProtocol.ts`
-  (`handleSimRequest`, erros serializados — `Error` perde `kind`/`diagnostics` no postMessage),
-  cliente em `simClient.ts` (um worker vivo; run novo cancela o anterior; fábrica injetável nos
-  testes), estado em `useSimulation`. **PEGADINHA dos ids**: o `map` do extrator aponta formas
-  `sN` da figura compilada COM o prelude do dune → o painel compila a PRÓPRIA figura
-  (`composeSimFigure` = `prelude() + "\n" + fonte`, `circuits: true`) a partir do fonte DA
-  EXECUÇÃO (não do editor ao vivo); o preview IMG não serve. O rpic 0.11 do Studio não aceita
-  linhas-ponto (`.tran`…) → `stripDotLines` as troca por linha vazia (mesma numeração; validado
-  contra o rpic 0.13 do dune: mesmos kinds/linhas por id) — remover ao subir p/ rpic ≥ 0.13.
-  A figura só monta com a aba VISÍVEL (o SVG repete ids/defs do preview) e fica fora da rolagem
-  (o realce segue à vista). Realce = classe `.sim-hl`/`.has-hl` (`global.css`): recolore o traço
-  com `--color-sim-highlight` e apaga o resto. Gráfico SVG à mão (`WaveformChart`, sem lib):
-  um gráfico POR UNIDADE (nunca dois eixos y), log em frequência > 1 década, |x| em complexo,
-  decimação min/max (~400 pts/traço, `waveform.ts`), ticks SI, crosshair+tooltip, até 8 traços
-  (7–8 = cores 1–2 tracejadas) + "(+N)". Cores `--color-trace-1..6` (validadas p/ CVD) num
-  `@theme static` — PEGADINHA: variável de `@theme` sem utility que a use é PODADA pelo
-  Tailwind v4; `stroke="var(…)"` em atributo SVG não conta. `.op`/`.tf` viram tabela.
+  com o `@strategicprojects/dune-sim` **^0.2.0 do npm**. O wasm roda SÓ num **Web Worker
+  terminável** (`lib/dune.worker.ts`; Cancelar = `terminate()`, o wasm não se interrompe):
+  `lib/dune.ts` (`ensureDune()` à la `ensureRpic`, `.wasm` `?url`, `worker.format: "es"`) é
+  importado só pelo worker → o wasm (~2 MB) só baixa no 1º Run. Protocolo puro em
+  `simProtocol.ts` (`handleSimRequest`, erros serializados — `Error` perde `kind`/`diagnostics`
+  no postMessage), cliente em `simClient.ts` (um worker vivo; run novo cancela o anterior;
+  fábrica injetável nos testes), estado em `useSimulation`. **Colunas TIPADAS**: o worker usa
+  `simulatePicTyped` (colunas `Float64Array`; complexo = re,im intercalados, NaN/±inf = ponto
+  ausente) e TRANSFERE os buffers no `postMessage` (`transferablesOf`, sem repetir buffer —
+  repetido é `DataCloneError`); `waveform.ts` consome `Float64Array` direto (`finiteRange` em
+  laço — `Math.min(...arr)` estoura a pilha com milhões de pontos). **Figura**: o worker a
+  desenha com `renderPic` do dune-sim (o rpic INTERNO do dune + prelude — a MESMA compilação
+  que o `map` do extrator indexa, ids `sN` batem com `elements[].shapes`/`nets[].shapes`
+  qualquer que seja o rpic do Studio); `composeSimFigure`/`stripDotLines` morreram. PEGADINHA
+  React 19: `dangerouslySetInnerHTML` compara o objeto `{__html}` por IDENTIDADE — literal
+  recriado a cada render reinjeta o SVG e apaga classes/clones; memoizar. **Probe por clique**
+  (`SimFigure` + `simFigure.ts`): camada de clones transparentes `.sim-hit` das formas de cada
+  rede com `v(rede)` no plot (traço largo em px de tela; sem `id`; só eles recebem ponteiro com
+  `.probe-on`), caixa `.sim-hit-pad` com folga no toque (o ajuste de toque do Chromium pontua
+  pela CAIXA — fio horizontal tem caixa de altura 0 e perdia p/ o `<svg>`), 1º clone =
+  `role=button`/`aria-pressed`/Enter. `toggleProbe` guarda traço→slot de cor (religar volta ao
+  slot natural se livre; cor de traço visível nunca muda; cheio = toast). Rede ligada pinta os
+  originais via `.sim-probe` + `--probe-color`. A figura só monta com a aba VISÍVEL (o SVG
+  repete ids/defs do preview) e fica fora da rolagem (o realce segue à vista). Realce =
+  `.sim-hl`/`.has-hl` (`global.css`). Gráfico SVG à mão (`WaveformChart`, sem lib): um gráfico
+  POR UNIDADE (nunca dois eixos y; `groupByUnit(entries, unitOrder)` mantém a ordem com traços
+  escondidos), log em frequência > 1 década, |x| em complexo, decimação min/max (~400
+  pts/traço), ticks SI, crosshair+tooltip, até 8 traços (7–8 = cores 1–2 tracejadas) + "(+N)".
+  **Scrubber do `.tran`** (`TimeScrubber`, só escala em segundos): play varre em 4 s (com
+  `prefers-reduced-motion`, 10 passos discretos), cursor sólido + marcas na cor de cada traço +
+  `= valor` na legenda. Cores `--color-trace-1..6` (validadas p/ CVD) num `@theme static` —
+  PEGADINHA: variável de `@theme` sem utility que a use é PODADA pelo Tailwind v4;
+  `stroke="var(…)"` em atributo SVG não conta. `.op`/`.tf` viram tabela.
 
 ## i18n
 
