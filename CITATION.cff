@@ -8,6 +8,11 @@ authors:
     affiliation: "Universidade Federal de Pernambuco"
     email: leite@castlab.org
     orcid: "https://orcid.org/0000-0002-4718-9766"
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.24045409"
+    description: "Concept DOI (resolves to the latest version)"
+doi: "10.5281/zenodo.24045409"
 repository-code: "https://github.com/milkway/rpic-studio"
 url: "https://studio.rpic.dev"
 license: BSD-2-Clause
