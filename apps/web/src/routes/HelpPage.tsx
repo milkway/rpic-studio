@@ -127,8 +127,8 @@ const sections: Section[] = [
   {
     title: { en: "Maps (geopic)", pt: "Mapas (geopic)" },
     intro: {
-      en: "A source with a geographic registration gets a Map tab next to the image: the drawing on a MapLibre map, re-georeferenced as you type, with a frame selector and a Download GeoJSON button. See the Map examples.",
-      pt: "Uma fonte com registro geográfico ganha a aba Mapa ao lado da imagem: o desenho num mapa MapLibre, re-georreferenciado enquanto você digita, com seletor de frame e botão para baixar o GeoJSON. Veja os exemplos de Mapa.",
+      en: "A source with a geographic registration gets a Map tab next to the image: the drawing on a MapLibre map, re-georeferenced as you type, with a frame selector, a labels size control (1× = true to the ground, up to 2×; remembered, never reframes the map) and a Download GeoJSON button. The drawing's shapes sit under the basemap's labels, so place names stay readable; the drawing's own labels stay on top. Click a shape for its title, kind and id. See the Map examples.",
+      pt: "Uma fonte com registro geográfico ganha a aba Mapa ao lado da imagem: o desenho num mapa MapLibre, re-georreferenciado enquanto você digita, com seletor de frame, controle de tamanho dos rótulos (1× = fiel ao chão, até 2×; lembrado, nunca reenquadra o mapa) e botão para baixar o GeoJSON. As formas do desenho ficam sob os rótulos do basemap, para os nomes de lugar seguirem legíveis; os rótulos do próprio desenho ficam por cima. Clique numa forma para ver título, tipo e id. Veja os exemplos de Mapa.",
     },
     rows: [
       ["geo_lon = -34.8711; geo_lat = -8.0631", { en: "anchor the pic origin (0,0) on the Earth", pt: "ancora a origem pic (0,0) na Terra" }],

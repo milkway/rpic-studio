@@ -32,8 +32,8 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
 - **Releases do rpic**: o workflow `.github/workflows/rpic-release-watch.yml` abre uma issue
   com checklist de investigação quando o rpic-lang taggeia versão nova (compara com a versão
   do lockfile). Ao atualizar a dependência, rodar a suíte completa — `compile.test.ts` valida
-  todos os exemplos no WASM real e pega drift de comportamento. **Atual: web ^0.15.0 / API v0.11.0**
-  (web: 0.15.0 trouxe o build GEO `rpic_wasm_geo` + `compileGeoJSON` + o módulo `/maplibre`, usados
+  todos os exemplos no WASM real e pega drift de comportamento. **Atual: web ^0.16.0 / API v0.11.0**
+  (web: 0.16.0 trouxe `layers: { textScale }` e `before: 'labels'` no `/maplibre`; 0.15.0 trouxe o build GEO `rpic_wasm_geo` + `compileGeoJSON` + o módulo `/maplibre`, usados
   pelo painel Mapa — ver o item do painel Mapa abaixo; as features de LINGUAGEM descritas a seguir
   são as da v0.11.0) (`link "<url>"` —
   hyperlink por objeto, inline OU statement `link A "url"`; o SVG embrulha o `<g id="sN">` num
@@ -57,7 +57,7 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   player npm converte formas em `<path>` p/ `move`/`morph`). O pin fica em TRÊS lugares:
   `apps/web/package.json` E a raiz `package.json` (web WASM `@strategicprojects/rpic`), e a git-dep
   da API em `apps/api/Cargo.toml` (`rpic-core`/`rpic-render` na `tag = "v0.11.0"`). **Hoje os pins
-  DIVERGEM de propósito**: web `^0.15.0` (raiz + apps/web, pelo build geo do painel Mapa, #8) e API
+  DIVERGEM de propósito**: web `^0.16.0` (raiz + apps/web, pelo build geo do painel Mapa, #8) e API
   ainda na tag v0.11.0 — o render server-side não usa geo, e mudar a tag faz a API recompilar o
   `rpic-core`/`render` do zero no deploy (ver Deploy); fica para um bump próprio, que deve então
   realinhar os três. Depois de mudar a
@@ -283,7 +283,7 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
 - **Painel Mapa (geopic, issue #8)** — aba `MAP`/`MAPA` no `PreviewTabs`, que SÓ existe quando
   `detectGeo(source)` (`geo_lon`/`geo_lat` ou `<Rótulo>_lon`/`_lat` atribuídos no início de
   statement) e ABRE SOZINHA quando o documento é trocado (`docEpoch` do `EditorPage`: exemplo,
-  link `#pic=`, diagrama salvo) ou no 1º render — nunca ao digitar. Web npm em **0.15.0** (a API
+  link `#pic=`, diagrama salvo) ou no 1º render — nunca ao digitar. Web npm em **0.16.0** (a API
   Rust segue na tag v0.11.0 — bump separado). **O build geo roda num WEB WORKER**
   (`lib/geo.worker.ts` + `geo.ts` + `geoProtocol.ts` + `geoClient.ts`, hook `useGeo`): o pacote
   guarda UM wasm por instância de módulo e o 1º `ready()` fixa lean/math/geo — a thread principal
@@ -292,6 +292,15 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   `@strategicprojects/rpic/maplibre` + `maplibre-gl` 6) é import DINÂMICO e tem chunk próprio
   (`manualChunks` → `maplibre`; sem isso ele e o CSS iam p/ o `vendor` da carga inicial).
   `fitTo` no 1º desenho, na troca de documento e na troca de frame; ao reaparecer, `resize()`.
+  Controle **rótulos** (`map-text-scale`, presets `MAP_TEXT_SCALES` 1/1.25/1.5/2 em `storage.ts`,
+  persistido em `rpic:settings.v1` → `mapTextScale`, sincronizado com a conta) vira
+  `compileGeoJSON(src, { layers: { textScale } })` no worker; entra no `geoKey` → recompila e
+  `setGeoJSON` (o pacote atualiza o `text-size` das camadas existentes), mas NÃO reenquadra.
+  `geomap.ts` passa `before: 'labels'`: as camadas de GEOMETRIA (`pic-fill`/`pic-stroke`/
+  `pic-stroke-dashed`/`pic-dot`) entram antes da 1ª camada `symbol` do basemap; `pic-text`/
+  `pic-title` ficam no topo. Clique numa forma → `Popup` com `title` (ESCAPADO — fonte do usuário)
+  + `geopic:kind · geopic:id`, cursor pointer no hover (cola igual à do rpic.dev). Teste da ordem
+  das camadas e do popup: `geomap.test.ts` (maplibre-gl FALSO via `vi.mock`).
   Testes: `geo.test.ts` (wasm geo real, ARQUIVO separado) e `mapPane.test.tsx` (worker inline +
   mapa falso; jsdom não tem WebGL). Exemplos com tag `maps` (fontes de rpic-lang `examples/geo`).
 
