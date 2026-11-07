@@ -9,6 +9,9 @@
 import * as dune from "@strategicprojects/dune-sim";
 import type {
   Diagnostic as SimDiagnostic,
+  EngineOptions,
+  Measurement,
+  OverlayPin,
   OverlayMap,
   PicExtraction,
   PicSimOptions,
@@ -48,6 +51,11 @@ export interface SimSession {
   param(refdes: string, param?: string): number | Float64Array | null;
   alterable(refdes: string): string[];
   runTyped(): TypedRawfile;
+  /** Opções de engine da sessão (`trtol`, `method`…); `null` = as do deck.
+   *  Valem a partir do próximo run, sem reabrir. */
+  options: EngineOptions | null | undefined;
+  /** Divide o TMAX efetivo de todo `.tran` (número ≥ 1); `null` = sem divisor. */
+  tmaxDivisor: number | null | undefined;
   readonly pic: PicExtraction | undefined;
   free(): void;
 }
@@ -78,4 +86,4 @@ export function renderPic(source: string): string {
 export type PicRun = TypedPicRun;
 export type Plot = TypedPlot;
 
-export type { OverlayMap, PicExtraction, PicSimOptions, SimDiagnostic, SimError };
+export type { EngineOptions, Measurement, OverlayMap, OverlayPin, PicExtraction, PicSimOptions, SimDiagnostic, SimError };

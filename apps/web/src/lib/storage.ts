@@ -11,6 +11,8 @@ export interface Settings {
   layout: "horizontal" | "vertical";
   /** painel Mapa: fator dos rótulos (`textScale`), um de `MAP_TEXT_SCALES` */
   mapTextScale?: number;
+  /** painel Simular: modo "passos finos" (`trtol = 1` + TMAX ÷ 10) */
+  simFineSteps?: boolean;
 }
 
 /** Presets do controle "rótulos" do painel Mapa. */
@@ -20,6 +22,11 @@ export const MAP_TEXT_SCALES = [1, 1.25, 1.5, 2] as const;
 export function loadMapTextScale(): number {
   const v = loadSettings().mapTextScale;
   return (MAP_TEXT_SCALES as readonly number[]).includes(v as number) ? (v as number) : 1;
+}
+
+/** O modo "passos finos" do painel Simular salvo (só `true` liga). */
+export function loadSimFineSteps(): boolean {
+  return loadSettings().simFineSteps === true;
 }
 
 /** Aparência do papel e da fonte do diagrama (não altera a geometria). */

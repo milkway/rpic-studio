@@ -235,6 +235,8 @@ const en = {
   "sim.play": "Play the time cursor",
   "sim.pause": "Pause",
   "sim.clearCursor": "Hide the time cursor",
+  "sim.fine": "fine steps",
+  "sim.fineTip": "Fine steps: more integration points (trtol = 1, TMAX ÷ 10); does not change the deck",
 
   // editor
   "editor.draft": "draft",
@@ -605,6 +607,8 @@ const pt: Record<MessageKey, string> = {
   "sim.play": "Animar o cursor de tempo",
   "sim.pause": "Pausar",
   "sim.clearCursor": "Esconder o cursor de tempo",
+  "sim.fine": "passos finos",
+  "sim.fineTip": "Passos finos: mais pontos de integração (trtol = 1, TMAX ÷ 10); não altera o deck",
 
   "editor.draft": "rascunho",
   "editor.examples": "Exemplos",
