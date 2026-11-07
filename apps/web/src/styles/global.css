@@ -224,6 +224,40 @@ body {
     pointer-events: all;
   }
 }
+/* Sliders: caixa de acerto de cada elemento ajustável (atrás de tudo — clone
+   de rede por cima vence). Hover/foco/aberto mostram a caixa em acento. */
+.sim-figure.probe-on .sim-hit-el {
+  fill: transparent;
+  stroke: none;
+  pointer-events: all;
+  cursor: pointer;
+  outline: none;
+}
+.sim-figure.probe-on .sim-hit-el:hover,
+.sim-figure.probe-on .sim-hit-el:focus-visible,
+.sim-figure.probe-on .sim-hit-el[aria-expanded="true"] {
+  fill: color-mix(in srgb, var(--color-accent) 9%, transparent);
+  stroke: var(--color-accent);
+  stroke-width: 1px;
+  stroke-dasharray: 3 2;
+  vector-effect: non-scaling-stroke;
+}
+.sim-figure.probe-on .sim-hit-el:focus-visible {
+  stroke-width: 2px;
+  stroke-dasharray: none;
+}
+/* Elemento com valor ALTERADO pelo slider: rótulo reescrito em itálico e
+   traço na cor de destaque. Antes do .sim-hl: o realce do hover vence. */
+.sim-figure .sim-altered text {
+  fill: var(--color-accent);
+  font-style: italic;
+  font-weight: 600;
+}
+.sim-figure .sim-altered :is(path, line, polyline, polygon, circle, ellipse, rect) {
+  stroke: var(--color-accent);
+  stroke-width: 1.75px;
+  vector-effect: non-scaling-stroke;
+}
 .sim-figure .sim-hl :is(path, line, polyline, polygon, circle, ellipse, rect) {
   stroke: var(--color-sim-highlight);
   stroke-width: 2.25px;

@@ -246,14 +246,21 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
 
 - **Painel Simular (dune, fase 6 do projeto dune)** — aba `SIMULATE`/`SIM` no `PreviewTabs`
   (`components/simulate/`). Simula figuras marcadas `spice = 1` (`detectSpice` em `detect.ts`)
-  com o `@strategicprojects/dune-sim` **^0.2.0 do npm**. O wasm roda SÓ num **Web Worker
+  com o `@strategicprojects/dune-sim` **^0.3.0 do npm**. O wasm roda SÓ num **Web Worker
   terminável** (`lib/dune.worker.ts`; Cancelar = `terminate()`, o wasm não se interrompe):
   `lib/dune.ts` (`ensureDune()` à la `ensureRpic`, `.wasm` `?url`, `worker.format: "es"`) é
-  importado só pelo worker → o wasm (~2 MB) só baixa no 1º Run. Protocolo puro em
-  `simProtocol.ts` (`handleSimRequest`, erros serializados — `Error` perde `kind`/`diagnostics`
-  no postMessage), cliente em `simClient.ts` (um worker vivo; run novo cancela o anterior;
-  fábrica injetável nos testes), estado em `useSimulation`. **Colunas TIPADAS**: o worker usa
-  `simulatePicTyped` (colunas `Float64Array`; complexo = re,im intercalados, NaN/±inf = ponto
+  importado só pelo worker → o wasm (~2 MB) só baixa no 1º Run. A simulação vive numa
+  **`Session` do dune-sim DENTRO do worker** (`SimHost` em `simProtocol.ts`): 1º pedido de um
+  fonte abre a sessão (`Session.fromPic` + `renderPic` + `controls`); os seguintes do MESMO
+  fonte só `alter` + `runTyped` (~1 ms; sem figura/controles na resposta — o hook mantém os
+  da sessão); fonte novo = sessão nova; Cancelar mata worker+sessão e o próximo pedido reabre.
+  O pedido leva o conjunto COMPLETO `alters` (idempotente: quem saiu volta ao original).
+  Erros serializados — `Error` perde `kind`/`diagnostics` no postMessage. Cliente em
+  `simClient.ts`: `run()` (Simular) cancela o anterior; `rerun()` (slider) NUNCA mata o worker
+  — fila de UM lugar, o mais novo vence (`SimSuperseded`). Estado em `useSimulation`
+  (`setAlters(alters, commit)`: arrasto limitado a 1 re-run/40 ms, commit sai na hora; `epoch`
+  só conta execuções NOVAS — plot/probes/cursor sobrevivem ao slider). **Colunas TIPADAS**: o
+  worker usa `runTyped` (colunas `Float64Array`; complexo = re,im intercalados, NaN/±inf = ponto
   ausente) e TRANSFERE os buffers no `postMessage` (`transferablesOf`, sem repetir buffer —
   repetido é `DataCloneError`); `waveform.ts` consome `Float64Array` direto (`finiteRange` em
   laço — `Math.min(...arr)` estoura a pilha com milhões de pontos). **Figura**: o worker a
@@ -276,7 +283,16 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   pts/traço), ticks SI, crosshair+tooltip, até 8 traços (7–8 = cores 1–2 tracejadas) + "(+N)".
   **Scrubber do `.tran`** (`TimeScrubber`, só escala em segundos): play varre em 4 s (com
   `prefers-reduced-motion`, 10 passos discretos), cursor sólido + marcas na cor de cada traço +
-  `= valor` na legenda. Cores `--color-trace-1..6` (validadas p/ CVD) num `@theme static` —
+  `= valor` na legenda. **Sliders** (`ElementSlider` + `lib/simValues.ts`): elemento com
+  `alterable()` não vazio e valor principal finito ≠ 0 (`param(refdes)`; fonte só com PULSE fica
+  de fora) ganha caixa de acerto `.sim-hit-el` (1º filho do pai das formas — clone de REDE por
+  cima vence: rede plota, elemento ajusta; `role=button`, Enter abre). Slider LOG ÷100…×100 em
+  torno do valor do fonte (12 passos/década ≈ E12; setas = passo, PgUp/PgDn = década, Home =
+  original), campo em notação SPICE (`M` = mili, `meg`), reset; ancorado sob o elemento no
+  desktop, bottom sheet `<sm`. Alterado = `.sim-altered` (rótulo desenhado reescrito em itálico
+  via `relabel` — UM texto por elemento, 1ª forma = rótulo de valor; `1kΩ`/`10 k` casam; sem
+  texto que case, ex. TeX, o valor novo é sobreposto (`.sim-relabel`) — traço em acento) + chip "N alterados" (lista, desfazer um/tudo). O wasm 0.3.0
+  NÃO devolve `.measure` no run (Rawfile = plots/notes/diagnostics) — painel de medidas pendente. Cores `--color-trace-1..6` (validadas p/ CVD) num `@theme static` —
   PEGADINHA: variável de `@theme` sem utility que a use é PODADA pelo Tailwind v4;
   `stroke="var(…)"` em atributo SVG não conta. `.op`/`.tf` viram tabela.
 
