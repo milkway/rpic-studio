@@ -208,32 +208,63 @@ export class SimHost {
   }
 
   /** Adota o fonte reescrito (ver `SimAdopt`): os valores escritos viram os
-   *  originais (e ficam aplicados na sessão), figura e netlist do texto novo. */
+   *  originais (e ficam aplicados na sessão), figura e netlist do texto novo.
+   *  TRANSACIONAL: calcula o estado novo à parte e só o troca no fim; se um
+   *  `alter` falha, desfaz na sessão os já feitos e lança — `live` intacto. */
   private adoptSource(
     source: string,
     originals: Readonly<Record<string, number>>,
   ): { figure: SimFigureResult; controls: SimControl[] } {
     const live = this.live!;
+    const nextOriginals = new Map(live.originals);
+    const nextApplied = new Map(live.applied);
+    // valor que a sessão tem AGORA (p/ desfazer) e o que deve passar a ter
+    const steps: { refdes: string; before: number; after: number }[] = [];
     for (const [refdes, value] of Object.entries(originals)) {
-      if (!live.originals.has(refdes)) continue;
-      if (live.applied.get(refdes) !== value) alterOne(live, refdes, value);
-      live.applied.delete(refdes);
-      live.originals.set(refdes, value);
+      const orig = live.originals.get(refdes);
+      if (orig === undefined) continue;
+      const now = live.applied.get(refdes) ?? orig;
+      if (now !== value) steps.push({ refdes, before: now, after: value });
+      nextApplied.delete(refdes);
+      nextOriginals.set(refdes, value);
     }
-    live.controls = live.controls.map((c) =>
-      Object.hasOwn(originals, c.refdes) ? { ...c, value: originals[c.refdes] } : c,
-    );
-    live.source = source;
+    const done: typeof steps = [];
+    try {
+      for (const st of steps) {
+        alterOne(live, st.refdes, st.after);
+        done.push(st);
+      }
+    } catch (e) {
+      for (const st of done.reverse()) {
+        try {
+          alterOne(live, st.refdes, st.before);
+        } catch {
+          // melhor esforço: o próximo pedido reaplica o conjunto completo
+        }
+      }
+      throw e;
+    }
+    let pic = live.pic;
     if (this.api.extractPic) {
       try {
-        const pic = this.api.extractPic(source);
         // o mapa (ids sN) não muda com um valor — só o netlist
-        live.pic = { ...pic, map: live.pic.map };
+        pic = { ...this.api.extractPic(source), map: live.pic.map };
       } catch {
         // fica o netlist anterior
       }
     }
-    return { figure: renderFigure(this.api, source), controls: live.controls };
+    const controls = live.controls.map((c) =>
+      Object.hasOwn(originals, c.refdes) ? { ...c, value: originals[c.refdes] } : c,
+    );
+    const figure = renderFigure(this.api, source);
+    Object.assign(live, {
+      source,
+      pic,
+      controls,
+      originals: nextOriginals,
+      applied: nextApplied,
+    });
+    return { figure, controls };
   }
 
   async handle(req: SimRequest): Promise<SimResponse> {

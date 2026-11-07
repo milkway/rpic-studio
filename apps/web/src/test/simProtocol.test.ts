@@ -53,13 +53,17 @@ describe("sessionControls: nome do parâmetro principal", () => {
 });
 
 describe("SimHost: parâmetro do controle e adoção do fonte reescrito", () => {
-  function recordingSession(calls: unknown[][]): SimSession {
+  function recordingSession(
+    calls: unknown[][],
+    failOn: (args: unknown[]) => boolean = () => false,
+  ): SimSession {
     const values: Record<string, Record<string, number>> = {
       V1: { dc: 0, acmag: 1 },
       R1: { resistance: 1000 },
     };
     return {
       alter: (...args: unknown[]) => {
+        if (failOn(args)) throw Object.assign(new Error("refused"), { kind: "alter" });
         calls.push(args);
       },
       alterable: (r) => Object.keys(values[r]),
@@ -131,5 +135,39 @@ describe("SimHost: parâmetro do controle e adoção do fonte reescrito", () => 
     });
     expect(other.fresh).toBe(true);
     expect(renders).toEqual(["A", "B", "C"]);
+  });
+
+  it("adoção que falha no meio é transacional: desfaz os alters feitos e não troca o fonte", async () => {
+    const calls: unknown[][] = [];
+    const host = new SimHost({
+      ensure: async () => undefined,
+      // V1 = 3 é recusado
+      openSession: () => recordingSession(calls, (a) => a[0] === "V1" && a[2] === 3),
+      renderPic: (src) => `<svg>${src}</svg>`,
+    });
+    await host.handle({ type: "run", id: 1, source: "A" });
+    calls.length = 0;
+    const bad = await host.handle({
+      type: "run",
+      id: 2,
+      source: "B",
+      adopt: { from: "A", originals: { R1: 2200, V1: 3 } },
+    });
+    expect(bad.type).toBe("error");
+    expect(bad.type === "error" && bad.error.kind).toBe("alter");
+    // R1 foi a 2200 e VOLTOU a 1000; nada de V1
+    expect(calls).toEqual([
+      ["R1", "resistance", 2200],
+      ["R1", "resistance", 1000],
+    ]);
+    // a sessão segue sendo a de "A", com os originais da abertura
+    calls.length = 0;
+    const again = await host.handle({ type: "run", id: 3, source: "A", alters: { R1: 5 } });
+    expect(again.fresh).toBe(false);
+    await host.handle({ type: "run", id: 4, source: "A", alters: {} });
+    expect(calls).toEqual([
+      ["R1", "resistance", 5],
+      ["R1", "resistance", 1000],
+    ]);
   });
 });
