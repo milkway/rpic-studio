@@ -328,20 +328,111 @@ test("slider: clicar no resistor abre o slider ancorado; arrastar muda o gráfic
   await expect.poll(() => traceDs(page)).not.toBe(mid);
   // mesma sessão: nada de wasm novo
   expect(duneRequests.length).toBe(loads);
-
-  // badge: rótulo da figura reescrito em itálico + chip
-  const label = page.locator('[data-testid="sim-figure"] .sim-altered text').first();
-  await expect(label).not.toHaveText("1k");
-  await expect(label).toHaveCSS("font-style", "italic");
-  await expect(page.getByTestId("sim-altered-chip")).toContainText("1 altered");
   await page.screenshot({ path: info.outputPath("simulate-slider.png") });
 });
 
-test("slider: teclado (setas/Home), reset e reset-all voltam o gráfico original", async ({
+/** O texto do editor (CodeMirror), linha a linha. */
+const editorLine = (page: Page, prefix: string) =>
+  page
+    .locator('[data-testid="code-pane"] .cm-line')
+    .evaluateAll(
+      (els, p) => els.map((e) => e.textContent ?? "").find((l) => l.startsWith(p)) ?? null,
+      prefix,
+    );
+
+test("slider: soltar escreve o valor no código; o gráfico segue e o elemento não fica alterado (#22)", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWith(page, RC, "light");
+  await runRC(page);
+  const r1 = await elementPoint(page, "R1");
+  await page.mouse.click(r1.x, r1.y);
+  const input = page.getByTestId("sim-slider-input");
+  await expect(input).toHaveValue("1k");
+
+  // arrastando: só a simulação muda (alterado), o código não
+  const before = await traceDs(page);
+  const range = page.getByTestId("sim-slider-range");
+  const rb = (await range.boundingBox())!;
+  await page.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(rb.x + rb.width * 0.8, rb.y + rb.height / 2, { steps: 8 });
+  await expect.poll(() => traceDs(page)).not.toBe(before);
+  await expect(page.getByTestId("sim-altered-chip")).toContainText("1 altered");
+  expect(await editorLine(page, "R1:")).toBe("R1: resistor(Vin, Vout, 1k)");
+
+  // soltar: o código segue o slider; sem chip/itálico, sem "código mudou"
+  await page.mouse.up();
+  const value = await input.inputValue();
+  expect(value).not.toBe("1k");
+  await expect.poll(() => editorLine(page, "R1:")).toBe(`R1: resistor(Vin, Vout, ${value})`);
+  await expect(page.getByTestId("sim-writeback")).toHaveAttribute("data-ok", "1");
+  await expect(page.getByTestId("sim-altered-chip")).toHaveCount(0);
+  await expect(page.getByTestId("sim-stale")).toHaveCount(0);
+  await expect(page.getByTestId("sim-slider-reset")).toBeDisabled();
+  const fig = page.getByTestId("sim-figure");
+  await expect(fig.locator(".sim-altered")).toHaveCount(0);
+  await expect(fig.locator("text", { hasText: new RegExp(`^${value}$`) })).toHaveCount(1);
+  await expect(page.getByTestId("sim-netlist-code")).toContainText(`R1 Vin Vout ${value}`);
+  const written = await traceDs(page);
+  expect(written).not.toBe(before);
+
+  // o gráfico é o de uma execução FRESCA do código novo
+  await page.getByTestId("sim-run").click();
+  await expect(page.getByTestId("sim-status")).toHaveAttribute("data-rerun", "0");
+  await expect.poll(() => traceDs(page)).toBe(written);
+  await page.screenshot({ path: info.outputPath("simulate-writeback.png") });
+
+  // o undo do editor reverte a escrita (e a simulação fica marcada como velha)
+  await page.locator('[data-testid="code-pane"] .cm-content').click();
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(() => editorLine(page, "R1:")).toBe("R1: resistor(Vin, Vout, 1k)");
+  await expect(page.getByTestId("sim-stale")).toBeVisible();
+  await page.getByTestId("sim-run").click();
+  await expect.poll(() => traceDs(page)).toBe(before);
+});
+
+test("slider de fonte sob .ac move acmag: o Bode muda e o código ganha AC x (#22)", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  await openWith(page, RC, "dark");
+  await openWith(page, RLC_FIGURE, "light");
+  await page.getByRole("tab", { name: /Simulate|SIM/ }).click();
+  await page.getByTestId("sim-run").click();
+  await expect(page.getByTestId("sim-status")).toHaveAttribute("data-state", "done", {
+    timeout: 20_000,
+  });
+  // o gráfico se re-escala sozinho: a forma do Bode não muda com a magnitude,
+  // os TICKS do eixo y (texto do gráfico) sim
+  const ticks = () =>
+    page.getByTestId("sim-chart-svg").evaluateAll((els) => els.map((e) => e.textContent).join("|"));
+  const before = await ticks();
+  const v1 = await elementPoint(page, "V1");
+  await page.mouse.click(v1.x, v1.y);
+  const slider = page.getByTestId("sim-slider");
+  await expect(slider).toHaveAttribute("data-refdes", "V1");
+  await expect(slider).toContainText("acmag");
+  await expect(page.getByTestId("sim-slider-keyword")).toHaveText("AC");
+  const input = page.getByTestId("sim-slider-input");
+  await expect(input).toHaveValue("1");
+  await input.fill("10");
+  await input.press("Enter");
+  await expect.poll(ticks).not.toBe(before);
+  await expect.poll(() => editorLine(page, "V1:")).toBe("V1: vsource(In, (0,0), AC 10)");
+  await expect(page.getByTestId("sim-altered-chip")).toHaveCount(0);
+});
+
+test("slider: teclado escreve no fim do passo; valor não-literal fica alterado e reset/reset-all voltam", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  // R1 com expressão SPICE `{1000}`: não é número literal → sem escrita de volta
+  await openWith(
+    page,
+    RC.replace("R1: resistor(Vin, Vout, 1k)", "R1: resistor(Vin, Vout, {1000})"),
+    "dark",
+  );
   await runRC(page);
   const original = await traceDs(page);
 
@@ -353,29 +444,35 @@ test("slider: teclado (setas/Home), reset e reset-all voltam o gráfico original
   await page.keyboard.press("ArrowRight");
   await expect(page.getByTestId("sim-slider-input")).toHaveValue("1.21u");
   await expect.poll(() => traceDs(page)).not.toBe(original);
-  await page.keyboard.press("Home");
-  await expect(page.getByTestId("sim-slider-input")).toHaveValue("1u");
-  await expect.poll(() => traceDs(page)).toBe(original); // sessão = execução fresca
-  await page.keyboard.press("PageUp");
-  await expect(page.getByTestId("sim-slider-input")).toHaveValue("10u");
-  await page.getByTestId("sim-slider-reset").click();
-  await expect(page.getByTestId("sim-slider-input")).toHaveValue("1u");
+  // o passo terminou (tecla solta): escrito, não alterado
+  await expect.poll(() => editorLine(page, "C1:")).toBe("C1: capacitor(Vout, (2.5,0), 1.21u)");
+  await expect(page.getByTestId("sim-altered-chip")).toHaveCount(0);
+  await page.keyboard.press("ArrowLeft");
+  await expect.poll(() => editorLine(page, "C1:")).toBe("C1: capacitor(Vout, (2.5,0), 1u)");
   await expect.poll(() => traceDs(page)).toBe(original);
-
-  // dois elementos alterados (o campo aceita notação SPICE) → chip lista; reset all
-  await page.keyboard.press("PageDown");
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("sim-slider")).toHaveCount(0);
   await expect(page.locator('.sim-hit-el[data-el="C1"]')).toBeFocused();
+
+  // R1 não-literal: fica alterado (chip, itálico) e a linha de status explica
   const r1 = await elementPoint(page, "R1");
   await page.mouse.click(r1.x, r1.y);
   const input = page.getByTestId("sim-slider-input");
   await input.fill("4.7k");
   await input.press("Enter");
-  await expect(page.getByTestId("sim-altered-chip")).toContainText("2 altered");
+  await expect(page.getByTestId("sim-writeback")).toHaveAttribute("data-ok", "0");
+  await expect(page.getByTestId("sim-writeback")).toContainText("not a plain number");
+  expect(await editorLine(page, "R1:")).toBe("R1: resistor(Vin, Vout, {1000})");
+  await expect(page.getByTestId("sim-altered-chip")).toContainText("1 altered");
+  const label = page.locator('[data-testid="sim-figure"] .sim-altered text').first();
+  await expect(label).toHaveCSS("font-style", "italic");
+  await expect.poll(() => traceDs(page)).not.toBe(original);
+  await page.getByTestId("sim-slider-reset").click();
+  await expect(page.getByTestId("sim-altered-chip")).toHaveCount(0);
+  await expect.poll(() => traceDs(page)).toBe(original);
+  await page.getByTestId("sim-slider-range").press("PageUp");
   await page.getByTestId("sim-altered-chip").click();
   await expect(page.getByTestId("sim-altered-list")).toContainText("R1");
-  await expect(page.getByTestId("sim-altered-list")).toContainText("C1");
   await page.getByTestId("sim-reset-all").click();
   await expect(page.getByTestId("sim-altered-chip")).toHaveCount(0);
   await expect.poll(() => traceDs(page)).toBe(original);
@@ -463,7 +560,9 @@ test("fonte spice: elemento do prelude é inspecionável — duplo-clique pula p
     .toBe(String(r1Line));
 });
 
-test("sem `spice = 1` a mesma figura continua dando o erro do rpic (sem prelude)", async ({ page }) => {
+test("sem `spice = 1` a mesma figura continua dando o erro do rpic (sem prelude)", async ({
+  page,
+}) => {
   await openWith(page, RLC_FIGURE.replace("spice = 1\n", ""), "light", "vsource");
   await expect(page.getByTestId("compile-error")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "error");

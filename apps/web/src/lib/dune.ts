@@ -43,6 +43,8 @@ export function simulatePic(source: string, opts?: PicSimOptions): PicRun {
 /** O que o worker usa da `Session` do dune-sim (os testes injetam uma falsa). */
 export interface SimSession {
   alter(refdes: string, value: number): unknown;
+  /** Parâmetro nomeado (ngspice): `dc`, `acmag`, `resistance`… */
+  alter(refdes: string, param: string, value: number): unknown;
   param(refdes: string, param?: string): number | Float64Array | null;
   alterable(refdes: string): string[];
   runTyped(): TypedRawfile;
@@ -56,6 +58,11 @@ export interface SimSession {
  *  ou `parse`/`elaborate`…). Requer `ensureDune()`. Libere com `free()`. */
 export function openSession(source: string, opts?: PicSimOptions): SimSession {
   return dune.Session.fromPic(source, opts);
+}
+
+/** Só a extração (netlist + mapa), sem simular. Requer `ensureDune()`. */
+export function extractPic(source: string): PicExtraction {
+  return dune.extractPic(source);
 }
 
 /** SVG da figura compilada pelo rpic INTERNO do dune com o prelude — a MESMA

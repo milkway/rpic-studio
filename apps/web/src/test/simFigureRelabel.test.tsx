@@ -48,4 +48,12 @@ describe("SimFigure: rótulo do elemento alterado", () => {
     expect(over.closest(".sim-altered")).not.toBeNull();
     expect(fig.querySelectorAll("text")).toHaveLength(1); // só a sobreposição
   });
+
+  it("fonte sob .ac (`DC 1 AC 1`): o slider de acmag reescreve o número do AC, não o do DC", () => {
+    const fig = show(['<text x="1" y="1">DC 1 AC 1</text>'], {
+      refdes: "V1",
+      altered: { original: 1, value: 1.5, keyword: "AC" },
+    });
+    expect(fig.querySelector("text")?.textContent).toBe("DC 1 AC 1.5");
+  });
 });

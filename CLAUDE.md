@@ -291,7 +291,36 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   original), campo em notação SPICE (`M` = mili, `meg`), reset; ancorado sob o elemento no
   desktop, bottom sheet `<sm`. Alterado = `.sim-altered` (rótulo desenhado reescrito em itálico
   via `relabel` — UM texto por elemento, 1ª forma = rótulo de valor; `1kΩ`/`10 k` casam; sem
-  texto que case, ex. TeX, o valor novo é sobreposto (`.sim-relabel`) — traço em acento) + chip "N alterados" (lista, desfazer um/tudo). O wasm 0.3.0
+  texto que case, ex. TeX, o valor novo é sobreposto (`.sim-relabel`) — traço em acento) + chip "N alterados" (lista, desfazer um/tudo).
+  **Escrita de volta (issue #22)**: ao TERMINAR de mexer (soltar o ponteiro, Enter/blur no
+  campo, SOLTAR a tecla de passo — nunca no arrasto) o painel reescreve o argumento de valor da
+  chamada do elemento no fonte (`lib/simSource.ts`: `valueEdit` → `CodePane.applyEdit`, UMA
+  transação do CodeMirror — o undo reverte). Posição = cena do rpic 0.16 (`call.raw_args`, cols
+  em CODEPOINTS — o `span` do bloco conta BYTES, não use), lida no MESMO compile com prelude da
+  atribuição de objetos (`compileWithPrelude` → `bundle.calls` re-baseado → `useRpic().calls`
+  `{source, calls}`, só válidas p/ aquele texto; o painel ajusta as posições após escrever —
+  `shiftCalls` — até o preview recompilar). Qual argumento é o valor: tabela `VALUE_ARG` (macros
+  do prelude; PROVISÓRIA até o `OverlayMap` do dune trazer os spans do valor). Fontes: só o
+  sub-trecho do parâmetro (`DC x`/número nu inicial = dc, `AC x` = acmag; `SIN(…)` fica); grafia
+  `spiceLiteral` (3 algarismos, mais se preciso p/ voltar exato), cauda de unidade preservada SÓ
+  se não virar sufixo (`10mF`→`1`, nunca `1F` = femto; `rewriteNumber`). UMA gramática de número
+  SPICE e UMA tabela de sufixos (`SPICE_NUMBER`/`suffixOf` em `simValues.ts`). Soltar o ponteiro
+  sem ter movido não commita nem escreve; `applyEdit(edit, base)` devolve `false` se o editor
+  não tem o texto `base` → nada é adotado.
+  Confere o texto no span antes de trocar; sem posição confiável (macro fora da tabela, valor não
+  literal tipo `{1000}`/variável, fonte mudou, ou posições ainda não prontas — mensagem própria)
+  NÃO escreve e a linha `sim-writeback` diz por
+  quê — o elemento fica alterado como antes. Escrito = a sessão ADOTA o fonte novo
+  (`SimRequest.adopt` = CADEIA de passos `{from, to, originals}` não confirmados, mandada em todo
+  pedido; a resposta traz `liveSource` e o cliente corta a cadeia até ele — duas escritas
+  rápidas A→B→C seguem a sessão onde quer que ela esteja; adoção TRANSACIONAL, desfaz os alters
+  se um falha): sem reabrir (plot/probes/cursor ficam), o valor vira o original,
+  figura redesenhada e netlist re-extraído (`extractPic`); `from` que não bate = abertura normal.
+  O centro da escala do slider é o valor NA ABERTURA (senão o polegar salta ao soltar).
+  **`.ac` → `acmag`**: com `.ac` no netlist, fonte V/I com `AC x` vira slider de `acmag`
+  (cabeçalho mostra o parâmetro, campo com `AC`/`DC` à frente; o `relabel` da figura recebe a
+  palavra-chave e troca o número certo em `DC 1 AC 1`); o worker sempre usa
+  `alter(refdes, param, v)` com o parâmetro do controle (reset também). O wasm 0.3.0
   NÃO devolve `.measure` no run (Rawfile = plots/notes/diagnostics) — painel de medidas pendente. Cores `--color-trace-1..6` (validadas p/ CVD) num `@theme static` —
   PEGADINHA: variável de `@theme` sem utility que a use é PODADA pelo Tailwind v4;
   `stroke="var(…)"` em atributo SVG não conta. `.op`/`.tf` viram tabela.

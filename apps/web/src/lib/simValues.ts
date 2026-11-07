@@ -23,17 +23,18 @@ const SUFFIXES: [string, number][] = [
  *  após o sufixo — de qualquer alfabeto — são ignoradas, como no SPICE).
  *  Inválido → `null`. */
 export function parseSpiceNumber(text: string): number | null {
-  const m = /^\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)(\p{L}*)\s*$/iu.exec(
-    text.replace("−", "-"),
-  );
+  const m = new RegExp(`^\\s*(${SPICE_NUMBER})(\\p{L}*)\\s*$`, "iu").exec(text.replace("−", "-"));
   if (!m) return null;
   const base = Number(m[1]);
   if (!Number.isFinite(base)) return null;
-  const rest = m[2].toLowerCase();
-  if (!rest) return base;
-  for (const [sfx, scale] of SUFFIXES) if (rest.startsWith(sfx)) return base * scale;
-  return base; // unidade sem prefixo ("5V", "1ohm")
+  // sem sufixo: unidade sem prefixo ("5V", "1ohm")
+  return base * (suffixOf(m[2])?.scale ?? 1);
 }
+
+/** A gramática do número SPICE (mantissa + expoente, SEM sufixo) — a única do
+ *  Studio: `parseSpiceNumber`, os rótulos (`relabel`) e a escrita de volta
+ *  (`simSource.ts`) a compõem. Fonte de regex, para usar com as flags `iu`. */
+export const SPICE_NUMBER = String.raw`[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?`;
 
 /** Prefixo SI (do `formatSI`) → sufixo SPICE: `M` do SPICE é MILI. */
 const SPICE_OF_SI: Readonly<Record<string, string>> = { T: "t", G: "g", M: "meg", µ: "u" };
@@ -131,7 +132,7 @@ export function withAlter(
 
 /** Escala de um sufixo SPICE no início de `letters` (`k`, `meg`, `µ`…) e o
  *  comprimento dele; sem sufixo → `null`. */
-function suffixOf(letters: string): { scale: number; len: number } | null {
+export function suffixOf(letters: string): { scale: number; len: number } | null {
   const lower = letters.toLowerCase();
   for (const [sfx, scale] of SUFFIXES) if (lower.startsWith(sfx)) return { scale, len: sfx.length };
   return null;
@@ -140,17 +141,33 @@ function suffixOf(letters: string): { scale: number; len: number } | null {
 /** Número de um rótulo: delimitado por espaço/pontuação, com sufixo SPICE e
  *  cauda de unidade em QUALQUER alfabeto (`1kΩ`, `4.7µF`) e a forma com
  *  espaço (`10 k`, `10 kΩ`). */
-const LABEL_NUMBER =
-  /(^|[\s(),=${}\\])([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)( ?)(\p{L}*)(?=$|[\s(),=${}\\/])/giu;
+const LABEL_NUMBER = new RegExp(
+  String.raw`(^|[\s(),=$\{\}\\])(${SPICE_NUMBER})( ?)(\p{L}*)(?=$|[\s(),=$\{\}\\/])`,
+  "giu",
+);
 
 /** Rótulo da figura com o valor novo: troca o 1º número que vale o original
  *  (`DC 10 AC 1` → `DC 22 AC 1`, `1kΩ` → `2.2kΩ`, `10 k` → `22 k`),
- *  preservando a cauda de unidade e o espaço. Sem número que case → `null`. */
-export function relabel(text: string, original: number, value: number): string | null {
+ *  preservando a cauda de unidade e o espaço. Sem número que case → `null`.
+ *  `keyword` (fonte: `AC` sob `acmag`, `DC` sob `dc`) restringe ao número
+ *  logo após a palavra-chave — com `DC 1 AC 1` o slider de `acmag` não pode
+ *  mexer no `1` do DC; `DC` também aceita o número nu inicial (`5`). */
+export function relabel(
+  text: string,
+  original: number,
+  value: number,
+  keyword: string | null = null,
+): string | null {
   const close = (v: number) => Math.abs(v - original) <= Math.abs(original) * 1e-9;
   const [, newNum, newSfx] = /^(.*?)([a-z]*)$/.exec(formatSpice(value))!;
+  const afterKeyword = keyword ? new RegExp(String.raw`(^|\s)${keyword}\s*=?\s*$`, "i") : null;
   for (const m of text.matchAll(LABEL_NUMBER)) {
     const [, lead, num, space, letters] = m;
+    if (afterKeyword) {
+      const before = text.slice(0, m.index + lead.length);
+      const bare = /^dc$/i.test(keyword!) && before.trim() === "";
+      if (!bare && !afterKeyword.test(before)) continue;
+    }
     const base = Number(num);
     if (!Number.isFinite(base)) continue;
     const sfx = suffixOf(letters);

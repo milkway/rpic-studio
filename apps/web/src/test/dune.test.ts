@@ -184,10 +184,12 @@ describe("SimHost: a Session viva no worker (sliders)", () => {
     expect(ok.type).toBe("ok");
     const other = await host.handle({ type: "run", id: 4, source: DIVIDER_FIGURE });
     expect(other.fresh).toBe(true);
-    // fonte DC: o V1 do divisor (DC 10) é ajustável, em volts
+    // fonte do divisor (`DC 10 AC 1`) é ajustável, em volts; o deck tem `.ac`,
+    // então o slider move a magnitude AC (issue #22) — sob `.tran`/`.op` só,
+    // seria o `dc` (simSource.test.ts)
     expect(other.controls?.find((c) => c.refdes === "V1")).toMatchObject({
-      param: "dc",
-      value: 10,
+      param: "acmag",
+      value: 1,
       unit: "V",
     });
     host.dispose();

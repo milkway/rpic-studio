@@ -84,6 +84,17 @@ describe("escala log do slider", () => {
     expect(relabel("PULSE(0 5 0 1u)", 3, 4)).toBeNull();
   });
 
+  it("relabel com a palavra-chave da fonte: só o sub-trecho do parâmetro (DC 1 AC 1)", () => {
+    // sem palavra-chave o 1º `1` (o do DC) seria o trocado
+    expect(relabel("DC 1 AC 1", 1, 1.5)).toBe("DC 1.5 AC 1");
+    expect(relabel("DC 1 AC 1", 1, 1.5, "AC")).toBe("DC 1 AC 1.5");
+    expect(relabel("DC 1 AC 1", 1, 2, "DC")).toBe("DC 2 AC 1");
+    expect(relabel("AC 1 DC 1", 1, 2, "DC")).toBe("AC 1 DC 2");
+    // DC também é o número nu inicial; AC sem número que valha o original → null
+    expect(relabel("5", 5, 12, "DC")).toBe("12");
+    expect(relabel("DC 5", 1, 2, "AC")).toBeNull();
+  });
+
   it("relabel: cauda de unidade não-ASCII, forma com espaço, µ preservado", () => {
     expect(parseSpiceNumber("1kΩ")).toBe(1000);
     expect(relabel("1kΩ", 1000, 2200)).toBe("2.2kΩ");

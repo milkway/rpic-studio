@@ -21,7 +21,9 @@ export interface SliderElement {
   shapes: number[];
   /** Rótulo acessível do alvo (ex.: "Adjust R1 (1 kΩ)"). */
   label: string;
-  altered: { original: number; value: number } | null;
+  /** `keyword`: o sub-trecho da fonte que o slider move (`AC`/`DC`), p/ o
+   *  rótulo trocar o número certo. */
+  altered: { original: number; value: number; keyword?: string | null } | null;
 }
 
 interface SimFigureProps {
@@ -198,7 +200,7 @@ export function SimFigure({
   const hitKey = nets.map((n) => `${n.name}:${n.trace}:${n.shapes.join(",")}`).join("|");
   const elKey = elements.map((e) => `${e.refdes}:${e.shapes.join(",")}:${e.label}`).join("|");
   const alteredKey = elements
-    .map((e) => (e.altered ? `${e.refdes}=${e.altered.value}` : ""))
+    .map((e) => (e.altered ? `${e.refdes}=${e.altered.value}:${e.altered.keyword ?? ""}` : ""))
     .join("|");
 
   // Camada de ACERTO: um clone transparente de cada forma de rede, com traço
@@ -270,7 +272,7 @@ export function SimFigure({
     });
     for (const el of elements) {
       if (!el.altered) continue;
-      const { original, value } = el.altered;
+      const { original, value, keyword = null } = el.altered;
       const groups = el.shapes
         .map((id) => root.querySelector<SVGGraphicsElement>(`[id="s${id}"]`))
         .filter((g): g is SVGGraphicsElement => g !== null);
@@ -280,7 +282,7 @@ export function SimFigure({
         if (done) continue;
         for (const tx of g.querySelectorAll("text")) {
           const orig = tx.textContent ?? "";
-          const next = relabel(orig, original, value);
+          const next = relabel(orig, original, value, keyword);
           if (next === null) continue;
           tx.setAttribute("data-orig-text", orig);
           tx.textContent = next;

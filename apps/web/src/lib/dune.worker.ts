@@ -3,7 +3,7 @@
 // (botão Cancelar → `worker.terminate()`; ver lib/simClient.ts). A `Session`
 // do dune-sim mora aqui (`SimHost`): re-runs de slider não re-extraem nem
 // re-elaboram o circuito.
-import { ensureDune, openSession, renderPic } from "./dune";
+import { ensureDune, extractPic, openSession, renderPic } from "./dune";
 import { SimHost, transferablesOf, type SimRequest, type SimResponse } from "./simProtocol";
 
 // O tsconfig tipa com a lib DOM (não a de worker): só o que usamos do escopo.
@@ -12,7 +12,7 @@ const ctx = self as unknown as {
   postMessage(msg: SimResponse, transfer: Transferable[]): void;
 };
 
-const host = new SimHost({ ensure: () => ensureDune(), openSession, renderPic });
+const host = new SimHost({ ensure: () => ensureDune(), openSession, renderPic, extractPic });
 
 ctx.onmessage = async (e) => {
   if (e.data?.type !== "run") return;

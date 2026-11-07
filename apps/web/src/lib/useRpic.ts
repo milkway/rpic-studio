@@ -5,6 +5,7 @@ import { compileFigure, dunePreludeLoaded, loadDunePrelude } from "./dunePrelude
 import { solvePicMapping, type PicMapping } from "./picCoords";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useI18n } from "./i18n";
+import type { SourceCalls } from "./simSource";
 
 export interface RpicState {
   /** Último SVG compilado com sucesso (mantido durante erros). */
@@ -30,6 +31,10 @@ export interface RpicState {
   scroll: boolean;
   /** Alvos da diretiva `draggable` (0.10.0) — o preview liga o GSAP Draggable. */
   interactions: Interaction[];
+  /** Chamadas rotuladas de macro do fonte (só fontes `spice = 1`, do MESMO
+   *  compile com o prelude): onde os sliders do Simular escrevem o valor. As
+   *  posições valem só para `calls.source`. */
+  calls: SourceCalls | null;
   /** Mapeamento SVG→pic da ÚLTIMA compilação boa, resolvido SOB DEMANDA (faz um
    *  shadow compile com sondas na 1ª chamada por versão; depois é cache). */
   getPicMapping: () => PicMapping | null;
@@ -53,6 +58,7 @@ const INITIAL: Omit<RpicState, "getPicMapping"> = {
   objects: [],
   scroll: false,
   interactions: [],
+  calls: null,
 };
 
 /** Atraso extra antes de EXIBIR um erro ("lazy red"): sucesso aparece na hora,
@@ -181,6 +187,7 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
         objects: bundle.objects ?? [],
         scroll: bundle.scroll ?? false,
         interactions: bundle.interactions ?? [],
+        calls: bundle.calls ? { source: debounced, calls: bundle.calls } : null,
       }));
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);

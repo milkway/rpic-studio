@@ -23,14 +23,21 @@ import {
 } from "@/lib/simFigure";
 import { finiteRange, formatSI, hasScale, plotSeries } from "@/lib/waveform";
 import { withAlter, type SimControl } from "@/lib/simValues";
+import {
+  applySourceEdit,
+  valueEdit,
+  type SourceCalls,
+  type SourceEdit,
+  type WriteBackFailure,
+} from "@/lib/simSource";
 import { useSimulation } from "@/lib/useSimulation";
 import type { WorkerFactory } from "@/lib/simClient";
-import { useI18n } from "@/lib/i18n";
+import { useI18n, type MessageKey } from "@/lib/i18n";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/Popover";
 import { SimFigure, type ProbeNet, type SliderElement } from "./SimFigure";
-import { ElementSlider } from "./ElementSlider";
+import { ElementSlider, sourceKeyword } from "./ElementSlider";
 import { TimeScrubber } from "./TimeScrubber";
 import { groupByUnit, MAX_TRACES, traceStyle, WaveformChart } from "./WaveformChart";
 import { NetlistBlock, ScalarTable, SimDiagnostics } from "./SimResultParts";
@@ -42,6 +49,12 @@ interface SimulatePanelProps {
   active: boolean;
   tabs?: ReactNode;
   onJumpToLine?: (line: number, col?: number) => void;
+  /** Chamadas rotuladas do fonte (do compile do preview): onde o valor do
+   *  slider é escrito de volta. Só valem se `calls.source === source`. */
+  calls?: SourceCalls | null;
+  /** Escrita de volta: troca um trecho do fonte (o editor a aplica como UMA
+   *  edição desfazível). Ausente = slider só mexe na simulação. */
+  onSourceEdit?: (edit: SourceEdit, base: string) => boolean;
   /** Testes: worker falso. */
   workerFactory?: WorkerFactory;
 }
@@ -64,6 +77,8 @@ export function SimulatePanel({
   active,
   tabs,
   onJumpToLine,
+  calls = null,
+  onSourceEdit,
   workerFactory,
 }: SimulatePanelProps) {
   const { t } = useI18n();
@@ -83,6 +98,11 @@ export function SimulatePanel({
   const [hoverEl, setHoverEl] = useState<string | null>(null);
   const [anchor, setAnchor] = useState<{ left: number; top: number } | null>(null);
   const figWrapRef = useRef<HTMLDivElement>(null);
+  /** Resultado da última escrita de volta (linha de status sob a figura). */
+  const [writeNote, setWriteNote] = useState<{ ok: boolean; text: string } | null>(null);
+  /** Chamadas do fonte que ESTE painel acabou de reescrever (posições já
+   *  ajustadas): valem até o preview recompilar o texto novo (debounce). */
+  const ownCalls = useRef<SourceCalls | null>(null);
   const statusRef = useRef<HTMLSpanElement>(null);
   const toast = useToast();
 
@@ -165,7 +185,8 @@ export function SimulatePanel({
         refdes: c.refdes,
         shapes: elementShapes(map, c.refdes),
         label: t("sim.adjust", { refdes: c.refdes }),
-        altered: v === undefined ? null : { original: c.value, value: v },
+        altered:
+          v === undefined ? null : { original: c.value, value: v, keyword: sourceKeyword(c) },
       };
     });
   }, [map, controls, sim.alters, t]);
@@ -210,6 +231,56 @@ export function SimulatePanel({
 
   const setValue = (c: SimControl, value: number | null, commit: boolean) =>
     sim.setAlters(withAlter(sim.alters, c, value), commit);
+
+  const WB_REASON: Record<WriteBackFailure, MessageKey> = {
+    "no-call": "sim.wb.noCall",
+    "unknown-macro": "sim.wb.unknownMacro",
+    "not-literal": "sim.wb.notLiteral",
+    stale: "sim.wb.stale",
+    unavailable: "sim.wb.unavailable",
+  };
+  /** Escreve o valor solto no argumento de valor da chamada do elemento: o
+   *  fonte passa a dizer o que a sessão simula, então o elemento deixa de
+   *  estar alterado (a sessão ADOTA o texto novo, sem reabrir). Sem posição
+   *  confiável, nada é escrito e a linha de status diz por quê. */
+  const writeBack = (c: SimControl, value: number) => {
+    if (!onSourceEdit || value === c.value) return;
+    const fail = (reason: WriteBackFailure, macro?: string) =>
+      setWriteNote({
+        ok: false,
+        text: t("sim.notWritten", {
+          refdes: c.refdes,
+          reason: t(WB_REASON[reason], { refdes: c.refdes, macro: macro ?? "" }),
+        }),
+      });
+    const own = ownCalls.current;
+    const current =
+      own && own.source === source
+        ? own.calls
+        : calls && calls.source === source
+          ? calls.calls
+          : null;
+    // código mudou desde a execução ≠ posições ainda não prontas p/ este texto
+    // (debounce do preview, ou a última compilação falhou)
+    if (sim.source !== source) return fail("stale");
+    if (!current) return fail("unavailable");
+    const r = valueEdit(source, current, c.refdes, c.param, value);
+    if (!r.ok) return fail(r.reason, r.macro);
+    // o editor só aplica contra o texto em que a edição foi calculada; se não
+    // aplicou, a sessão NÃO adota um fonte que o editor nunca recebeu
+    if (!onSourceEdit(r.edit, source)) return fail("stale");
+    const next = applySourceEdit(source, r.edit);
+    ownCalls.current = { source: next, calls: r.calls };
+    sim.adopt(next, { [c.refdes]: value });
+    const keyword = sourceKeyword(c);
+    setWriteNote({
+      ok: true,
+      text: t("sim.writtenBack", {
+        refdes: c.refdes,
+        value: keyword ? `${keyword} ${r.written}` : r.written,
+      }),
+    });
+  };
   const closeSlider = () => {
     const refdes = selectedEl;
     setSelectedEl(null);
@@ -253,7 +324,10 @@ export function SimulatePanel({
   };
 
   const stale = sim.source !== null && sim.source !== source && !running;
-  const run = () => sim.start(source);
+  const run = () => {
+    setWriteNote(null);
+    sim.start(source);
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="simulate-panel">
@@ -316,7 +390,7 @@ export function SimulatePanel({
             onSelectElement={(refdes) => setSelectedEl((cur) => (cur === refdes ? null : refdes))}
             onHoverElement={setHoverEl}
           />
-          {(probeNets.length > 0 || controls.length > 0 || alteredList.length > 0) && (
+          {(probeNets.length > 0 || controls.length > 0 || alteredList.length > 0 || writeNote) && (
             <div className="mt-1.5 flex min-w-0 flex-wrap items-center justify-center gap-x-3 gap-y-1">
               {(probeNets.length > 0 || controls.length > 0) && (
                 <p
@@ -326,6 +400,19 @@ export function SimulatePanel({
                   {probeNets.length > 0 && t("sim.probeHint")}
                   {probeNets.length > 0 && controls.length > 0 && " · "}
                   {controls.length > 0 && t("sim.sliderHint")}
+                </p>
+              )}
+              {writeNote && (
+                <p
+                  role="status"
+                  className={cn(
+                    "min-w-0 text-center font-mono text-[10.5px]",
+                    writeNote.ok ? "text-(--color-success)" : "text-(--color-warning)",
+                  )}
+                  data-testid="sim-writeback"
+                  data-ok={writeNote.ok ? "1" : "0"}
+                >
+                  {writeNote.text}
                 </p>
               )}
               {alteredList.length > 0 && (
@@ -344,6 +431,7 @@ export function SimulatePanel({
               control={control}
               value={sim.alters[control.refdes] ?? control.value}
               onChange={(v, commit) => setValue(control, v, commit)}
+              onSettle={(v) => writeBack(control, v)}
               onReset={() => setValue(control, null, true)}
               onClose={closeSlider}
               anchor={anchor}
