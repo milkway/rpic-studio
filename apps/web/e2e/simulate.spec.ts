@@ -18,7 +18,12 @@ dot at Vin; dot at Vout
 .PE
 `;
 
-async function openWith(page: Page, source: string, theme: "light" | "dark") {
+async function openWith(
+  page: Page,
+  source: string,
+  theme: "light" | "dark",
+  loadedMark = "spice = 1",
+) {
   await page.goto("/");
   await page.evaluate(
     ([src, th]) => {
@@ -33,7 +38,7 @@ async function openWith(page: Page, source: string, theme: "light" | "dark") {
     [source, theme] as const,
   );
   await page.reload();
-  await expect(page.locator('[data-testid="code-pane"] .cm-content')).toContainText("spice = 1");
+  await expect(page.locator('[data-testid="code-pane"] .cm-content')).toContainText(loadedMark);
 }
 
 for (const theme of ["light", "dark"] as const) {
@@ -459,18 +464,7 @@ test("fonte spice: elemento do prelude é inspecionável — duplo-clique pula p
 });
 
 test("sem `spice = 1` a mesma figura continua dando o erro do rpic (sem prelude)", async ({ page }) => {
-  const unmarked = RLC_FIGURE.replace("spice = 1\n", "");
-  await page.goto("/");
-  await page.evaluate((src) => {
-    localStorage.clear();
-    localStorage.setItem(
-      "rpic:draft.v1",
-      JSON.stringify({ source: src, circuits: true, savedAt: new Date().toISOString() }),
-    );
-    localStorage.setItem("rpic:locale.v1", "en");
-  }, unmarked);
-  await page.reload();
-  await expect(page.locator('[data-testid="code-pane"] .cm-content')).toContainText("vsource");
+  await openWith(page, RLC_FIGURE.replace("spice = 1\n", ""), "light", "vsource");
   await expect(page.getByTestId("compile-error")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "error");
 });
