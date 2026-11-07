@@ -282,4 +282,51 @@ describe("SimulatePanel", () => {
       expect(screen.getByTestId("sim-status")).toHaveAttribute("data-state", "cancelled"),
     );
   });
+
+  it("slider re-ancora quando o contêiner da figura muda de tamanho (ResizeObserver)", async () => {
+    const observers: { cb: ResizeObserverCallback; targets: Element[]; off: boolean }[] = [];
+    class FakeRO {
+      rec: { cb: ResizeObserverCallback; targets: Element[]; off: boolean };
+      constructor(cb: ResizeObserverCallback) {
+        this.rec = { cb, targets: [], off: false };
+        observers.push(this.rec);
+      }
+      observe(el: Element) {
+        this.rec.targets.push(el);
+      }
+      unobserve() {}
+      disconnect() {
+        this.rec.off = true;
+      }
+    }
+    vi.stubGlobal("ResizeObserver", FakeRO);
+    try {
+      render(<SimulatePanel source={RC_FIGURE} active workerFactory={() => new InlineWorker()} />);
+      fireEvent.click(screen.getByTestId("sim-run"));
+      const fig = await screen.findByTestId("sim-figure");
+      const pad = await waitFor(() => {
+        const p = fig.querySelector('.sim-hit-el[data-el="R1"]');
+        expect(p).not.toBeNull();
+        return p!;
+      });
+      fireEvent.click(pad);
+      const wrap = fig.parentElement!;
+      const live = observers.find((o) => !o.off && o.targets.includes(wrap));
+      expect(live).toBeDefined();
+      // o contêiner "cresce" (alça do split): o slider vai para baixo do elemento
+      const rect = (x: number, y: number, w: number, h: number) =>
+        ({ left: x, top: y, width: w, height: h, right: x + w, bottom: y + h }) as DOMRect;
+      wrap.getBoundingClientRect = () => rect(0, 0, 800, 300);
+      (pad as Element).getBoundingClientRect = () => rect(300, 50, 40, 20);
+      act(() => live!.cb([], live as unknown as ResizeObserver));
+      const slider = screen.getByTestId("sim-slider");
+      expect(slider.style.getPropertyValue("--sl-top")).toBe("76px");
+      expect(slider.style.getPropertyValue("--sl-left")).toBe("160px");
+      // fechar desconecta
+      fireEvent.click(screen.getByTestId("sim-slider-close"));
+      expect(live!.off).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

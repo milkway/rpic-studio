@@ -195,8 +195,18 @@ export function SimulatePanel({
   useEffect(() => {
     if (selectedEl === null) return;
     window.addEventListener("resize", placeSlider);
-    return () => window.removeEventListener("resize", placeSlider);
-  }, [selectedEl, placeSlider]);
+    // o contêiner da figura muda de tamanho sem `resize` da janela (alça do
+    // split, barra lateral recolhida): observa o próprio contêiner. jsdom não
+    // tem ResizeObserver.
+    const wrap = figWrapRef.current;
+    const ro =
+      wrap && typeof ResizeObserver !== "undefined" ? new ResizeObserver(placeSlider) : null;
+    if (wrap) ro?.observe(wrap);
+    return () => {
+      window.removeEventListener("resize", placeSlider);
+      ro?.disconnect();
+    };
+  }, [selectedEl, placeSlider, sim.figure, active]);
 
   const setValue = (c: SimControl, value: number | null, commit: boolean) =>
     sim.setAlters(withAlter(sim.alters, c, value), commit);
