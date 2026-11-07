@@ -54,7 +54,7 @@ interface SimulatePanelProps {
   calls?: SourceCalls | null;
   /** Escrita de volta: troca um trecho do fonte (o editor a aplica como UMA
    *  edição desfazível). Ausente = slider só mexe na simulação. */
-  onSourceEdit?: (edit: SourceEdit) => void;
+  onSourceEdit?: (edit: SourceEdit, base: string) => boolean;
   /** Testes: worker falso. */
   workerFactory?: WorkerFactory;
 }
@@ -261,9 +261,11 @@ export function SimulatePanel({
     if (sim.source !== source || !current) return fail("stale");
     const r = valueEdit(source, current, c.refdes, c.param, value);
     if (!r.ok) return fail(r.reason, r.macro);
+    // o editor só aplica contra o texto em que a edição foi calculada; se não
+    // aplicou, a sessão NÃO adota um fonte que o editor nunca recebeu
+    if (!onSourceEdit(r.edit, source)) return fail("stale");
     const next = applySourceEdit(source, r.edit);
     ownCalls.current = { source: next, calls: r.calls };
-    onSourceEdit(r.edit);
     sim.adopt(next, { [c.refdes]: value });
     const keyword = sourceKeyword(c);
     setWriteNote({

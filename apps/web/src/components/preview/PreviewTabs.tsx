@@ -55,7 +55,7 @@ interface PreviewTabsProps {
    *  escreve nelas o valor dos sliders. */
   simCalls?: SourceCalls | null;
   /** Escrita de volta do Simular: UMA edição desfazível no editor. */
-  onSourceEdit?: (edit: SourceEdit) => void;
+  onSourceEdit?: (edit: SourceEdit, base: string) => boolean;
   /** `animate scroll` no fonte — o PreviewPane troca autoplay por scrubber. */
   scroll?: boolean;
   /** Alvos da diretiva `draggable` (0.10.0) — o PreviewPane liga o Draggable. */

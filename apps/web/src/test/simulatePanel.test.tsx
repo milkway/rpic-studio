@@ -344,10 +344,13 @@ describe("SimulatePanel", () => {
       initial,
       edits,
       workers,
+      reject = false,
     }: {
       initial: string;
       edits: SourceEdit[];
       workers: InlineWorker[];
+      /** O "editor" recusa a edição (texto divergente/fora do documento). */
+      reject?: boolean;
     }) {
       const [source, setSource] = useState(initial);
       const calls = useMemo(
@@ -365,9 +368,11 @@ describe("SimulatePanel", () => {
             source={source}
             active
             calls={calls}
-            onSourceEdit={(e) => {
+            onSourceEdit={(e, base) => {
+              if (reject || base !== source) return false;
               edits.push(e);
               setSource((s) => applySourceEdit(s, e));
+              return true;
             }}
             workerFactory={() => {
               const w = new InlineWorker();
@@ -484,6 +489,20 @@ describe("SimulatePanel", () => {
       expect(note).toHaveAttribute("data-ok", "0");
       expect(note.textContent).toMatch(/R1.*not a plain number/);
       expect(screen.getByTestId("sim-altered-chip")).toBeInTheDocument();
+    });
+
+    it("editor que recusa a edição: a sessão não adota, fica alterado e diz que o código mudou", async () => {
+      const workers: InlineWorker[] = [];
+      render(<Harness initial={RC_FIGURE} edits={[]} workers={workers} reject />);
+      await openSlider("R1");
+      const range = screen.getByTestId("sim-slider-range") as HTMLInputElement;
+      fireEvent.change(range, { target: { value: range.max } });
+      fireEvent.pointerUp(range);
+      expect(srcLine("R1:")).toBe("R1: resistor(Vin, Vout, 1k)");
+      expect(screen.getByTestId("sim-writeback")).toHaveAttribute("data-ok", "0");
+      expect(screen.getByTestId("sim-altered-chip")).toBeInTheDocument();
+      await waitFor(() => expect(workers[0].sent.at(-1)).toMatchObject({ alters: { R1: 1e5 } }));
+      expect(workers[0].sent.some((m) => m.adopt)).toBe(false);
     });
 
     it("sob .ac a fonte ajusta acmag: cabeçalho, AC no campo e escrita só do sub-trecho", async () => {

@@ -292,9 +292,16 @@ export function EditorPage() {
   const setSource = useCallback((source: string) => setDoc((d) => ({ ...d, source })), []);
   // escrita de volta do Simular: pelo editor (UMA transação — o undo reverte);
   // sem editor montado, direto no documento
-  const editSource = useCallback((edit: SourceEdit) => {
-    if (codeRef.current) codeRef.current.applyEdit(edit);
-    else setDoc((d) => ({ ...d, source: applySourceEdit(d.source, edit) }));
+  // (devolve se aplicou: `base` tem de ser o texto atual)
+  const docSourceRef = useRef(doc.source);
+  docSourceRef.current = doc.source;
+  const editSource = useCallback((edit: SourceEdit, base: string): boolean => {
+    if (codeRef.current) return codeRef.current.applyEdit(edit, base);
+    if (docSourceRef.current !== base) return false;
+    const next = applySourceEdit(base, edit);
+    docSourceRef.current = next;
+    setDoc((d) => ({ ...d, source: next }));
+    return true;
   }, []);
 
   // Paleta de circuitos: garante `copy "circuits"` e insere o snippet do

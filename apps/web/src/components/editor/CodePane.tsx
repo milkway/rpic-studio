@@ -22,8 +22,10 @@ export interface CodePaneHandle {
   /** Move o cursor para a posição (1-based) e foca o editor. */
   focusAt: (line: number, col: number) => void;
   /** Troca um trecho do documento como UMA transação do histórico (o undo
-   *  do editor a reverte); offsets UTF-16. */
-  applyEdit: (edit: { from: number; to: number; insert: string }) => void;
+   *  do editor a reverte); offsets UTF-16. `base` = o texto contra o qual a
+   *  edição foi calculada: se o documento não é ele (ou o trecho cai fora),
+   *  NADA muda e devolve `false`. */
+  applyEdit: (edit: { from: number; to: number; insert: string }, base?: string) => boolean;
 }
 
 interface CodePaneProps {
@@ -72,12 +74,14 @@ export const CodePane = forwardRef<CodePaneHandle, CodePaneProps>(function CodeP
       view.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
       view.focus();
     },
-    applyEdit({ from, to, insert }) {
+    applyEdit({ from, to, insert }, base) {
       const view = viewRef.current;
-      if (!view) return;
+      if (!view) return false;
       const len = view.state.doc.length;
-      if (from < 0 || to > len || from > to) return;
+      if (from < 0 || to > len || from > to) return false;
+      if (base !== undefined && view.state.doc.toString() !== base) return false;
       view.dispatch({ changes: { from, to, insert }, userEvent: "input.simulate" });
+      return true;
     },
   }));
 
