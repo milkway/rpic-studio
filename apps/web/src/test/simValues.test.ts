@@ -51,6 +51,17 @@ describe("escala log do slider", () => {
     expect(valueAt(POS_MAX, -5)).toBe(-500);
   });
 
+  it("voltar ao centro devolve o original EXATO (mais de 3 algarismos)", () => {
+    expect(valueAt(POS_CENTER, 1234)).toBe(1234);
+    expect(valueAt(POS_CENTER + 0.4, 1234)).toBe(1234);
+    // ida e volta por teclado: um passo e de volta não deixa resto
+    const up = valueAt(POS_CENTER + KEY_STEP, 1234);
+    expect(up).toBe(1500);
+    expect(valueAt(posOf(up, 1234) - KEY_STEP, 1234)).toBe(1234);
+    const c = { refdes: "R1", param: "resistance", value: 1234, unit: "Ω" };
+    expect(withAlter({}, c, valueAt(POS_CENTER, 1234))).toEqual({});
+  });
+
   it("unidade pelo tipo do elemento", () => {
     expect(unitOf("R1")).toBe("Ω");
     expect(unitOf("c2")).toBe("F");

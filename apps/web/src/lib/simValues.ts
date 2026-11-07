@@ -73,9 +73,14 @@ export const POS_CENTER = DECADES * POS_PER_DECADE;
 /** Uma seta: 1/12 de década (≈ 21 %). PageUp/PageDown: uma década. */
 export const KEY_STEP = POS_PER_DECADE / 12;
 
-/** Valor da posição do slider (sinal do original; magnitude em log). */
+/** Valor da posição do slider (sinal do original; magnitude em log). O
+ *  CENTRO (e qualquer posição que arredonde ao mesmo valor) devolve o original
+ *  EXATO: com 3 algarismos, `1234` voltaria como `1230` e o elemento ficaria
+ *  "alterado" sem o usuário ter mudado nada. */
 export function valueAt(pos: number, original: number): number {
-  return roundSig(original * 10 ** ((pos - POS_CENTER) / POS_PER_DECADE));
+  if (Math.abs(pos - POS_CENTER) < 0.5) return original;
+  const v = roundSig(original * 10 ** ((pos - POS_CENTER) / POS_PER_DECADE));
+  return v === roundSig(original) ? original : v;
 }
 
 /** Posição do slider para um valor (fora da faixa → grudado na ponta). */
