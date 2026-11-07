@@ -61,10 +61,12 @@ export function createGeoMap(container: HTMLElement): GeoMapHandle {
         .setHTML(popupHtml(f.properties as Record<string, unknown>))
         .addTo(map);
     });
-    for (const id of CLICKABLE_LAYERS) {
-      map.on("mouseenter", id, () => (map.getCanvas().style.cursor = "pointer"));
-      map.on("mouseleave", id, () => (map.getCanvas().style.cursor = ""));
-    }
+    // UM par de ouvintes no ARRAY (como o `click`): com um por camada, passar
+    // do traço ao preenchimento disparava o `mouseleave` do traço DEPOIS do
+    // `mouseenter` do preenchimento e apagava o ponteiro — e eram 8 consultas
+    // por movimento do mouse
+    map.on("mouseenter", [...CLICKABLE_LAYERS], () => (map.getCanvas().style.cursor = "pointer"));
+    map.on("mouseleave", [...CLICKABLE_LAYERS], () => (map.getCanvas().style.cursor = ""));
   });
 
   return {

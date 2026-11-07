@@ -175,7 +175,12 @@ describe("geomap (MapLibre falso)", () => {
     expect(state.popups[1]!.html).toBe("<code>line</code> · <code>s2</code>");
 
     const enter = map.delegated.filter((d) => d.type === "mouseenter");
-    expect(enter.map((d) => d.layers[0])).toEqual(["pic-fill", "pic-stroke", "pic-stroke-dashed", "pic-dot"]);
+    const leave = map.delegated.filter((d) => d.type === "mouseleave");
+    // um ouvinte só, no array de camadas (não um por camada)
+    expect(enter).toHaveLength(1);
+    expect(leave).toHaveLength(1);
+    expect(enter[0]!.layers).toEqual(["pic-fill", "pic-stroke", "pic-stroke-dashed", "pic-dot"]);
+    expect(leave[0]!.layers).toEqual(enter[0]!.layers);
     enter[0]!.fn();
     expect(map.canvas.style.cursor).toBe("pointer");
     map.delegated.find((d) => d.type === "mouseleave")!.fn();
