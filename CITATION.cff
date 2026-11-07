@@ -11,7 +11,7 @@ authors:
 repository-code: "https://github.com/milkway/rpic-studio"
 url: "https://studio.rpic.dev"
 license: BSD-2-Clause
-version: 0.11.0
+version: 0.12.0
 date-released: 2026-11-08
 keywords:
   - pic
