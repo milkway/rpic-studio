@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ensureRpic, type Anim, type CompileError, type Diagnostic, type Interaction, type ObjectGeometry } from "./rpic";
 import { detectSpice, detectTexLabels } from "./detect";
 import { compileFigure, dunePreludeLoaded, loadDunePrelude } from "./dunePrelude";
@@ -114,7 +114,7 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
   // Fonte `spice = 1` (issue #17): compila com o prelude do dune à frente — a
   // mesma figura do painel SIM. O texto do prelude é um chunk à parte, baixado
   // só aqui; até chegar, o preview espera (sem acusar o erro falso de `vsource`).
-  const spice = detectSpice(debounced);
+  const spice = useMemo(() => detectSpice(debounced), [debounced]);
   const [preludeReady, setPreludeReady] = useState(() => dunePreludeLoaded() !== null);
   const { t } = useI18n();
   const tRef = useRef(t);
