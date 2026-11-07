@@ -200,7 +200,10 @@ export function PreviewTabs({
             />
           </div>
         )}
-        {geo && mapVisited && (
+        {/* Fica MONTADO após a 1ª visita (como o Simular): `detectGeo` pisca
+            false enquanto se redigita `geo_lon = …`, e desmontar mataria o
+            worker e o mapa (e a vista do usuário). Só esconde. */}
+        {mapVisited && (
           <div className={cn("h-full min-h-0", tab !== "map" && "hidden")}>
             <MapPane
               source={source}

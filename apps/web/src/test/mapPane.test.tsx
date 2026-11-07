@@ -199,10 +199,9 @@ describe("MapPane — sem recompilar à toa", () => {
 
 describe("PreviewTabs + Mapa", () => {
   // import tardio: o PreviewPane puxa módulos pesados do preview
-  const renderTabs = async (source: string) => {
+  const tabsEl = async (source: string) => {
     const { PreviewTabs } = await import("@/components/preview/PreviewTabs");
-    return render(
-      wrap(
+    return wrap(
         <PreviewTabs
           svg=""
           source={source}
@@ -215,9 +214,9 @@ describe("PreviewTabs + Mapa", () => {
           canvas={{ fontFamily: "sans-serif" } as never}
           onCanvasChange={() => {}}
         />,
-      ),
     );
   };
+  const renderTabs = async (source: string) => render(await tabsEl(source));
 
   it("fonte sem registro: nenhuma aba Mapa, nenhum painel", async () => {
     await renderTabs('.PS\nbox "a"\n.PE');
@@ -231,5 +230,19 @@ describe("PreviewTabs + Mapa", () => {
     expect(screen.getByTestId("map-pane")).toBeInTheDocument();
     expect(screen.getByTestId("map-frame")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("map-status")).toHaveAttribute("data-state", "ok"));
+  });
+
+  it("detectGeo piscando false (redigitando geo_lon) não desmonta o painel", async () => {
+    const view = await renderTabs(CALLOUT);
+    await waitFor(() => expect(screen.getByTestId("map-status")).toHaveAttribute("data-state", "ok"));
+    const pane = screen.getByTestId("map-pane");
+    const broken = CALLOUT.replace("geo_lon = -34.8711", "geo_").replace("geo_lat = -8.0631", "");
+    view.rerender(await tabsEl(broken));
+    expect(screen.queryByRole("tab", { name: /map/i })).toBeNull();
+    expect(screen.getByTestId("map-pane")).toBe(pane); // mesmo nó: oculto, não desmontado
+    expect(pane.parentElement).toHaveClass("hidden");
+    view.rerender(await tabsEl(CALLOUT));
+    expect(screen.getByRole("tab", { name: /map/i })).toHaveAttribute("data-state", "active");
+    expect(screen.getByTestId("map-pane")).toBe(pane);
   });
 });
