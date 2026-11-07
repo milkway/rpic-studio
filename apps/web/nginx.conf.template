@@ -27,9 +27,24 @@ server {
     proxy_read_timeout 120s;
   }
 
+  # Assets com hash no nome: imutáveis, cache longo.
+  location __BASE__assets/ {
+    alias /usr/share/nginx/html/assets/;
+    add_header Cache-Control "public, max-age=31536000, immutable";
+  }
+
+  # index.html sem Cache-Control deixava o navegador usar cache heurístico
+  # (Last-Modified) e servir o bundle ANTIGO depois de um deploy — a aba MAP
+  # "não aparecia" até um hard refresh. Sempre revalidar.
+  location = __BASE__index.html {
+    alias /usr/share/nginx/html/index.html;
+    add_header Cache-Control "no-cache";
+  }
+
   # SPA — assets + fallback de rota do React Router sob o base path.
   location __BASE__ {
     alias /usr/share/nginx/html/;
+    add_header Cache-Control "no-cache";
     try_files $uri __BASE__index.html;
   }
 }
