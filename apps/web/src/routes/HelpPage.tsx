@@ -124,6 +124,20 @@ const sections: Section[] = [
       ['current(A,B); clabel((x,y),"9V")', { en: "current direction and labels", pt: "sentido de corrente e rótulos" }],
     ],
   },
+  {
+    title: { en: "Maps (geopic)", pt: "Mapas (geopic)" },
+    intro: {
+      en: "A source with a geographic registration gets a Map tab next to the image: the drawing on a MapLibre map, re-georeferenced as you type, with a frame selector and a Download GeoJSON button. See the Map examples.",
+      pt: "Uma fonte com registro geográfico ganha a aba Mapa ao lado da imagem: o desenho num mapa MapLibre, re-georreferenciado enquanto você digita, com seletor de frame e botão para baixar o GeoJSON. Veja os exemplos de Mapa.",
+    },
+    rows: [
+      ["geo_lon = -34.8711; geo_lat = -8.0631", { en: "anchor the pic origin (0,0) on the Earth", pt: "ancora a origem pic (0,0) na Terra" }],
+      ["geo_scale = 400", { en: "metres per inch of the drawing (default 100)", pt: "metros por polegada do desenho (padrão 100)" }],
+      ["geo_bearing = 30", { en: "azimuth of +y, degrees clockwise from north", pt: "azimute do +y, graus a partir do norte, sentido horário" }],
+      ["A: (0,0); A_lon = -34.87; A_lat = -8.06", { en: "control point: 2 fix scale + bearing, 3+ a Helmert fit", pt: "ponto de controle: 2 fixam escala + rumo, 3+ um ajuste de Helmert" }],
+      ["geo_frame = 1", { en: "mercator frame (0 = enu, the default); the Map tab can override it", pt: "frame mercator (0 = enu, o padrão); a aba Mapa pode sobrepor" }],
+    ],
+  },
 ];
 
 const pageIntro: Record<Locale, { title: string; body: [string, string, string] }> = {

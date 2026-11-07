@@ -21,6 +21,13 @@ template [peabiru](../peabiru).
   Markdown.
 - **Biblioteca de circuitos** — interruptor "circuitos" habilita `resistor()`, `lamp()`,
   `and_gate()` e ~76 outras macros.
+- **Mapa (geopic)** — fonte com registro geográfico (`geo_lon`/`geo_lat`, ou pontos de controle
+  `<Rótulo>_lon`/`_lat`) ganha a aba **Mapa** ao lado da imagem, que abre sozinha ao carregar a
+  fonte (exemplo, link `#pic=`, diagrama salvo): o desenho num MapLibre GL (basemap OpenFreeMap
+  positron), re-georreferenciado a cada pausa de digitação, seletor de `frame` (como na fonte /
+  `enu` / `mercator`), linha de status (método, escala m/in, rumo, rms) e botão **GeoJSON** que
+  baixa `drawing.geojson`. O build geo do wasm (~690 KB) roda num Web Worker e o MapLibre é import
+  dinâmico — quem não abre fonte geo não baixa nenhum dos dois. Exemplos no grupo "Mapas".
 
 ## Desenvolvimento
 

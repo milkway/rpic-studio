@@ -273,6 +273,21 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   PEGADINHA: variável de `@theme` sem utility que a use é PODADA pelo Tailwind v4;
   `stroke="var(…)"` em atributo SVG não conta. `.op`/`.tf` viram tabela.
 
+- **Painel Mapa (geopic, issue #8)** — aba `MAP`/`MAPA` no `PreviewTabs`, que SÓ existe quando
+  `detectGeo(source)` (`geo_lon`/`geo_lat` ou `<Rótulo>_lon`/`_lat` atribuídos no início de
+  statement) e ABRE SOZINHA quando o documento é trocado (`docEpoch` do `EditorPage`: exemplo,
+  link `#pic=`, diagrama salvo) ou no 1º render — nunca ao digitar. Web npm em **0.15.0** (a API
+  Rust segue na tag v0.11.0 — bump separado). **O build geo roda num WEB WORKER**
+  (`lib/geo.worker.ts` + `geo.ts` + `geoProtocol.ts` + `geoClient.ts`, hook `useGeo`): o pacote
+  guarda UM wasm por instância de módulo e o 1º `ready()` fixa lean/math/geo — a thread principal
+  já tem o lean/math, então o geo só coexiste num grafo de módulos separado. Erros serializados
+  (`pic` → `explainDiagnostic`, `geo` → `kind: message — hint`). O MapLibre (`lib/geomap.ts`,
+  `@strategicprojects/rpic/maplibre` + `maplibre-gl` 6) é import DINÂMICO e tem chunk próprio
+  (`manualChunks` → `maplibre`; sem isso ele e o CSS iam p/ o `vendor` da carga inicial).
+  `fitTo` no 1º desenho, na troca de documento e na troca de frame; ao reaparecer, `resize()`.
+  Testes: `geo.test.ts` (wasm geo real, ARQUIVO separado) e `mapPane.test.tsx` (worker inline +
+  mapa falso; jsdom não tem WebGL). Exemplos com tag `maps` (fontes de rpic-lang `examples/geo`).
+
 ## i18n
 
 Inglês (padrão) e português, sem lib: contexto em `apps/web/src/lib/i18n.tsx` com dicionários
