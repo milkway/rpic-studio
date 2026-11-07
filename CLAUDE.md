@@ -350,7 +350,16 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   origem da página) que o SVG não traz — `pinFrame` a acha por VOTO dos terminais contra as
   pontas desenhadas (`svgEndpoints`: line/polyline/polygon/path), com TODOS os terminais do
   mapa (`terminals`, terra inclusa): só os das redes sondáveis empatam (todos na mesma altura
-  casam também 1" abaixo — aconteceu). Menos de metade casando = sem alvos de pino. Cores `--color-trace-1..6` (validadas p/ CVD) num `@theme static` —
+  casam também 1" abaixo — aconteceu). Votos agrupados por TOLERÂNCIA (`frameClusters`,
+  |Δ| < 0,05; arredondar em grade partia um par na fronteira); aceita só vencedor ÚNICO
+  (≥ 2º + 1) com ≥ max(2, ⌈n/2⌉) votos — empate = `null` = sem alvos de pino. Tudo isso é
+  PROVISÓRIO e isolado em `lib/simFigure.ts`: milkway/dune#19 pede o frame do SVG ao dune.
+  O círculo do pino (`PIN_R_PX` = 11) NÃO leva o traço largo dos `.sim-hit` (senão dois pinos
+  de um elemento curto se sobrepõem e o de cima rouba); clique/hover num pino resolve para o
+  pino de CENTRO mais próximo entre os que contêm o ponto (`nearestPin`). Medidas: a unidade
+  só sai de vetor SIMPLES (`v()`/`i()`/`vdb()`…); `par(…)`/`v(a)-v(b)` = sem unidade;
+  continuação `+` é juntada; as linhas são calculadas UMA vez por run no painel
+  (`useMemo`) e passadas às duas instâncias. `setFine` não re-roda um erro sem `run`. Cores `--color-trace-1..6` (validadas p/ CVD) num `@theme static` —
   PEGADINHA: variável de `@theme` sem utility que a use é PODADA pelo Tailwind v4;
   `stroke="var(…)"` em atributo SVG não conta. `.op`/`.tf` viram tabela.
   **Preview de fonte `spice = 1` (issue #17)**: as macros de elemento do dune (`vsource`,
