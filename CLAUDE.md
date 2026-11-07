@@ -246,7 +246,8 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
 
 - **Painel Simular (dune, fase 6 do projeto dune)** — aba `SIMULATE`/`SIM` no `PreviewTabs`
   (`components/simulate/`). Simula figuras marcadas `spice = 1` (`detectSpice` em `detect.ts`)
-  com o `@strategicprojects/dune-sim` **^0.3.0 do npm**. O wasm roda SÓ num **Web Worker
+  com o `@strategicprojects/dune-sim` **^0.3.3 do npm** (opções de engine/`tmaxDivisor` na
+  `Session`, `measurements` no run, `pins` no `OverlayMap`). O wasm roda SÓ num **Web Worker
   terminável** (`lib/dune.worker.ts`; Cancelar = `terminate()`, o wasm não se interrompe):
   `lib/dune.ts` (`ensureDune()` à la `ensureRpic`, `.wasm` `?url`, `worker.format: "es"`) é
   importado só pelo worker → o wasm (~2 MB) só baixa no 1º Run. A simulação vive numa
@@ -320,8 +321,36 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   **`.ac` → `acmag`**: com `.ac` no netlist, fonte V/I com `AC x` vira slider de `acmag`
   (cabeçalho mostra o parâmetro, campo com `AC`/`DC` à frente; o `relabel` da figura recebe a
   palavra-chave e troca o número certo em `DC 1 AC 1`); o worker sempre usa
-  `alter(refdes, param, v)` com o parâmetro do controle (reset também). O wasm 0.3.0
-  NÃO devolve `.measure` no run (Rawfile = plots/notes/diagnostics) — painel de medidas pendente. Cores `--color-trace-1..6` (validadas p/ CVD) num `@theme static` —
+  `alter(refdes, param, v)` com o parâmetro do controle (reset também).
+  **Passos finos (issue #19)**: toggle `sim-fine` no cabeçalho (rótulo some `<sm`, `Tip` diz que
+  não altera o deck), persistido em `rpic:settings.v1` → `simFineSteps` (`loadSimFineSteps`,
+  relido no `rpic:prefs`). O estado vivo é do `useSimulation` (`fine`, `setFine`): TODO pedido
+  leva `SimRequest.fine` (Simular, slider, adoção) e entra na chave de de-dup; o worker
+  (`applyMode`) só mexe quando muda — `session.options = {trtol: 1}` + `session.tmaxDivisor =
+  10` (`FINE_OPTIONS`/`FINE_TMAX_DIVISOR`), desligar = `null` nos dois (opções do deck) —
+  SEM reabrir. Alternar com sessão em uso = UM re-run (`rerun`, plot/probes/cursor ficam);
+  ocioso/cancelado só guarda o modo. No RC do corpus: 271 → 2520 pontos.
+  **Medidas `.measure` (issue #20)**: `run.measurements` (linhas achatadas `{name, analysis,
+  plot, value, details, error?}`, re-avaliadas a CADA `runTyped` — slider inclusive) →
+  `MeasurePanel` (`SimResultParts`) com as linhas de `lib/simMeasure.ts`: valor por `formatSI`,
+  unidade inferida do CARTÃO no netlist (WHEN/TRIG/MIN_AT/MAX_AT → escala da análise, FIND/MAX/
+  AVG… → a do vetor `v()`=V/`i()`=A/`vdb()`=dB, INTEG/DERIV/PARAM sem unidade), detalhes na
+  ordem do ngspice (`trig/targ/at/with/from/to`); linha com `error` mostra a razão e NUNCA
+  some; nome repetido em vários plots ganha `#plot`. Fica FORA da rolagem, sob a figura; com o
+  slider aberto no celular o painel vai para o TOPO do bottom sheet (`ElementSlider`
+  `mobileTop`, `sm:hidden`; a cópia sob a figura some `max-sm`) — no DOM de teste as duas
+  coexistem (`getAllByTestId("sim-measures")`). Sem figura, abre a área rolável.
+  **Probe nos terminais (issue #21)**: `OverlayMap.elements[].pins` (`{name, net, x, y}`, polegadas
+  pic, y para cima) → `ProbeNet.pins` (`netPins`, distintos) → `SimFigure` põe um
+  `<g class="sim-hit sim-hit-pin">` (círculo de toque `PIN_R_PX` + ponto `.sim-pin-dot`, visível
+  no hover/foco e na cor do traço com a rede ligada — `.sim-pin-on`) por terminal, no FIM do
+  `<svg>`: por cima da caixa `.sim-hit-el` (terminal = rede, corpo = slider). Rede pino a pino
+  (sem forma no mapa) agora é sondável; o alvo de teclado é o 1º clone ou, sem forma, o 1º
+  pino. PEGADINHA do frame: o SVG do rpic é a cena ×96 com y invertido + uma TRANSLAÇÃO (a
+  origem da página) que o SVG não traz — `pinFrame` a acha por VOTO dos terminais contra as
+  pontas desenhadas (`svgEndpoints`: line/polyline/polygon/path), com TODOS os terminais do
+  mapa (`terminals`, terra inclusa): só os das redes sondáveis empatam (todos na mesma altura
+  casam também 1" abaixo — aconteceu). Menos de metade casando = sem alvos de pino. Cores `--color-trace-1..6` (validadas p/ CVD) num `@theme static` —
   PEGADINHA: variável de `@theme` sem utility que a use é PODADA pelo Tailwind v4;
   `stroke="var(…)"` em atributo SVG não conta. `.op`/`.tf` viram tabela.
   **Preview de fonte `spice = 1` (issue #17)**: as macros de elemento do dune (`vsource`,
