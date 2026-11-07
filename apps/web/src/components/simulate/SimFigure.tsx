@@ -1,10 +1,25 @@
-import { useEffect, useMemo, useRef, type KeyboardEvent, type SyntheticEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type FocusEvent,
+  type KeyboardEvent,
+  type SyntheticEvent,
+} from "react";
 import { cn } from "@rpic/design-system";
 import { sanitizeSvg } from "@/lib/sanitize";
 import type { SimFigureResult } from "@/lib/simProtocol";
 import { useI18n } from "@/lib/i18n";
 import { formatSpice, relabel } from "@/lib/simValues";
-import { pinFrame, pinToSvg, svgEndpoints, type PicPoint } from "@/lib/simFigure";
+import {
+  focusKeyOf,
+  pinFrame,
+  pinToSvg,
+  restoreFocus,
+  svgEndpoints,
+  type PicPoint,
+} from "@/lib/simFigure";
 
 /** Rede sondável da figura: as formas dela e o traço `v(rede)` que liga. */
 export interface ProbeNet {
@@ -283,8 +298,10 @@ export function SimFigure({
   // ficam clicáveis no mouse e no toque. Irmão logo após o original (herda o
   // mesmo transform); sem `id` (não colide com `sN`). Só os clones recebem
   // ponteiro (CSS `.sim-figure.probe-on`), então nenhuma forma desenhada
-  // depois os encobre. O 1º clone de cada rede é o alvo de teclado.
-  useEffect(() => {
+  // depois os encobre. O 1º clone de cada rede é o alvo de teclado. Efeito de
+  // LAYOUT (como as caixas dos elementos): os alvos existem antes da pintura,
+  // e o foco volta a eles no mesmo quadro (`restoreFocus`, abaixo).
+  useLayoutEffect(() => {
     const root = ref.current;
     if (!root) return;
     root.querySelectorAll(`.${HIT}`).forEach((el) => el.remove());
@@ -342,13 +359,48 @@ export function SimFigure({
   }, [svg, hitKey, t, elKey, terminalsKey]);
 
   // Caixas de acerto dos ELEMENTOS ajustáveis (clicar abre o slider).
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = ref.current;
     if (!root) return;
     root.querySelectorAll(`.${EL}`).forEach((el) => el.remove());
     for (const el of elements) addElementPad(root, el);
     // `elKey` resume `elements` (geometria + rótulo); o valor não recria
   }, [svg, elKey]);
+
+  // FOCO entre redesenhos: a escrita de volta (ou um re-run) traz um SVG novo
+  // e os alvos acima são recriados — o nó focado sai do DOM e o foco cairia
+  // no `body`. O último alvo focado (`onFocus`/`onBlur` abaixo) recebe o foco
+  // de volta no nó equivalente (mesma chave), só se o foco se PERDEU com o nó
+  // (não rouba o foco de quem foi para outro lugar, ex.: o slider aberto).
+  const lastFocus = useRef<{ key: string; node: Element } | null>(null);
+  useLayoutEffect(() => {
+    const root = ref.current;
+    const last = lastFocus.current;
+    if (!root || !last || last.node.isConnected) return;
+    const active = document.activeElement;
+    if (active !== null && active !== document.body) return;
+    if (!restoreFocus(root, last.key)) lastFocus.current = null;
+  }, [svg, hitKey, t, elKey, terminalsKey]);
+  const trackFocus = (e: FocusEvent) => {
+    const node = e.target as Element;
+    const key = focusKeyOf(node);
+    lastFocus.current = key === null ? null : { key, node };
+  };
+  const untrackFocus = (e: FocusEvent) => {
+    const last = lastFocus.current;
+    if (!last) return;
+    // foco foi a outro nó: esquece. Sem destino (`relatedTarget` nulo), pode
+    // ser o nó REMOVIDO pelo redesenho — só esquece se ele segue no DOM e não
+    // é mais o ativo (a janela perder o foco mantém o `activeElement`).
+    if (e.relatedTarget !== null) {
+      lastFocus.current = null;
+      return;
+    }
+    queueMicrotask(() => {
+      const gone = !last.node.isConnected || document.activeElement === last.node;
+      if (lastFocus.current === last && !gone) lastFocus.current = null;
+    });
+  };
 
   useEffect(() => {
     ref.current?.querySelectorAll(`.${EL}`).forEach((el) => {
@@ -486,10 +538,12 @@ export function SimFigure({
         onHoverElement?.(null);
       }}
       onFocus={(e) => {
+        trackFocus(e);
         onHoverNet?.(netOf(e));
         onHoverElement?.(elementOf(e));
       }}
-      onBlur={() => {
+      onBlur={(e) => {
+        untrackFocus(e);
         onHoverNet?.(null);
         onHoverElement?.(null);
       }}

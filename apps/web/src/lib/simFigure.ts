@@ -245,3 +245,30 @@ export function pinFrame(
 export function pinToSvg(p: PicPoint, f: { tx: number; ty: number }): [number, number] {
   return [p.x * SVG_PER_INCH + f.tx, -p.y * SVG_PER_INCH + f.ty];
 }
+
+// ---- Foco entre redesenhos da figura ----
+
+/** Chave estável de um alvo de teclado da figura: `el:<refdes>` p/ a caixa
+ *  `.sim-hit-el` de um elemento, `net:<rede>` p/ o alvo de uma rede (clone
+ *  `.sim-hit` ou terminal `.sim-hit-pin`). Outro nó → `null`. */
+export function focusKeyOf(node: Element | null): string | null {
+  if (!node) return null;
+  const el = node.getAttribute("data-el");
+  if (el !== null && node.classList.contains("sim-hit-el")) return `el:${el}`;
+  const net = node.getAttribute("data-net");
+  if (net !== null && node.classList.contains("sim-hit")) return `net:${net}`;
+  return null;
+}
+
+/** Devolve o foco ao alvo de chave `key` (ver `focusKeyOf`) dentro de
+ *  `container` — o nó equivalente depois que a figura foi redesenhada (o SVG
+ *  novo substitui os alvos, e o foco do nó removido cai no `body`). Só alvos
+ *  com `tabindex` (o de teclado da rede). `true` se focou. */
+export function restoreFocus(container: ParentNode, key: string): boolean {
+  for (const node of container.querySelectorAll<SVGElement>("[tabindex]")) {
+    if (focusKeyOf(node) !== key) continue;
+    node.focus({ preventScroll: true });
+    return true;
+  }
+  return false;
+}
