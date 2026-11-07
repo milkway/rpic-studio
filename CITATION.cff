@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use rpic studio, please cite it using this metadata."
+title: "rpic studio: a web editor and simulator for pic diagrams and SPICE circuits"
+type: software
+authors:
+  - family-names: Leite
+    given-names: "André"
+    affiliation: "Universidade Federal de Pernambuco"
+    email: leite@castlab.org
+    orcid: "https://orcid.org/0000-0002-4718-9766"
+repository-code: "https://github.com/milkway/rpic-studio"
+url: "https://studio.rpic.dev"
+license: BSD-2-Clause
+version: 0.11.0
+date-released: 2026-11-08
+keywords:
+  - pic
+  - diagrams
+  - circuit simulation
+  - SPICE
+  - WebAssembly
+  - web editor

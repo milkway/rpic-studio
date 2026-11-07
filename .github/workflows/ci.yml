@@ -1,11 +1,10 @@
 name: CI
 
-# Sem CI por push: a validação roda localmente antes de cada push e os
-# minutos de repo privado são medidos. Roda em PR e sob demanda
-# (aba Actions / `gh workflow run CI`).
 on:
-  workflow_dispatch:
+  push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   api:
