@@ -14,7 +14,7 @@
 // spans do argumento de valor por elemento (milkway/dune, issue "OverlayMap:
 // element value-argument spans…"), `elements[].value.span`/`params[]` do mapa
 // passam a ser a fonte autoritativa e `VALUE_ARG` some.
-import { formatSpice, parseSpiceNumber } from "./simValues";
+import { formatSpice, parseSpiceNumber, SPICE_NUMBER, suffixOf } from "./simValues";
 
 /** Um argumento de chamada como escrito, no referencial do usuário (linhas
  *  1-based; colunas 1-based em CODEPOINTS, fim exclusivo — como o rpic). */
@@ -86,7 +86,8 @@ export type ValueEditResult =
   | { ok: true; edit: SourceEdit; written: string; calls: ElementCall[] }
   | { ok: false; reason: WriteBackFailure; macro?: string };
 
-const NUM = String.raw`[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?\p{L}*`;
+/** Um token numérico SPICE com sufixo/cauda de unidade (`4.7k`, `10mF`). */
+const NUM = String.raw`${SPICE_NUMBER}\p{L}*`;
 
 /** Escrita SPICE que volta EXATAMENTE (ou quase) ao valor: 3 algarismos
  *  quando bastam (o slider anda em valores de 3 algarismos), mais se o campo
@@ -103,10 +104,9 @@ export function spiceLiteral(value: number): string {
 /** Troca um token numérico SPICE pelo valor novo, guardando a cauda de
  *  unidade que não é sufixo de escala (`1kohm` → `2.2kohm`, `5V` → `4.7V`). */
 function rewriteNumber(token: string, value: number): string {
-  const m = /^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)(\p{L}*)$/iu.exec(token);
+  const m = new RegExp(`^(${SPICE_NUMBER})(\\p{L}*)$`, "iu").exec(token);
   const letters = m?.[2] ?? "";
-  const sfx = /^(meg|mil|[tgkmuµμnpf])/i.exec(letters)?.[0] ?? "";
-  return spiceLiteral(value) + letters.slice(sfx.length);
+  return spiceLiteral(value) + letters.slice(suffixOf(letters)?.len ?? 0);
 }
 
 /** Onde, DENTRO do texto do argumento, está o número a trocar
