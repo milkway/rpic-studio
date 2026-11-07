@@ -121,9 +121,11 @@ export function detectSpice(source: string): boolean {
 
 // Registro geográfico (geopic, rpic ≥ 0.14): âncora `geo_lon`/`geo_lat` ou
 // pontos de controle `<Label>_lon`/`<Label>_lat` atribuídos no início de uma
-// statement (linha ou após `;`). Rótulos pic começam com maiúscula.
+// statement — linha, após `;`, ou abrindo um bloco (`[`, `{`, `then`): atribuir
+// dentro de bloco é pic legal e as variáveis são globais. Rótulos pic começam
+// com maiúscula. (Falso positivo é barato: o painel mostra `no_registration`.)
 const GEO_MARK =
-  /(?:^|;)[ \t]*(?:geo_lon|geo_lat|[A-Z][A-Za-z0-9_]*_(?:lon|lat))[ \t]*=(?!=)/m;
+  /(?:^|;|\[|\{|\bthen\b)[ \t]*(?:geo_lon|geo_lat|[A-Z][A-Za-z0-9_]*_(?:lon|lat))[ \t]*=(?!=)/m;
 
 /** A fonte é georreferenciada (geopic)? Só então o painel de mapa aparece e o
  *  build geo do wasm é baixado. Ignora strings e comentários; quem decide de

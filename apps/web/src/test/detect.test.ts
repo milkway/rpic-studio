@@ -67,6 +67,16 @@ describe("detectGeo", () => {
     expect(detectGeo("Site_2_lon = 1")).toBe(true);
   });
 
+  it("detecta registro aberto por bloco: [, { e then", () => {
+    expect(detectGeo("B: [geo_lon = -34.87; geo_lat = -8.06; box]")).toBe(true);
+    expect(detectGeo("[ A_lat = -8.06 ]")).toBe(true);
+    expect(detectGeo("if 1 then { geo_lon = -34.87 }")).toBe(true);
+    expect(detectGeo("for i = 1 to 1 do {Recife_lon = -34.87}")).toBe(true);
+    expect(detectGeo("if 1 then geo_lat = -8")).toBe(true);
+    expect(detectGeo("if 1 then { x = geo_lon }")).toBe(false);
+    expect(detectGeo("athen geo_lon = 1")).toBe(false);
+  });
+
   it("todos os exemplos geo do rpic-lang disparam", () => {
     for (const ex of examples.filter((e) => e.tags.includes("maps"))) {
       expect(detectGeo(ex.source), ex.id).toBe(true);
