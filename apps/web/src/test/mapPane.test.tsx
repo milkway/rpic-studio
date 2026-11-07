@@ -144,6 +144,18 @@ describe("MapPane", () => {
   });
 });
 
+describe("MapPane — sem recompilar à toa", () => {
+  it("esconder e mostrar a aba não re-posta o mesmo pedido", async () => {
+    const { worker, rerender } = setup(CALLOUT);
+    await waitFor(() => expect(screen.getByTestId("map-status")).toHaveAttribute("data-state", "ok"));
+    expect(worker.posted).toBe(1);
+    rerender(CALLOUT, undefined, false);
+    rerender(CALLOUT, undefined, true);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(worker.posted).toBe(1);
+  });
+});
+
 describe("PreviewTabs + Mapa", () => {
   // import tardio: o PreviewPane puxa módulos pesados do preview
   const renderTabs = async (source: string) => {

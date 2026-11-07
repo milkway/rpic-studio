@@ -12,6 +12,9 @@ export interface GeoState {
   failure: GeoFailure | null;
   /** Fonte do último resultado bom (para saber se ele está defasado). */
   source: string | null;
+  /** `geoKey` do pedido que produziu `result` / `failure`. */
+  resultKey: string | null;
+  failureKey: string | null;
 }
 
 export interface GeoHookOptions {
@@ -24,6 +27,11 @@ export interface GeoHookOptions {
   workerFactory?: GeoWorkerFactory;
 }
 
+/** Identidade de um pedido: fonte + frame + opções. */
+export function geoKey(source: string, frame: GeoFrame | "", circuits: boolean, texlabels: boolean): string {
+  return JSON.stringify([source, frame, circuits, texlabels]);
+}
+
 /** Mesmo debounce do `useRpic`. */
 const DEBOUNCE_MS = 200;
 
@@ -32,11 +40,15 @@ export function useGeo(source: string, opts: GeoHookOptions): GeoState {
   const { frame, circuits, texlabels, enabled, workerFactory } = opts;
   const debounced = useDebouncedValue(source, DEBOUNCE_MS);
   const clientRef = useRef<GeoClient | null>(null);
+  /** chave da última resposta recebida — esconder/mostrar a aba não recompila */
+  const answeredRef = useRef<string | null>(null);
   const [state, setState] = useState<GeoState>({
     loading: true,
     result: null,
     failure: null,
     source: null,
+    resultKey: null,
+    failureKey: null,
   });
 
   useEffect(
@@ -49,16 +61,27 @@ export function useGeo(source: string, opts: GeoHookOptions): GeoState {
 
   useEffect(() => {
     if (!enabled) return;
+    const key = geoKey(debounced, frame, circuits, texlabels);
+    if (answeredRef.current === key) return; // nada mudou desde a última resposta
     clientRef.current ??= new GeoClient(workerFactory ?? defaultGeoWorkerFactory);
     let live = true;
     void clientRef.current
       .run(debounced, { ...(frame ? { frame } : {}), circuits, texlabels })
       .then((res) => {
         if (!live || !res) return; // um pedido mais novo assumiu
+        // falha fora do protocolo (worker não carregou): deixa re-tentar
+        answeredRef.current = res.type === "error" && res.error.kind === "other" ? null : key;
         if (res.type === "ok") {
-          setState({ loading: false, result: res, failure: null, source: debounced });
+          setState({
+            loading: false,
+            result: res,
+            failure: null,
+            source: debounced,
+            resultKey: key,
+            failureKey: null,
+          });
         } else {
-          setState((s) => ({ ...s, loading: false, failure: res.error }));
+          setState((s) => ({ ...s, loading: false, failure: res.error, failureKey: key }));
         }
       });
     return () => {
