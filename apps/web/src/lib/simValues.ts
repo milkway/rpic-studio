@@ -148,12 +148,26 @@ const LABEL_NUMBER = new RegExp(
 
 /** Rótulo da figura com o valor novo: troca o 1º número que vale o original
  *  (`DC 10 AC 1` → `DC 22 AC 1`, `1kΩ` → `2.2kΩ`, `10 k` → `22 k`),
- *  preservando a cauda de unidade e o espaço. Sem número que case → `null`. */
-export function relabel(text: string, original: number, value: number): string | null {
+ *  preservando a cauda de unidade e o espaço. Sem número que case → `null`.
+ *  `keyword` (fonte: `AC` sob `acmag`, `DC` sob `dc`) restringe ao número
+ *  logo após a palavra-chave — com `DC 1 AC 1` o slider de `acmag` não pode
+ *  mexer no `1` do DC; `DC` também aceita o número nu inicial (`5`). */
+export function relabel(
+  text: string,
+  original: number,
+  value: number,
+  keyword: string | null = null,
+): string | null {
   const close = (v: number) => Math.abs(v - original) <= Math.abs(original) * 1e-9;
   const [, newNum, newSfx] = /^(.*?)([a-z]*)$/.exec(formatSpice(value))!;
+  const afterKeyword = keyword ? new RegExp(String.raw`(^|\s)${keyword}\s*=?\s*$`, "i") : null;
   for (const m of text.matchAll(LABEL_NUMBER)) {
     const [, lead, num, space, letters] = m;
+    if (afterKeyword) {
+      const before = text.slice(0, m.index + lead.length);
+      const bare = /^dc$/i.test(keyword!) && before.trim() === "";
+      if (!bare && !afterKeyword.test(before)) continue;
+    }
     const base = Number(num);
     if (!Number.isFinite(base)) continue;
     const sfx = suffixOf(letters);

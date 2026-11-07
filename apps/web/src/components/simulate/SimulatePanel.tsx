@@ -185,7 +185,8 @@ export function SimulatePanel({
         refdes: c.refdes,
         shapes: elementShapes(map, c.refdes),
         label: t("sim.adjust", { refdes: c.refdes }),
-        altered: v === undefined ? null : { original: c.value, value: v },
+        altered:
+          v === undefined ? null : { original: c.value, value: v, keyword: sourceKeyword(c) },
       };
     });
   }, [map, controls, sim.alters, t]);
