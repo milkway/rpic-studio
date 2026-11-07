@@ -54,10 +54,39 @@ interface SimFigureProps {
 
 const HIT = "sim-hit";
 
-/** Rede sob o evento: o alvo é sempre um clone de acerto `.sim-hit`. */
+/** Rede sob o evento: o alvo é sempre um clone de acerto `.sim-hit`. Num
+ *  TERMINAL, os círculos de dois pinos próximos (elemento curto) se
+ *  sobrepõem e o desenhado depois roubaria o clique: com a posição do
+ *  ponteiro, vale o pino de CENTRO mais próximo entre os que contêm o ponto. */
 function netOf(e: SyntheticEvent): string | null {
   const hit = (e.target as Element).closest?.(`.${HIT}`);
-  return hit?.getAttribute("data-net") ?? null;
+  if (!hit) return null;
+  if (hit.classList.contains("sim-hit-pin")) {
+    const near = nearestPin(hit, e.nativeEvent);
+    if (near) return near.getAttribute("data-net");
+  }
+  return hit.getAttribute("data-net");
+}
+
+/** O `.sim-hit-pin` de centro mais próximo do ponteiro dentre os que o
+ *  contêm. Sem posição (teclado/foco) ou sem layout: `null`. */
+function nearestPin(hit: Element, ev: Event): Element | null {
+  const { clientX, clientY } = ev as MouseEvent;
+  if (typeof clientX !== "number" || typeof clientY !== "number") return null;
+  const svg = hit.closest("svg");
+  if (!svg) return null;
+  let best: Element | null = null;
+  let bestD = Infinity;
+  for (const pin of svg.querySelectorAll(".sim-hit-pin")) {
+    const r = pin.querySelector("circle")?.getBoundingClientRect();
+    if (!r || r.width === 0) continue;
+    const d = Math.hypot(clientX - (r.left + r.width / 2), clientY - (r.top + r.height / 2));
+    if (d <= r.width / 2 && d < bestD) {
+      best = pin;
+      bestD = d;
+    }
+  }
+  return best;
 }
 
 const EL = "sim-hit-el";
@@ -158,9 +187,10 @@ function overlayValue(
   groups[0].appendChild(tx);
 }
 
-/** Raio do alvo de um terminal, em px de tela (o traço largo `.sim-hit`
- *  soma 7 px no mouse e 12 px no toque). */
-const PIN_R_PX = 6;
+/** Raio do alvo de um terminal, em px de tela. O círculo NÃO leva o traço
+ *  largo dos `.sim-hit` (CSS): o raio é o alvo exato, e a sobreposição de
+ *  dois pinos próximos se resolve pelo centro mais próximo (`netOf`). */
+const PIN_R_PX = 11;
 /** Raio do ponto que marca o terminal (hover/foco/rede ligada), px de tela. */
 const PIN_DOT_PX = 2.5;
 

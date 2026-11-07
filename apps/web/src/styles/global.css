@@ -212,6 +212,17 @@ body {
 /* Terminal de elemento (SimFigure `addPinTarget`, issue #21): círculo de
    toque invisível + ponto de marca, que aparece no hover/foco e, com a rede
    ligada, fica na cor do traço. */
+.sim-figure .sim-hit.sim-hit-pin circle {
+  /* sem o traço largo (inclusive no toque): o raio do círculo é o alvo */
+  stroke-width: 0;
+  fill: transparent;
+  pointer-events: all;
+}
+.sim-figure .sim-hit.sim-hit-pin:focus-visible circle:not(.sim-pin-dot) {
+  stroke: var(--color-accent);
+  stroke-opacity: 0.35;
+  stroke-width: 3px;
+}
 .sim-figure .sim-hit.sim-hit-pin .sim-pin-dot {
   display: none;
   stroke: none;
