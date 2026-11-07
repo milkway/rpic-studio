@@ -104,6 +104,12 @@ export interface PicPoint {
   y: number;
 }
 
+/** Chave de um terminal (mesmo ponto = mesma chave): UMA definição para
+ *  `netPins` e `pinFrame` deduplicarem igual. */
+export function terminalKey(p: PicPoint): string {
+  return `${p.x.toFixed(6)},${p.y.toFixed(6)}`;
+}
+
 /** Terminais distintos de uma rede (`pins[].net`), em polegadas pic. */
 export function netPins(map: OverlayMap, net: string): PicPoint[] {
   const key = net.toLowerCase();
@@ -112,7 +118,7 @@ export function netPins(map: OverlayMap, net: string): PicPoint[] {
   for (const el of map.elements) {
     for (const p of el.pins ?? []) {
       if (p.net.toLowerCase() !== key) continue;
-      const k = `${p.x.toFixed(6)},${p.y.toFixed(6)}`;
+      const k = terminalKey(p);
       if (seen.has(k)) continue;
       seen.add(k);
       out.push({ x: p.x, y: p.y });
@@ -155,7 +161,7 @@ export function pinFrame(
   endpoints: readonly [number, number][],
   pins: readonly PicPoint[],
 ): { tx: number; ty: number } | null {
-  const distinct = [...new Map(pins.map((p) => [`${p.x},${p.y}`, p])).values()];
+  const distinct = [...new Map(pins.map((p) => [terminalKey(p), p])).values()];
   if (distinct.length === 0 || endpoints.length === 0) return null;
   const q = (v: number) => Math.round(v * 20) / 20; // 0,05 unidade SVG
   const votes = new Map<string, { tx: number; ty: number; n: number }>();
