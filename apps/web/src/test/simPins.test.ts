@@ -65,6 +65,30 @@ describe("terminais na figura do dune", () => {
   });
 });
 
+describe("pinFrame: vencedor único", () => {
+  it("empate entre duas translações (terminais na mesma altura): null", () => {
+    const pins = [
+      { x: 0, y: 1 },
+      { x: 1.5, y: 1 },
+    ];
+    // frame (0, 0) põe os pinos em y = −96; frame (0, 96) em y = 0 — os dois casam 2
+    const ends: [number, number][] = [
+      [0, -96],
+      [144, -96],
+      [0, 0],
+      [144, 0],
+    ];
+    expect(pinFrame(ends, pins)).toBeNull();
+    // desempata com um terminal a mais (a terra em (0.75, 0) → (72, 96) no frame certo)
+    const f = pinFrame([...ends, [72, 96]], [...pins, { x: 0.75, y: 0 }]);
+    expect(f).toEqual({ tx: 0, ty: 96 });
+  });
+
+  it("um só voto não basta (mínimo 2)", () => {
+    expect(pinFrame([[10, 20]], [{ x: 0, y: 0 }])).toBeNull();
+  });
+});
+
 describe("frameClusters (tolerância, não arredondamento)", () => {
   it("par que atravessa uma fronteira de arredondamento vira UM grupo", () => {
     // tx = 77.325 ± ruído: arredondar a 0,05 separaria 77.3249… e 77.3251…

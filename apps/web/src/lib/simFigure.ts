@@ -208,7 +208,9 @@ export function frameClusters(
 }
 
 /** Translação do frame pic → SVG (`x·96 + tx`, `−y·96 + ty`) que põe o maior
- *  número de terminais DISTINTOS sobre pontas de traço desenhadas.
+ *  número de terminais DISTINTOS sobre pontas de traço desenhadas. Aceita só
+ *  um máximo ÚNICO (≥ 2º + 1) com ≥ max(2, ⌈n/2⌉) votos; senão `null` (sem
+ *  alvos de terminal — melhor que alvos no lugar errado).
  *
  *  PROVISÓRIO: o SVG não traz a origem da página; milkway/dune#19 pede que o
  *  dune exponha o frame (origem do canvas/rescale) — com ele, este voto (e
@@ -220,9 +222,22 @@ export function pinFrame(
   const distinct = [...new Map(pins.map((p) => [terminalKey(p), p])).values()];
   if (distinct.length === 0 || endpoints.length === 0) return null;
   const clusters = frameClusters(endpoints, distinct);
+  // vencedor ÚNICO com folga: empate (ex.: todos os terminais na mesma
+  // altura também casam 1" abaixo) = sem frame, nunca "o 1º inserido"
   let best: Cluster | null = null;
-  for (const c of clusters) if (!best || c.voters.size > best.voters.size) best = c;
-  if (!best || best.voters.size < Math.ceil(distinct.length / 2)) return null;
+  let second = 0;
+  for (const c of clusters) {
+    const n = c.voters.size;
+    if (!best || n > best.voters.size) {
+      second = best?.voters.size ?? 0;
+      best = c;
+    } else if (n > second) {
+      second = n;
+    }
+  }
+  if (!best) return null;
+  const votes = best.voters.size;
+  if (votes < second + 1 || votes < Math.max(2, Math.ceil(distinct.length / 2))) return null;
   return { tx: best.tx, ty: best.ty };
 }
 
