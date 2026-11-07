@@ -6,6 +6,7 @@
 import type { Diagnostic as RpicDiagnostic } from "@strategicprojects/rpic";
 import type { Locale } from "./i18n";
 import { errorPosition } from "./rpic";
+import { DUNE_PRELUDE_FILE } from "./dunePrelude";
 
 // Vocabulário para o fallback de sugestão (o compilador cobre o que está em
 // escopo; isto cobre macros de circuito quando a biblioteca está desligada).
@@ -116,6 +117,11 @@ const M = {
     en: (w: string, ok: string) => `Unknown animation effect “${w}”. Available: ${ok}.`,
     pt: (w: string, ok: string) => `Efeito de animação desconhecido: “${w}”. Disponíveis: ${ok}.`,
   },
+  // "arquivo" sintético das posições dentro do prelude do dune (fonte `spice = 1`)
+  dunePrelude: {
+    en: () => "dune prelude",
+    pt: () => "prelúdio do dune",
+  },
   inFile: {
     en: (f: string, n: number | null) =>
       `Inside “${f}”${n !== null ? ` (line ${n})` : ""}: `,
@@ -164,7 +170,9 @@ export function explainDiagnostic(
       line: null,
       col: null,
       tokenLength: null,
-      friendly: M.inFile[locale](d.file, d.line) + info.friendly,
+      friendly:
+        M.inFile[locale](d.file === DUNE_PRELUDE_FILE ? M.dunePrelude[locale]() : d.file, d.line) +
+        info.friendly,
     };
   }
   return info;

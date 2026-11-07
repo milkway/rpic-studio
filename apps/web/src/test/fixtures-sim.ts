@@ -28,3 +28,21 @@ ground((0.75,0))
 .ac dec 10 10 100k
 .PE
 `;
+
+/** RLC série passa-faixa (issue #17): `vsource` e o resto vêm do prelude do
+ *  dune — sem ele o rpic do Studio rejeita a linha do `V1:` (5:12). */
+export const RLC_FIGURE = `.PS
+# Series RLC band-pass: f0 = 1/(2*pi*sqrt(L1*C1)) ~ 1.6 kHz, out across R1.
+spice = 1
+In: (0,1.5); A: (1.5,1.5); Out: (3,1.5)
+V1: vsource(In, (0,0), AC 1)
+L1: inductor(In, A, 10m)
+C1: capacitor(A, Out, 1u)
+R1: resistor(Out, (3,0), 100)
+line from (3,0) to (0,0)
+ground((1.5,0))
+dot at Out
+"out" above at Out + (0,0.05)
+.ac dec 50 10 100k
+.PE
+`;

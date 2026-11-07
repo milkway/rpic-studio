@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { compile, ensureRpic, type Anim, type CompileError, type Diagnostic, type Interaction, type ObjectGeometry } from "./rpic";
-import { detectTexLabels } from "./detect";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ensureRpic, type Anim, type CompileError, type Diagnostic, type Interaction, type ObjectGeometry } from "./rpic";
+import { detectSpice, detectTexLabels } from "./detect";
+import { compileFigure, dunePreludeLoaded, loadDunePrelude } from "./dunePrelude";
 import { solvePicMapping, type PicMapping } from "./picCoords";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { useI18n } from "./i18n";
 
 export interface RpicState {
   /** Último SVG compilado com sucesso (mantido durante erros). */
@@ -69,6 +71,7 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
     source: string;
     circuits: boolean;
     texlabels: boolean;
+    prelude: string | null;
     objects: ObjectGeometry[];
     version: number;
   } | null>(null);
@@ -79,7 +82,11 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
     if (picMapRef.current?.version !== good.version) {
       picMapRef.current = {
         version: good.version,
-        map: solvePicMapping(good.source, { circuits: good.circuits, texlabels: good.texlabels }, good.objects),
+        map: solvePicMapping(
+          good.source,
+          { circuits: good.circuits, texlabels: good.texlabels, prelude: good.prelude },
+          good.objects,
+        ),
       };
     }
     return picMapRef.current.map;
@@ -104,11 +111,49 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
     };
   }, []);
 
+  // Fonte `spice = 1` (issue #17): compila com o prelude do dune à frente — a
+  // mesma figura do painel SIM. O texto do prelude é um chunk à parte, baixado
+  // só aqui; até chegar, o preview espera (sem acusar o erro falso de `vsource`).
+  // Se a carga FALHA, o fonte daquele momento cai no `compile` puro (o usuário vê
+  // o erro real do rpic, nunca um editor morto) e a próxima edição tenta de novo
+  // (`loadDunePrelude` não guarda a rejeição).
+  const spice = useMemo(() => detectSpice(debounced), [debounced]);
+  const [preludeReady, setPreludeReady] = useState(() => dunePreludeLoaded() !== null);
+  const [preludeFailedFor, setPreludeFailedFor] = useState<string | null>(null);
+  const { t } = useI18n();
+  const tRef = useRef(t);
+  tRef.current = t;
+  useEffect(() => {
+    if (!spice || preludeReady || preludeFailedFor === debounced) return;
+    let cancelled = false;
+    loadDunePrelude()
+      .then(() => {
+        if (!cancelled) setPreludeReady(true);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        console.warn("rpic studio: falha ao carregar o prelude do dune", e);
+        setPreludeFailedFor(debounced);
+        setState((s) => ({
+          ...s,
+          error: tRef.current("preview.preludeLoadFailed", { error: String(e) }),
+          errorDiag: null,
+        }));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [spice, preludeReady, preludeFailedFor, debounced]);
+
   useEffect(() => {
     if (state.loading) return;
+    const prelude = spice ? dunePreludeLoaded() : null;
+    // espera o prelude (efeito acima) — salvo se a carga falhou p/ ESTE fonte:
+    // aí compila sem ele (fallback)
+    if (spice && prelude === null && preludeFailedFor !== debounced) return;
     try {
       const t0 = performance.now();
-      const bundle = compile(debounced, { circuits, texlabels });
+      const bundle = compileFigure(debounced, { circuits, texlabels }, prelude);
       const compileMs = performance.now() - t0;
       versionRef.current += 1;
       if (errorTimerRef.current !== null) {
@@ -119,6 +164,7 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
         source: debounced,
         circuits,
         texlabels,
+        prelude,
         objects: bundle.objects ?? [],
         version: versionRef.current,
       };
@@ -150,7 +196,7 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
         errorTimerRef.current = null;
       }
     };
-  }, [debounced, circuits, texlabels, state.loading]);
+  }, [debounced, circuits, texlabels, state.loading, spice, preludeReady, preludeFailedFor]);
 
   return { ...state, getPicMapping };
 }

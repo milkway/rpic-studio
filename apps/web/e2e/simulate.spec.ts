@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { RLC_FIGURE } from "../src/test/fixtures-sim";
 
 // Figura RC do corpus do dune (corpus/pic/rc.pic).
 const RC = `.PS
@@ -17,7 +18,12 @@ dot at Vin; dot at Vout
 .PE
 `;
 
-async function openWith(page: Page, source: string, theme: "light" | "dark") {
+async function openWith(
+  page: Page,
+  source: string,
+  theme: "light" | "dark",
+  loadedMark = "spice = 1",
+) {
   await page.goto("/");
   await page.evaluate(
     ([src, th]) => {
@@ -32,7 +38,7 @@ async function openWith(page: Page, source: string, theme: "light" | "dark") {
     [source, theme] as const,
   );
   await page.reload();
-  await expect(page.locator('[data-testid="code-pane"] .cm-content')).toContainText("spice = 1");
+  await expect(page.locator('[data-testid="code-pane"] .cm-content')).toContainText(loadedMark);
 }
 
 for (const theme of ["light", "dark"] as const) {
@@ -405,4 +411,60 @@ test("slider no celular: bottom sheet, toque abre, sem overflow horizontal", asy
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   await page.screenshot({ path: info.outputPath("simulate-slider-mobile.png") });
   await ctx.close();
+});
+
+test("preview de fonte spice usa o prelude do dune: sem erro falso, e o SIM simula (#17)", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const duneRequests: string[] = [];
+  page.on("request", (r) => {
+    if (/dune_wasm_bg.*\.wasm/.test(r.url())) duneRequests.push(r.url());
+  });
+  await openWith(page, RLC_FIGURE, "light");
+  const stage = page.getByTestId("preview-stage");
+  await expect(stage.locator('svg g[id="s0"]')).toBeAttached({ timeout: 20_000 });
+  // além da carência do "vermelho preguiçoso" (600 ms): nenhum erro aparece
+  await page.waitForTimeout(1_200);
+  await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok");
+  await expect(page.getByTestId("compile-error")).toHaveCount(0);
+  // o prelude é texto: o preview não baixa o wasm do dune
+  expect(duneRequests).toHaveLength(0);
+  await page.screenshot({ path: info.outputPath("spice-preview-rlc.png") });
+
+  await page.getByRole("tab", { name: /Simulate|SIM/ }).click();
+  await page.getByTestId("sim-run").click();
+  await expect(page.getByTestId("sim-status")).toHaveAttribute("data-state", "done", {
+    timeout: 20_000,
+  });
+  await expect(page.getByTestId("sim-chart-svg").first()).toBeVisible();
+  await expect(page.getByTestId("sim-netlist-code")).toContainText("V1 In 0 AC 1");
+  await expect(page.getByTestId("compile-error")).toHaveCount(0);
+});
+
+test("fonte spice: elemento do prelude é inspecionável — duplo-clique pula para a linha da chamada", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWith(page, RLC_FIGURE, "light");
+  const stage = page.getByTestId("preview-stage");
+  await expect(stage.locator('svg g[id="s0"]')).toBeAttached({ timeout: 20_000 });
+  await expect(page.getByTestId("objects-handle").first()).toBeAttached({ timeout: 5_000 });
+  // rótulo de valor do R1 ("100"), desenhado DENTRO do macro `resistor` do prelude
+  const label = stage.locator("svg text", { hasText: /^100$/ });
+  const bb = (await label.boundingBox())!;
+  await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);
+  // coordenadas pic funcionam (o mapeamento achou âncora)
+  await expect(page.getByTestId("pic-coords")).toBeVisible({ timeout: 5_000 });
+  await page.mouse.dblclick(bb.x + bb.width / 2, bb.y + bb.height / 2);
+  const r1Line = RLC_FIGURE.split("\n").findIndex((l) => l.startsWith("R1: resistor")) + 1;
+  await expect
+    .poll(() => page.evaluate(() => document.querySelector(".cm-activeLineGutter")?.textContent))
+    .toBe(String(r1Line));
+});
+
+test("sem `spice = 1` a mesma figura continua dando o erro do rpic (sem prelude)", async ({ page }) => {
+  await openWith(page, RLC_FIGURE.replace("spice = 1\n", ""), "light", "vsource");
+  await expect(page.getByTestId("compile-error")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "error");
 });

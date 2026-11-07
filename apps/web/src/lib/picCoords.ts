@@ -6,7 +6,8 @@
 // presente nos DOIS compiles e transferimos a diferença. A escala sai das duas
 // sondas dentro do MESMO compile (pad/margens se cancelam) — o que também
 // absorve `scale = 2.54` e afins de graça.
-import { compile, type ObjectGeometry } from "./rpic";
+import { type ObjectGeometry } from "./rpic";
+import { compileFigure } from "./dunePrelude";
 
 export interface PicMapping {
   /** Posição, em unidades do viewBox do SVG REAL, do ponto pic (0,0). */
@@ -20,6 +21,8 @@ export interface PicMapping {
 interface CompileOpts {
   circuits: boolean;
   texlabels: boolean;
+  /** prelude do dune (fonte `spice = 1`) — o shadow compile usa o MESMO. */
+  prelude?: string | null;
 }
 
 /** Insere as sondas DENTRO do diagrama (antes do último `.PE`, se houver). */
@@ -53,7 +56,8 @@ export function solvePicMapping(
   if (!anchor) return null;
   let shadow;
   try {
-    shadow = compile(withProbes(source), opts);
+    const { prelude = null, ...rest } = opts;
+    shadow = compileFigure(withProbes(source), rest, prelude);
   } catch {
     return null;
   }

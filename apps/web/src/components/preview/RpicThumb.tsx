@@ -2,11 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { gsap } from "@/lib/gsap";
 import { RotateCcw } from "lucide-react";
 import { cn, motion } from "@rpic/design-system";
-import { animate, compile, ensureRpic, type Anim } from "@/lib/rpic";
+import { animate, ensureRpic, type Anim } from "@/lib/rpic";
+import { compileFigure, loadDunePrelude } from "@/lib/dunePrelude";
 import { sanitizeSvg } from "@/lib/sanitize";
 import { bakeAppearance, ensureFontLoaded } from "@/lib/appearance";
 import { loadCanvasSettings } from "@/lib/storage";
-import { detectTexLabels } from "@/lib/detect";
+import { detectSpice, detectTexLabels } from "@/lib/detect";
 import { useI18n } from "@/lib/i18n";
 
 interface RpicThumbProps {
@@ -18,6 +19,19 @@ interface RpicThumbProps {
   replayable?: boolean;
 }
 
+let warnedPrelude = false;
+/** Prelude do dune p/ a miniatura; se a carga falha, `null` (compile puro — o
+ *  tile mostra o que o rpic desenha, não fica em branco) com UM aviso no console. */
+function loadDunePreludeOrNull(): Promise<string | null> {
+  return loadDunePrelude().catch((e: unknown) => {
+    if (!warnedPrelude) {
+      warnedPrelude = true;
+      console.warn("rpic studio: prelude do dune indisponível nas miniaturas", e);
+    }
+    return null;
+  });
+}
+
 /** Miniatura de um diagrama rpic (compila ao montar; anima sob demanda). */
 export function RpicThumb({ source, circuits, className, replayable }: RpicThumbProps) {
   const [bundle, setBundle] = useState<{ svg: string; animations: Anim[] } | null>(null);
@@ -27,11 +41,12 @@ export function RpicThumb({ source, circuits, className, replayable }: RpicThumb
 
   useEffect(() => {
     let cancelled = false;
-    ensureRpic()
-      .then(() => {
+    // fonte `spice = 1`: com o prelude do dune, como o preview (issue #17)
+    Promise.all([ensureRpic(), detectSpice(source) ? loadDunePreludeOrNull() : null])
+      .then(([, prelude]) => {
         if (cancelled) return;
         try {
-          const out = compile(source, { circuits, texlabels: detectTexLabels(source) });
+          const out = compileFigure(source, { circuits, texlabels: detectTexLabels(source) }, prelude);
           const font = loadCanvasSettings().fontFamily;
           void ensureFontLoaded(font);
           setBundle({
