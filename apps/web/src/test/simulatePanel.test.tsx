@@ -11,6 +11,7 @@ import { compileWithPrelude } from "@/lib/dunePrelude";
 import { applySourceEdit, type SourceEdit } from "@/lib/simSource";
 import { I18nProvider } from "@/lib/i18n";
 import { applyPrefs } from "@/lib/prefs";
+import { measureRows } from "@/lib/simMeasure";
 import { SimHost, transferablesOf, type SimRequest, type SimResponse } from "@/lib/simProtocol";
 import type { WorkerLike } from "@/lib/simClient";
 import { SimulatePanel } from "@/components/simulate/SimulatePanel";
@@ -18,6 +19,12 @@ import { TooltipProvider } from "@/components/ui/Tooltip";
 import { DIVIDER_FIGURE, MEASURE_FIGURE, PIN_FIGURE, RC_FIGURE } from "./fixtures-sim";
 
 const require = createRequire(import.meta.url);
+
+// espião em `measureRows`: as linhas de medida são calculadas UMA vez por run
+vi.mock("@/lib/simMeasure", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/lib/simMeasure")>();
+  return { ...mod, measureRows: vi.fn(mod.measureRows) };
+});
 // o cabeçalho do painel tem `Tip` (Radix exige o provider, como no App); o
 // I18nProvider preenche os `{placeholders}` (o contexto padrão não)
 function Providers({ children }: { children: ReactNode }) {
@@ -757,7 +764,12 @@ describe("painel de medidas .measure (issue #20)", () => {
       expect(p).not.toBeNull();
       return p!;
     });
+    // abrir o slider re-renderiza e monta a 2ª instância do painel: sem recalcular
+    const spy = vi.mocked(measureRows);
+    const before = spy.mock.calls.length;
+    expect(before).toBeGreaterThan(0);
     fireEvent.click(pad);
+    expect(spy.mock.calls.length).toBe(before);
     // celular: o sheet do slider traz as medidas no topo (acima dos controles)
     expect(screen.getByTestId("sim-slider-top")).toContainElement(
       screen.getAllByTestId("sim-measures")[1],
@@ -774,6 +786,8 @@ describe("painel de medidas .measure (issue #20)", () => {
     );
     rows = rowsOf(screen.getAllByTestId("sim-measures")[0]);
     expect(rows[1]).toMatchObject({ name: "never", error: "1" });
+    // o re-run (um run novo) recalcula UMA vez para as duas instâncias
+    expect(spy.mock.calls.length).toBe(before + 1);
   });
 });
 

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { AlertTriangle, Check, ChevronRight, Copy, TriangleAlert } from "lucide-react";
 import { cn } from "@rpic/design-system";
-import type { Measurement, Plot, SimDiagnostic } from "@/lib/dune";
-import { measureRows } from "@/lib/simMeasure";
+import type { Plot, SimDiagnostic } from "@/lib/dune";
+import type { MeasureRow } from "@/lib/simMeasure";
 import { formatSI, isComplex, unitOf } from "@/lib/waveform";
 import { copyText } from "@/lib/exports";
 import { useI18n } from "@/lib/i18n";
@@ -205,17 +205,12 @@ export function ScalarTable({
 /** Painel compacto das medidas `.measure` do run: nome, valor (prefixo SI) e
  *  o detalhe que o ngspice imprime ao lado (trig/targ, at, with, janela
  *  from/to). Linha que falhou mostra a razão e NUNCA some. Atualiza a cada
- *  run, os re-runs de slider inclusive (o valor "respira" com o arrasto). */
-export function MeasurePanel({
-  measurements,
-  netlist,
-}: {
-  measurements: readonly Measurement[];
-  netlist: string;
-}) {
+ *  run, os re-runs de slider inclusive (o valor "respira" com o arrasto).
+ *  As linhas vêm prontas (`measureRows`, memoizado no painel): as duas
+ *  instâncias — sob a figura e no topo do sheet do slider — dividem o cálculo. */
+export function MeasurePanel({ rows }: { rows: readonly MeasureRow[] }) {
   const { t } = useI18n();
-  if (measurements.length === 0) return null;
-  const rows = measureRows(measurements, netlist);
+  if (rows.length === 0) return null;
   return (
     <section
       className="rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) px-2.5 py-1.5"

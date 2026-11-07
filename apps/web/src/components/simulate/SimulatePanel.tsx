@@ -32,6 +32,7 @@ import {
   type WriteBackFailure,
 } from "@/lib/simSource";
 import { useSimulation } from "@/lib/useSimulation";
+import { measureRows } from "@/lib/simMeasure";
 import { PREFS_EVENT, pushPrefsSoon } from "@/lib/prefs";
 import { loadSimFineSteps, saveSettings } from "@/lib/storage";
 import { Tip } from "@/components/ui/Tooltip";
@@ -357,11 +358,15 @@ export function SimulatePanel({
   const stale = sim.source !== null && sim.source !== source && !running;
   // medidas `.measure` do run na tela (re-run de slider que falha mantém o
   // último run bom — e as medidas dele)
-  const measurements = sim.run?.measurements ?? [];
+  const measurements = sim.run?.measurements;
   const showFigure = active && sim.figure !== null && pic !== null;
-  const measurePanel = measurements.length > 0 && (
-    <MeasurePanel measurements={measurements} netlist={pic?.netlist ?? ""} />
+  const netlist = pic?.netlist ?? "";
+  // UMA vez por run (e netlist), não por render nem por instância do painel
+  const measures = useMemo(
+    () => (measurements?.length ? measureRows(measurements, netlist) : []),
+    [measurements, netlist],
   );
+  const measurePanel = measures.length > 0 && <MeasurePanel rows={measures} />;
   const run = () => {
     setWriteNote(null);
     sim.start(source);
