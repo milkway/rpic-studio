@@ -17,3 +17,9 @@ test-results/
 # editor/os
 .DS_Store
 *.log
+
+# Internal dev notes (local only)
+/CLAUDE.md
+/PLAN.md
+/DECISIONS.md
+/.claude/
