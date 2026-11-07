@@ -3,7 +3,7 @@ import { cn } from "@rpic/design-system";
 import { sanitizeSvg } from "@/lib/sanitize";
 import type { SimFigureResult } from "@/lib/simProtocol";
 import { useI18n } from "@/lib/i18n";
-import { relabel } from "@/lib/simValues";
+import { formatSpice, relabel } from "@/lib/simValues";
 
 /** Rede sondável da figura: as formas dela e o traço `v(rede)` que liga. */
 export interface ProbeNet {
@@ -108,6 +108,44 @@ function addElementPad(root: HTMLElement, el: SliderElement): SVGRectElement | n
   r.setAttribute("aria-label", el.label);
   groups[0].parentNode?.insertBefore(r, groups[0].parentNode.firstChild);
   return r;
+}
+
+/** Valor novo de um elemento cujo rótulo não pôde ser reescrito: um `<text>`
+ *  centrado acima da união das formas, dentro da 1ª (herda o estilo
+ *  `.sim-altered text` e o sistema de coordenadas). Sem layout (jsdom), na
+ *  origem — ainda presente no DOM. */
+function overlayValue(
+  root: HTMLElement,
+  groups: SVGGraphicsElement[],
+  refdes: string,
+  text: string,
+): void {
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  for (const g of groups) {
+    if (typeof g.getBBox !== "function") continue;
+    let b: DOMRect;
+    try {
+      b = g.getBBox();
+    } catch {
+      continue;
+    }
+    if (b.width === 0 && b.height === 0) continue;
+    x0 = Math.min(x0, b.x);
+    y0 = Math.min(y0, b.y);
+    x1 = Math.max(x1, b.x + b.width);
+  }
+  const has = Number.isFinite(x0);
+  const tx = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  tx.setAttribute("class", "sim-relabel");
+  tx.setAttribute("data-testid", `sim-relabel-${refdes}`);
+  tx.setAttribute("x", String(has ? (x0 + x1) / 2 : 0));
+  tx.setAttribute("y", String(has ? y0 - 3 : 0));
+  tx.setAttribute("text-anchor", "middle");
+  tx.setAttribute("font-size", root.querySelector("text")?.getAttribute("font-size") ?? "11pt");
+  tx.textContent = text;
+  groups[0].appendChild(tx);
 }
 
 /** Folga do alvo de toque em volta da forma, em px de tela. */
@@ -215,11 +253,17 @@ export function SimFigure({
 
   // Elemento ALTERADO: formas marcadas (`.sim-altered`, cor de destaque) e o
   // rótulo desenhado reescrito com o valor novo (itálico). O texto original
-  // fica em `data-orig-text` p/ restaurar.
+  // fica em `data-orig-text` p/ restaurar. Só UM texto por elemento, varrendo
+  // as formas em ordem: a 1ª forma do elemento é o rótulo de valor (o `map`
+  // do extrator não diz qual texto é o valor), então um rótulo de pino "1"
+  // mais adiante não é reescrito por um `DC 1`. Nenhum texto casa (rótulo TeX,
+  // grafia desconhecida) → o valor novo SOBREPOSTO acima do elemento
+  // (`.sim-relabel`), em vez de deixar o número velho valendo.
   useEffect(() => {
     const root = ref.current;
     if (!root) return;
     root.querySelectorAll(".sim-altered").forEach((g) => g.classList.remove("sim-altered"));
+    root.querySelectorAll(".sim-relabel").forEach((tx) => tx.remove());
     root.querySelectorAll<SVGTextElement>("text[data-orig-text]").forEach((tx) => {
       tx.textContent = tx.getAttribute("data-orig-text");
       tx.removeAttribute("data-orig-text");
@@ -227,18 +271,24 @@ export function SimFigure({
     for (const el of elements) {
       if (!el.altered) continue;
       const { original, value } = el.altered;
-      for (const id of el.shapes) {
-        const g = root.querySelector(`[id="s${id}"]`);
-        if (!g) continue;
+      const groups = el.shapes
+        .map((id) => root.querySelector<SVGGraphicsElement>(`[id="s${id}"]`))
+        .filter((g): g is SVGGraphicsElement => g !== null);
+      let done = false;
+      for (const g of groups) {
         g.classList.add("sim-altered");
-        g.querySelectorAll("text").forEach((tx) => {
+        if (done) continue;
+        for (const tx of g.querySelectorAll("text")) {
           const orig = tx.textContent ?? "";
           const next = relabel(orig, original, value);
-          if (next === null) return;
+          if (next === null) continue;
           tx.setAttribute("data-orig-text", orig);
           tx.textContent = next;
-        });
+          done = true;
+          break;
+        }
       }
+      if (!done && groups.length > 0) overlayValue(root, groups, el.refdes, formatSpice(value));
     }
   }, [svg, alteredKey, elKey]);
 

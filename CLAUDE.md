@@ -290,7 +290,8 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   torno do valor do fonte (12 passos/década ≈ E12; setas = passo, PgUp/PgDn = década, Home =
   original), campo em notação SPICE (`M` = mili, `meg`), reset; ancorado sob o elemento no
   desktop, bottom sheet `<sm`. Alterado = `.sim-altered` (rótulo desenhado reescrito em itálico
-  via `relabel`, traço em acento) + chip "N alterados" (lista, desfazer um/tudo). O wasm 0.3.0
+  via `relabel` — UM texto por elemento, 1ª forma = rótulo de valor; `1kΩ`/`10 k` casam; sem
+  texto que case, ex. TeX, o valor novo é sobreposto (`.sim-relabel`) — traço em acento) + chip "N alterados" (lista, desfazer um/tudo). O wasm 0.3.0
   NÃO devolve `.measure` no run (Rawfile = plots/notes/diagnostics) — painel de medidas pendente. Cores `--color-trace-1..6` (validadas p/ CVD) num `@theme static` —
   PEGADINHA: variável de `@theme` sem utility que a use é PODADA pelo Tailwind v4;
   `stroke="var(…)"` em atributo SVG não conta. `.op`/`.tf` viram tabela.

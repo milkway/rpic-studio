@@ -83,4 +83,20 @@ describe("escala log do slider", () => {
     expect(relabel("DC 10 AC 1", 10, 22)).toBe("DC 22 AC 1");
     expect(relabel("PULSE(0 5 0 1u)", 3, 4)).toBeNull();
   });
+
+  it("relabel: cauda de unidade não-ASCII, forma com espaço, µ preservado", () => {
+    expect(parseSpiceNumber("1kΩ")).toBe(1000);
+    expect(relabel("1kΩ", 1000, 2200)).toBe("2.2kΩ");
+    expect(relabel("4.7µF", 4.7e-6, 1e-5)).toBe("10µF");
+    expect(relabel("10 k", 1e4, 2.2e4)).toBe("22 k");
+    expect(relabel("10 kΩ", 1e4, 500)).toBe("500 Ω");
+    expect(relabel("R = 10 kΩ", 1e4, 1e6)).toBe("R = 1 megΩ");
+    // com espaço, a letra pode ser só a unidade: 1 F é um farad
+    expect(relabel("1 F", 1, 2)).toBe("2 F");
+    expect(relabel("5V", 5, 12)).toBe("12V");
+    // colado, o sufixo vale (1F = femto no SPICE): não casa com 1
+    expect(relabel("1F", 1, 2)).toBeNull();
+    // TeX cru não tem número delimitado que valha o original
+    expect(relabel("$10\\,k\\Omega$", 1e4, 2e4)).toBeNull();
+  });
 });

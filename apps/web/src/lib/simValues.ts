@@ -18,10 +18,11 @@ const SUFFIXES: [string, number][] = [
   ["f", 1e-15],
 ];
 
-/** Lê um número SPICE: `4.7k`, `10u`, `1meg`, `2.2e3`, `1kohm` (letras após o
- *  sufixo são ignoradas, como no SPICE). Inválido → `null`. */
+/** Lê um número SPICE: `4.7k`, `10u`, `1meg`, `2.2e3`, `1kohm`, `1kΩ` (letras
+ *  após o sufixo — de qualquer alfabeto — são ignoradas, como no SPICE).
+ *  Inválido → `null`. */
 export function parseSpiceNumber(text: string): number | null {
-  const m = /^\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)([a-zµμ]*)\s*$/i.exec(
+  const m = /^\s*([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)(\p{L}*)\s*$/iu.exec(
     text.replace("−", "-"),
   );
   if (!m) return null;
@@ -138,17 +139,51 @@ export function withAlter(
   return next;
 }
 
-/** Rótulo da figura com o valor novo: troca o 1º token numérico que vale o
- *  original (`DC 10 AC 1` → `DC 22 AC 1`). Sem token que case → `null`. */
+/** Escala de um sufixo SPICE no início de `letters` (`k`, `meg`, `µ`…) e o
+ *  comprimento dele; sem sufixo → `null`. */
+function suffixOf(letters: string): { scale: number; len: number } | null {
+  const lower = letters.toLowerCase();
+  for (const [sfx, scale] of SUFFIXES) if (lower.startsWith(sfx)) return { scale, len: sfx.length };
+  return null;
+}
+
+/** Número de um rótulo: delimitado por espaço/pontuação, com sufixo SPICE e
+ *  cauda de unidade em QUALQUER alfabeto (`1kΩ`, `4.7µF`) e a forma com
+ *  espaço (`10 k`, `10 kΩ`). */
+const LABEL_NUMBER =
+  /(^|[\s(),=${}\\])([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)( ?)(\p{L}*)(?=$|[\s(),=${}\\/])/giu;
+
+/** Rótulo da figura com o valor novo: troca o 1º número que vale o original
+ *  (`DC 10 AC 1` → `DC 22 AC 1`, `1kΩ` → `2.2kΩ`, `10 k` → `22 k`),
+ *  preservando a cauda de unidade e o espaço. Sem número que case → `null`. */
 export function relabel(text: string, original: number, value: number): string | null {
-  const tokens = text.split(/(\s+|[(),=])/);
-  for (let i = 0; i < tokens.length; i++) {
-    const v = parseSpiceNumber(tokens[i]);
-    if (v === null || tokens[i].trim() === "") continue;
-    if (Math.abs(v - original) <= Math.abs(original) * 1e-9) {
-      tokens[i] = formatSpice(value);
-      return tokens.join("");
+  const close = (v: number) => Math.abs(v - original) <= Math.abs(original) * 1e-9;
+  const [, newNum, newSfx] = /^(.*?)([a-z]*)$/.exec(formatSpice(value))!;
+  for (const m of text.matchAll(LABEL_NUMBER)) {
+    const [, lead, num, space, letters] = m;
+    const base = Number(num);
+    if (!Number.isFinite(base)) continue;
+    const sfx = suffixOf(letters);
+    // colado, o SPICE lê o sufixo (`1F` = femto); com espaço, `10 k` usa o
+    // sufixo, mas `1 F`/`10 V`/`DC 10 AC` também casam só pelo número
+    let usedSuffix: boolean;
+    if (sfx && close(base * sfx.scale)) usedSuffix = true;
+    else if ((!sfx || space) && close(base)) usedSuffix = false;
+    else continue;
+    const start = m.index + lead.length;
+    let replacement: string;
+    let end: number;
+    if (usedSuffix) {
+      // o µ do rótulo continua µ (o SPICE escreve `u`)
+      const written = letters.slice(0, sfx!.len);
+      const outSfx = newSfx === "u" && /^[µμ]/.test(written) ? written : newSfx;
+      replacement = `${newNum}${space}${outSfx}`;
+      end = start + num.length + space.length + sfx!.len;
+    } else {
+      replacement = `${newNum}${newSfx}`;
+      end = start + num.length;
     }
+    return text.slice(0, start) + replacement + text.slice(end);
   }
   return null;
 }
