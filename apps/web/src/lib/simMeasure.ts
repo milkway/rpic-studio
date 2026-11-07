@@ -9,9 +9,13 @@ import { formatSI } from "./waveform";
 /** Unidade da ESCALA por análise (`.dc` varre o que a fonte for: sem unidade). */
 const SCALE_UNIT: Readonly<Record<string, string>> = { tran: "s", ac: "Hz", sp: "Hz", dc: "" };
 
-/** Unidade de um vetor do cartão: `v(…)`/`vm(…)` = V, `i(…)` = A, `vdb` = dB. */
-function vectorUnit(text: string): string {
-  const m = /\b(vdb|vm|vp|vr|vi|v|i)\s*\(/i.exec(text);
+/** Unidade de uma expressão de medida SÓ se ela é um vetor simples —
+ *  `v(…)`/`vm(…)`/`vr(…)`/`vi(…)` = V, `i(…)` = A, `vdb(…)` = dB, inteiro e
+ *  seguido de espaço/fim/palavra-chave (`AT=`, `FROM=`…). Qualquer outra
+ *  coisa (`par('…')`, `v(a)*2`, `vp(…)`) = SEM unidade: melhor nenhuma que
+ *  uma errada. */
+function plainVectorUnit(expr: string): string {
+  const m = /^(vdb|vm|vp|vr|vi|v|i)\s*\([^()]*\)(?=\s|$)/i.exec(expr.trim());
   if (!m) return "";
   const k = m[1].toLowerCase();
   if (k === "i") return "A";
@@ -27,17 +31,31 @@ interface CardInfo {
   vector: string;
 }
 
-/** Cartões `.meas[ure] <análise> <nome> …` do netlist → unidades por nome
- *  (minúsculo, como o dune devolve). */
+/** Linhas lógicas do netlist: continuação SPICE (`+` no início) junta-se à
+ *  anterior. */
+function logicalLines(netlist: string): string[] {
+  const out: string[] = [];
+  for (const raw of netlist.split(/\r?\n/)) {
+    const cont = /^\s*\+(.*)$/.exec(raw);
+    if (cont && out.length) out[out.length - 1] += ` ${cont[1]}`;
+    else out.push(raw);
+  }
+  return out;
+}
+
+/** Cartões `.meas[ure] <análise> <nome> <TIPO> <expr> …` do netlist →
+ *  unidades por nome (minúsculo, como o dune devolve).
+ *
+ *  INFERÊNCIA PROVISÓRIA do lado do Studio: se o dune passar a expor o cartão
+ *  já parseado (tipo + vetor de cada medida; ver milkway/dune#19), isto sai. */
 export function measureCards(netlist: string): Map<string, CardInfo> {
   const out = new Map<string, CardInfo>();
-  for (const raw of netlist.split("\n")) {
-    const m = /^\s*\.meas(?:ure)?\s+(\w+)\s+(\S+)\s+(.*)$/i.exec(raw);
+  for (const line of logicalLines(netlist)) {
+    const m = /^\s*\.meas(?:ure)?\s+(\w+)\s+(\S+)\s+(\w+)\s*(.*)$/i.exec(line);
     if (!m) continue;
     const scale = SCALE_UNIT[m[1].toLowerCase()] ?? "";
-    const rest = m[3];
-    const kind = (/^\s*(\w+)/.exec(rest)?.[1] ?? "").toUpperCase();
-    const vector = vectorUnit(rest);
+    const kind = m[3].toUpperCase();
+    const vector = plainVectorUnit(m[4]);
     const value =
       kind === "WHEN" || kind === "TRIG" || kind === "MIN_AT" || kind === "MAX_AT"
         ? scale

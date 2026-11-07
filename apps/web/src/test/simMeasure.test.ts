@@ -24,6 +24,28 @@ describe("measureCards", () => {
   });
 });
 
+describe("measureCards: continuação e expressões", () => {
+  it("junta linhas `+` antes de casar o cartão", () => {
+    const c = measureCards(".tran 1u 5m\n.measure tran vpk\n+ MAX v(out)\n.end\n");
+    expect(c.get("vpk")?.value).toBe("V");
+  });
+
+  it("expressão que não é vetor simples: sem unidade (nunca uma errada)", () => {
+    const c = measureCards(
+      [
+        ".meas tran p2 MAX par('v(out)*2')",
+        ".meas tran dv FIND v(a)-v(b) AT=1m",
+        ".meas tran ok FIND v(a) AT=1m",
+        ".meas tran ia AVG i(v1) FROM=0 TO=1m",
+      ].join("\n"),
+    );
+    expect(c.get("p2")?.value).toBe("");
+    expect(c.get("dv")?.value).toBe("");
+    expect(c.get("ok")?.value).toBe("V");
+    expect(c.get("ia")?.value).toBe("A");
+  });
+});
+
 describe("measureRows", () => {
   it("valor com prefixo SI, detalhes e falha com a razão", () => {
     const ms: Measurement[] = [
