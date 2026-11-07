@@ -1,6 +1,6 @@
 // sessionControls com uma Session FALSA: o nome mostrado no cabeçalho do
 // slider é o do parâmetro que `param(refdes)`/`alter(refdes, v)` movem.
-import { sessionControls, SimHost } from "@/lib/simProtocol";
+import { sessionControls, SimHost, type SimAdopt } from "@/lib/simProtocol";
 import type { PicExtraction, SimSession } from "@/lib/dune";
 
 type Params = Record<string, { names: string[]; principal: number; by: Record<string, number> }>;
@@ -109,7 +109,7 @@ describe("SimHost: parâmetro do controle e adoção do fonte reescrito", () => 
       id: 3,
       source: "B",
       alters: { V1: 2 },
-      adopt: { from: "A", originals: { R1: 2200 } },
+      adopt: [{ from: "A", to: "B", originals: { R1: 2200 } }],
     });
     expect(res.fresh).toBe(false); // mesma sessão
     expect(calls.at(-1)).toEqual(["R1", "resistance", 2200]);
@@ -124,14 +124,14 @@ describe("SimHost: parâmetro do controle e adoção do fonte reescrito", () => 
       type: "run",
       id: 5,
       source: "B",
-      adopt: { from: "A", originals: { R1: 2200 } },
+      adopt: [{ from: "A", to: "B", originals: { R1: 2200 } }],
     });
     expect(again.fresh).toBe(false);
     const other = await host.handle({
       type: "run",
       id: 6,
       source: "C",
-      adopt: { from: "Z", originals: { R1: 1 } },
+      adopt: [{ from: "Z", to: "C", originals: { R1: 1 } }],
     });
     expect(other.fresh).toBe(true);
     expect(renders).toEqual(["A", "B", "C"]);
@@ -151,7 +151,7 @@ describe("SimHost: parâmetro do controle e adoção do fonte reescrito", () => 
       type: "run",
       id: 2,
       source: "B",
-      adopt: { from: "A", originals: { R1: 2200, V1: 3 } },
+      adopt: [{ from: "A", to: "B", originals: { R1: 2200, V1: 3 } }],
     });
     expect(bad.type).toBe("error");
     expect(bad.type === "error" && bad.error.kind).toBe("alter");
@@ -169,5 +169,47 @@ describe("SimHost: parâmetro do controle e adoção do fonte reescrito", () => 
       ["R1", "resistance", 5],
       ["R1", "resistance", 1000],
     ]);
+  });
+
+  it("cadeia de adoções: worker em qualquer ponto segue até o fim, sem reabrir", async () => {
+    const calls: unknown[][] = [];
+    let opens = 0;
+    const host = new SimHost({
+      ensure: async () => undefined,
+      openSession: () => {
+        opens++;
+        return recordingSession(calls);
+      },
+      renderPic: (src) => `<svg>${src}</svg>`,
+    });
+    const chain: SimAdopt[] = [
+      { from: "A", to: "B", originals: { R1: 2200 } },
+      { from: "B", to: "C", originals: { R1: 3300, V1: 2 } },
+    ];
+    await host.handle({ type: "run", id: 1, source: "A" });
+    // o worker já adotou o 1º passo (B) e recebe a cadeia inteira até C
+    const b = await host.handle({ type: "run", id: 2, source: "B", adopt: chain.slice(0, 1) });
+    expect(b.liveSource).toBe("B");
+    const c = await host.handle({ type: "run", id: 3, source: "C", adopt: chain });
+    expect(c.fresh).toBe(false);
+    expect(c.liveSource).toBe("C");
+    expect(c.controls?.map((x) => [x.refdes, x.value])).toEqual([
+      ["V1", 2],
+      ["R1", 3300],
+    ]);
+    // e em A direto (o pedido do 1º passo se perdeu): os dois passos de uma vez
+    const host2 = new SimHost({
+      ensure: async () => undefined,
+      openSession: () => {
+        opens++;
+        return recordingSession([]);
+      },
+      renderPic: (src) => `<svg>${src}</svg>`,
+    });
+    await host2.handle({ type: "run", id: 1, source: "A" });
+    const c2 = await host2.handle({ type: "run", id: 2, source: "C", adopt: chain });
+    expect(c2.fresh).toBe(false);
+    expect(c2.controls?.find((x) => x.refdes === "R1")?.value).toBe(3300);
+    expect(opens).toBe(2); // uma abertura por host, nenhuma reabertura
   });
 });

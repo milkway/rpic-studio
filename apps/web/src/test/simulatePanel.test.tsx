@@ -30,17 +30,42 @@ class InlineWorker implements WorkerLike {
   terminated = false;
   hold = false;
   sent: SimRequest[] = [];
+  /** O que o host respondeu a cada pedido (sessão reaberta?). */
+  responses: { fresh: boolean; source: string }[] = [];
   // a sessão vive no "worker", como no real
   host = new SimHost({ ensure: () => ensureDune(), openSession, renderPic, extractPic });
+  /** Modo passo a passo: o pedido espera `process()` (o worker o trata) e a
+   *  resposta espera `deliver()` (chega à UI) — p/ intercalar a UI entre os dois. */
+  manual = false;
+  inbox: SimRequest[] = [];
+  outbox: SimResponse[] = [];
   postMessage(msg: SimRequest) {
     this.sent.push(msg);
     if (this.hold) return; // "simulação infinita": nunca responde
-    void this.host.handle(msg).then((res) =>
-      // como o worker real: os buffers das colunas são TRANSFERIDOS
-      this.onmessage?.({
-        data: structuredClone(res, { transfer: transferablesOf(res) }),
-      } as MessageEvent<SimResponse>),
-    );
+    if (this.manual) {
+      this.inbox.push(msg);
+      return;
+    }
+    void this.host.handle(msg).then((res) => this.reply(msg, res));
+  }
+  async process() {
+    const msg = this.inbox.shift()!;
+    const res = await this.host.handle(msg);
+    this.responses.push({ fresh: res.fresh, source: msg.source });
+    this.outbox.push(res);
+  }
+  deliver() {
+    const res = this.outbox.shift()!;
+    this.onmessage?.({
+      data: structuredClone(res, { transfer: transferablesOf(res) }),
+    } as MessageEvent<SimResponse>);
+  }
+  private reply(msg: SimRequest, res: SimResponse) {
+    this.responses.push({ fresh: res.fresh, source: msg.source });
+    // como o worker real: os buffers das colunas são TRANSFERIDOS
+    this.onmessage?.({
+      data: structuredClone(res, { transfer: transferablesOf(res) }),
+    } as MessageEvent<SimResponse>);
   }
   terminate() {
     this.terminated = true;
@@ -433,7 +458,7 @@ describe("SimulatePanel", () => {
       await waitFor(() =>
         expect(workers[0].sent.at(-1)).toMatchObject({
           alters: {},
-          adopt: { originals: { R1: expect.any(Number) } },
+          adopt: [expect.objectContaining({ originals: { R1: expect.any(Number) } })],
         }),
       );
       await waitFor(() =>
@@ -471,6 +496,49 @@ describe("SimulatePanel", () => {
       expect(edits).toHaveLength(3);
       expect(srcLine("R1:")).toBe("R1: resistor(Vin, Vout, 4.753k)");
       expect(workers[0].sent).toHaveLength(sent);
+    });
+
+    it("duas escritas seguidas: o worker adotou a 1ª mas a UI não soube ainda — a 2ª segue a cadeia, sem reabrir", async () => {
+      const edits: SourceEdit[] = [];
+      const workers: InlineWorker[] = [];
+      render(<Harness initial={RC_FIGURE} edits={edits} workers={workers} />);
+      await openSlider("R1");
+      const w = workers[0];
+      w.manual = true;
+      const range = screen.getByTestId("sim-slider-range") as HTMLInputElement;
+      const input = screen.getByTestId("sim-slider-input") as HTMLInputElement;
+
+      // 1ª escrita: re-run (R1 alterado) sai; a adoção A→B fica na fila do cliente
+      fireEvent.change(range, { target: { value: "600" } });
+      fireEvent.pointerUp(range);
+      await act(async () => {
+        await w.process();
+        w.deliver(); // re-run respondido → o cliente manda a adoção A→B
+      });
+      expect(w.inbox.at(-1)?.adopt).toHaveLength(1);
+      // o worker ADOTA B, mas a resposta ainda não chegou à UI…
+      await act(() => w.process());
+      // …e chega a 2ª escrita (B→C)
+      fireEvent.focus(input);
+      fireEvent.change(input, { target: { value: "33k" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(edits).toHaveLength(2);
+      expect(srcLine("R1:")).toBe("R1: resistor(Vin, Vout, 33k)");
+      // entrega da adoção de B e processa o que vier (a cadeia até C)
+      await act(async () => {
+        w.deliver();
+        while (w.inbox.length) {
+          await w.process();
+          w.deliver();
+        }
+      });
+      await waitFor(() =>
+        expect(screen.getByTestId("sim-netlist-code").textContent).toContain("R1 Vin Vout 33k"),
+      );
+      // só a execução inicial abriu sessão; nenhuma adoção reabriu
+      expect(workers).toHaveLength(1);
+      expect(w.responses.filter((r) => r.fresh)).toHaveLength(1);
+      expect(screen.queryByTestId("sim-altered-chip")).toBeNull();
     });
 
     it("valor que não é literal: não escreve, fica alterado e a linha de status diz por quê", async () => {
@@ -521,7 +589,9 @@ describe("SimulatePanel", () => {
       expect(srcLine("V1:")).toBe("V1: vsource(A, (0,0), DC 10 AC 1.5)");
       expect(screen.getByTestId("sim-writeback").textContent).toContain("V1 = AC 1.5");
       await waitFor(() =>
-        expect(workers[0].sent.at(-1)).toMatchObject({ adopt: { originals: { V1: 1.5 } } }),
+        expect(workers[0].sent.at(-1)).toMatchObject({
+          adopt: [expect.objectContaining({ originals: { V1: 1.5 } })],
+        }),
       );
     });
   });

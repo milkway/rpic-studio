@@ -43,7 +43,7 @@ export interface RunInput {
   source: string;
   opts?: PicSimOptions;
   alters?: Alters;
-  adopt?: SimAdopt;
+  adopt?: readonly SimAdopt[];
 }
 
 interface Waiter {

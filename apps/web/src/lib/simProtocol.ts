@@ -11,14 +11,16 @@ import type { PicExtraction, PicRun, PicSimOptions, SimDiagnostic, SimSession } 
 import { unitForRefdes, type Alters, type SimControl } from "./simValues";
 import { hasAcAnalysis } from "./simSource";
 
-/** O fonte da sessão viva foi REESCRITO pela escrita de volta de um slider:
- *  o texto novo difere de `from` só nos valores de `originals` (refdes →
- *  valor agora escrito no fonte). O worker ADOTA o fonte novo sem reabrir a
- *  sessão (sem perder o plot/estado): os valores viram os originais e a
- *  figura é redesenhada com os rótulos novos. Sessão que não é a de `from`
- *  (worker novo após Cancelar) = abertura normal do fonte novo. */
+/** UM passo de reescrita do fonte da sessão pela escrita de volta de um
+ *  slider: `to` difere de `from` só nos valores de `originals` (refdes →
+ *  valor agora escrito no fonte). O pedido leva a CADEIA de passos ainda não
+ *  confirmados (escritas rápidas seguidas: A→B→C); o worker acha o passo cujo
+ *  `from` é a sua sessão e ADOTA dali até o fim sem reabrir (plot/estado
+ *  ficam): os valores viram os originais, figura e netlist do texto novo.
+ *  Nenhum passo bate (worker novo após Cancelar) = abertura normal. */
 export interface SimAdopt {
   from: string;
+  to: string;
   originals: Readonly<Record<string, number>>;
 }
 
@@ -31,7 +33,8 @@ export interface SimRequest {
    *  volta ao valor do fonte — o pedido é idempotente, e um worker novo
    *  (após Cancelar) reconstrói o mesmo estado. */
   alters?: Alters;
-  adopt?: SimAdopt;
+  /** Cadeia de reescritas não confirmadas, em ordem; a última termina em `source`. */
+  adopt?: readonly SimAdopt[];
 }
 
 /** Erro do simulador já serializável (um `Error` perde `kind`/`diagnostics`
@@ -68,6 +71,9 @@ interface Common {
   controls?: SimControl[];
   ms: number;
   timing: SimTiming;
+  /** O fonte da sessão viva DEPOIS do pedido (ausente = sem sessão): é a
+   *  confirmação das adoções — o cliente descarta os passos até ele. */
+  liveSource?: string;
 }
 
 export type SimResponse =
@@ -268,6 +274,11 @@ export class SimHost {
   }
 
   async handle(req: SimRequest): Promise<SimResponse> {
+    const res = await this.handleRun(req);
+    return this.live ? { ...res, liveSource: this.live.source } : res;
+  }
+
+  private async handleRun(req: SimRequest): Promise<SimResponse> {
     const t0 = performance.now();
     const timing: SimTiming = { open: 0, alter: 0, run: 0 };
     try {
@@ -285,24 +296,28 @@ export class SimHost {
     }
 
     let extra: { figure?: SimFigureResult; controls?: SimControl[] } = {};
-    const adopt = req.adopt;
+    const chain = req.adopt ?? [];
+    const live0 = this.live;
+    const start = live0 ? chain.findIndex((st) => st.from === live0.source) : -1;
     if (
-      adopt &&
-      this.live &&
-      this.live.source === adopt.from &&
-      adopt.from !== req.source &&
-      this.live.opts === optsKey(req.opts)
+      live0 &&
+      start >= 0 &&
+      chain.at(-1)!.to === req.source &&
+      live0.source !== req.source &&
+      live0.opts === optsKey(req.opts)
     ) {
+      // os passos dali em diante, na ordem (o mais novo vence por refdes)
+      const originals = Object.assign({}, ...chain.slice(start).map((st) => st.originals));
       const tAdopt = performance.now();
       try {
-        extra = this.adoptSource(req.source, adopt.originals);
+        extra = this.adoptSource(req.source, originals);
       } catch (e) {
         timing.alter = performance.now() - tAdopt;
         return {
           type: "error",
           id: req.id,
           fresh: false,
-          error: { ...toSimFailure(e), pic: this.live.pic },
+          error: { ...toSimFailure(e), pic: live0.pic },
           ms: performance.now() - t0,
           timing,
         };

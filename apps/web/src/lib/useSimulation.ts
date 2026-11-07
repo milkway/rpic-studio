@@ -66,10 +66,11 @@ export function useSimulation(factory?: WorkerFactory) {
   const timer = useRef<number | null>(null);
   const lastSent = useRef(0);
   const sentKey = useRef<string | null>(null);
-  /** Fonte reescrito pela escrita de volta que o worker ainda não confirmou:
-   *  vai em TODO pedido até uma resposta a um pedido que o levou (a fila de um
-   *  lugar pode descartar o 1º). */
-  const pendingAdopt = useRef<SimAdopt | null>(null);
+  /** Cadeia de reescritas do fonte (escrita de volta) que o worker ainda não
+   *  confirmou: vai em TODO pedido (a fila de um lugar pode descartar um) e
+   *  encolhe quando a resposta diz em que fonte a sessão está (`liveSource`).
+   *  Duas escritas rápidas = A→B, B→C: o worker em A ou em B segue a cadeia. */
+  const pendingAdopt = useRef<SimAdopt[]>([]);
 
   useEffect(
     () => () => {
@@ -154,7 +155,7 @@ export function useSimulation(factory?: WorkerFactory) {
         ...(same ? {} : { controls: [] }),
       }));
       sentKey.current = JSON.stringify([source, alters]);
-      pendingAdopt.current = null;
+      pendingAdopt.current = [];
       const sentAt = performance.now();
       client()
         .run({ source, alters })
@@ -177,11 +178,14 @@ export function useSimulation(factory?: WorkerFactory) {
     const sentAt = performance.now();
     const adopt = pendingAdopt.current;
     client()
-      .rerun(adopt ? { source, alters, adopt } : { source, alters })
+      .rerun(adopt.length ? { source, alters, adopt } : { source, alters })
       .then(
         (res) => {
-          // o worker viu o pedido com a adoção: confirmada (ou reabriu)
-          if (adopt && pendingAdopt.current === adopt) pendingAdopt.current = null;
+          // confirmação: a sessão do worker está em `liveSource` — os passos
+          // até ele já valem lá (adotados ou reabertos); os seguintes seguem
+          const chain = pendingAdopt.current;
+          const upTo = chain.findIndex((st) => st.to === res.liveSource);
+          if (upTo >= 0) pendingAdopt.current = chain.slice(upTo + 1);
           apply(res, true, sentAt, source);
         },
         (e: unknown) => onReject(e, true),
@@ -223,10 +227,11 @@ export function useSimulation(factory?: WorkerFactory) {
       const controls = s.controls.map((c) =>
         Object.hasOwn(originals, c.refdes) ? { ...c, value: originals[c.refdes] } : c,
       );
-      const prev = pendingAdopt.current;
-      pendingAdopt.current = prev
-        ? { from: prev.from, originals: { ...prev.originals, ...originals } }
-        : { from: s.source, originals: { ...originals } };
+      // encadeia: a sessão do worker pode estar em qualquer ponto da cadeia
+      pendingAdopt.current = [
+        ...pendingAdopt.current,
+        { from: s.source, to: source, originals: { ...originals } },
+      ];
       stateRef.current = { ...s, source, alters, controls };
       setState((cur) => ({ ...cur, source, alters, controls }));
       if (timer.current !== null) window.clearTimeout(timer.current);
