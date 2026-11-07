@@ -209,6 +209,34 @@ body {
   stroke: var(--color-accent);
   stroke-opacity: 0.35;
 }
+/* Terminal de elemento (SimFigure `addPinTarget`, issue #21): círculo de
+   toque invisível + ponto de marca, que aparece no hover/foco e, com a rede
+   ligada, fica na cor do traço. */
+.sim-figure .sim-hit.sim-hit-pin circle {
+  /* sem o traço largo (inclusive no toque): o raio do círculo é o alvo */
+  stroke-width: 0;
+  fill: transparent;
+  pointer-events: all;
+}
+.sim-figure .sim-hit.sim-hit-pin:focus-visible circle:not(.sim-pin-dot) {
+  stroke: var(--color-accent);
+  stroke-opacity: 0.35;
+  stroke-width: 3px;
+}
+.sim-figure .sim-hit.sim-hit-pin .sim-pin-dot {
+  display: none;
+  stroke: none;
+  pointer-events: none;
+}
+.sim-figure .sim-hit-pin:hover .sim-pin-dot,
+.sim-figure .sim-hit-pin:focus-visible .sim-pin-dot {
+  display: inline;
+  fill: var(--color-sim-highlight);
+}
+.sim-figure .sim-hit-pin.sim-pin-on .sim-pin-dot {
+  display: inline;
+  fill: var(--probe-color);
+}
 /* Caixa de toque (SimFigure `addTouchPad`): só no ponteiro grosso — no mouse
    o traço largo já basta e a caixa de um fio diagonal pegaria demais. */
 .sim-figure .sim-hit rect.sim-hit-pad {

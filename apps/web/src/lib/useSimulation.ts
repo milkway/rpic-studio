@@ -33,6 +33,9 @@ export interface SimulationState {
   /** Conta as execuções NOVAS (Simular), não os re-runs: estado de vista que
    *  zera a cada execução (plot escolhido, probes, cursor) sobrevive ao slider. */
   epoch: number;
+  /** Modo "passos finos" (`trtol = 1` + TMAX ÷ 10): vai em todo pedido, os
+   *  re-runs de slider inclusive. É modo de VISUALIZAÇÃO — o deck não muda. */
+  fine: boolean;
 }
 
 const IDLE: SimulationState = {
@@ -50,6 +53,7 @@ const IDLE: SimulationState = {
   roundTrip: null,
   sentAt: null,
   epoch: 0,
+  fine: false,
 };
 
 /** Intervalo mínimo entre re-runs durante o arrasto (ms): no máximo ~25/s;
@@ -58,9 +62,9 @@ export const RERUN_THROTTLE_MS = 40;
 
 /** Simulação no worker terminável. O wasm do dune só é carregado no 1º `start`;
  *  a sessão do circuito fica viva no worker para os re-runs de slider. */
-export function useSimulation(factory?: WorkerFactory) {
+export function useSimulation(factory?: WorkerFactory, initialFine = false) {
   const clientRef = useRef<SimClient | null>(null);
-  const [state, setState] = useState<SimulationState>(IDLE);
+  const [state, setState] = useState<SimulationState>(() => ({ ...IDLE, fine: initialFine }));
   const stateRef = useRef(state);
   stateRef.current = state;
   const timer = useRef<number | null>(null);
@@ -154,11 +158,12 @@ export function useSimulation(factory?: WorkerFactory) {
         alters,
         ...(same ? {} : { controls: [] }),
       }));
-      sentKey.current = JSON.stringify([source, alters]);
+      const fine = prev.fine;
+      sentKey.current = JSON.stringify([source, alters, fine]);
       pendingAdopt.current = [];
       const sentAt = performance.now();
       client()
-        .run({ source, alters })
+        .run(fine ? { source, alters, fine } : { source, alters })
         .then(
           (res) => apply(res, false, sentAt, source),
           (e: unknown) => onReject(e),
@@ -169,16 +174,21 @@ export function useSimulation(factory?: WorkerFactory) {
 
   const dispatch = useCallback(() => {
     timer.current = null;
-    const { source, alters } = stateRef.current;
+    const { source, alters, fine } = stateRef.current;
     if (source === null) return;
-    const key = JSON.stringify([source, alters]);
+    const key = JSON.stringify([source, alters, fine]);
     if (key === sentKey.current) return;
     sentKey.current = key;
     lastSent.current = performance.now();
     const sentAt = performance.now();
     const adopt = pendingAdopt.current;
     client()
-      .rerun(adopt.length ? { source, alters, adopt } : { source, alters })
+      .rerun({
+        source,
+        alters,
+        ...(adopt.length ? { adopt } : {}),
+        ...(fine ? { fine } : {}),
+      })
       .then(
         (res) => {
           // confirmação: a sessão do worker está em `liveSource` — os passos
@@ -240,6 +250,27 @@ export function useSimulation(factory?: WorkerFactory) {
     [dispatch],
   );
 
+  /** Liga/desliga os "passos finos". Com uma sessão em uso (rodando ou com
+   *  resultado na tela; não numa falha sem resultado), re-roda UMA vez como re-run (a sessão troca as
+   *  opções pelos setters, sem reabrir: plot/probes/cursor ficam). Ocioso ou
+   *  cancelado, só guarda o modo para o próximo Simular. */
+  const setFine = useCallback(
+    (fine: boolean) => {
+      const s = stateRef.current;
+      if (s.fine === fine) return;
+      stateRef.current = { ...s, fine };
+      setState((cur) => ({ ...cur, fine }));
+      if (s.source === null || s.status === "idle" || s.status === "cancelled") return;
+      // execução que FALHOU sem resultado na tela (ex.: erro de extração): não
+      // há sessão útil a re-rodar — e um "re-rodou em" sobre um erro mentiria.
+      // O próximo Simular já sai no modo novo.
+      if (s.status === "error" && s.run === null) return;
+      if (timer.current !== null) window.clearTimeout(timer.current);
+      dispatch();
+    },
+    [dispatch],
+  );
+
   const cancel = useCallback(() => {
     if (timer.current !== null) window.clearTimeout(timer.current);
     timer.current = null;
@@ -247,5 +278,5 @@ export function useSimulation(factory?: WorkerFactory) {
     clientRef.current?.cancel();
   }, []);
 
-  return { ...state, start, cancel, setAlters, adopt };
+  return { ...state, start, cancel, setAlters, adopt, setFine };
 }

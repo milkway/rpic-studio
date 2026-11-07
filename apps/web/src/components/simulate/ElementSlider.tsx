@@ -1,4 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+} from "react";
 import { RotateCcw, X } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import { formatSI } from "@/lib/waveform";
@@ -43,6 +50,9 @@ interface ElementSliderProps {
   /** Posição (px, relativa ao contêiner da figura) no desktop; no celular o
    *  slider é um bottom sheet e ignora isto. */
   anchor: { left: number; top: number } | null;
+  /** Só no celular (bottom sheet): conteúdo mostrado ACIMA dos controles —
+   *  o painel de medidas, que o sheet cobriria. No desktop fica oculto. */
+  mobileTop?: ReactNode;
 }
 
 /** Slider flutuante do valor principal de um elemento: escala LOG de 100×÷ a
@@ -64,6 +74,7 @@ export function ElementSlider({
   onReset,
   onClose,
   anchor,
+  mobileTop,
 }: ElementSliderProps) {
   const { t } = useI18n();
   const rangeRef = useRef<HTMLInputElement>(null);
@@ -160,6 +171,11 @@ export function ElementSlider({
         anchor ? "sm:top-(--sl-top) sm:left-(--sl-left)" : "sm:top-2 sm:left-2",
       )}
     >
+      {mobileTop && (
+        <div className="mb-2 sm:hidden" data-testid="sim-slider-top">
+          {mobileTop}
+        </div>
+      )}
       <div className="flex min-w-0 items-center gap-2">
         <span className="font-mono text-[12.5px] font-semibold text-(--color-text)">
           {control.refdes}

@@ -7,13 +7,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Loader2, Play, SlidersHorizontal, Square, X, Zap } from "lucide-react";
+import { Footprints, Loader2, Play, SlidersHorizontal, Square, X, Zap } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import type { OverlayMap, Plot, SimDiagnostic } from "@/lib/dune";
 import { detectSpice } from "@/lib/detect";
 import {
   elementShapes,
   netlistLineShapes,
+  netPins,
   netShapes,
   netTraceName,
   probeSlots,
@@ -31,6 +32,10 @@ import {
   type WriteBackFailure,
 } from "@/lib/simSource";
 import { useSimulation } from "@/lib/useSimulation";
+import { measureRows } from "@/lib/simMeasure";
+import { PREFS_EVENT, pushPrefsSoon } from "@/lib/prefs";
+import { loadSimFineSteps, saveSettings } from "@/lib/storage";
+import { Tip } from "@/components/ui/Tooltip";
 import type { WorkerFactory } from "@/lib/simClient";
 import { useI18n, type MessageKey } from "@/lib/i18n";
 import { Button } from "@/components/ui/Button";
@@ -40,7 +45,7 @@ import { SimFigure, type ProbeNet, type SliderElement } from "./SimFigure";
 import { ElementSlider, sourceKeyword } from "./ElementSlider";
 import { TimeScrubber } from "./TimeScrubber";
 import { groupByUnit, MAX_TRACES, traceStyle, WaveformChart } from "./WaveformChart";
-import { NetlistBlock, ScalarTable, SimDiagnostics } from "./SimResultParts";
+import { MeasurePanel, NetlistBlock, ScalarTable, SimDiagnostics } from "./SimResultParts";
 
 interface SimulatePanelProps {
   source: string;
@@ -82,7 +87,24 @@ export function SimulatePanel({
   workerFactory,
 }: SimulatePanelProps) {
   const { t } = useI18n();
-  const sim = useSimulation(workerFactory);
+  // "passos finos" persistido com as outras preferências (rpic:settings.v1);
+  // o estado vivo é o do hook (vai em todo pedido ao worker)
+  // lido UMA vez (inicializador preguiçoso, como o MapPane), não a cada render
+  const [initialFine] = useState(loadSimFineSteps);
+  const sim = useSimulation(workerFactory, initialFine);
+  const { setFine } = sim;
+  const toggleFine = () => {
+    const next = !sim.fine;
+    setFine(next);
+    saveSettings({ simFineSteps: next });
+    pushPrefsSoon();
+  };
+  // prefs da conta aplicadas DEPOIS da montagem (login): relê
+  useEffect(() => {
+    const onPrefs = () => setFine(loadSimFineSteps());
+    window.addEventListener(PREFS_EVENT, onPrefs);
+    return () => window.removeEventListener(PREFS_EVENT, onPrefs);
+  }, [setFine]);
   const marked = useMemo(() => detectSpice(source), [source]);
   const elapsed = useElapsed(sim.status === "running" ? sim.startedAt : null);
   const [plotIdx, setPlotIdx] = useState(0);
@@ -130,23 +152,33 @@ export function SimulatePanel({
     [visible, series],
   );
   const more = series ? series.traces.length - visible.length : 0;
-  // redes clicáveis: as que têm `v(rede)` no plot; cor = a do traço, se ligado
+  // redes clicáveis: as que têm `v(rede)` no plot; cor = a do traço, se ligado.
+  // Alvos = as formas da rede (fios/pontos) E os terminais dos elementos nela
+  // (`pins`): rede ligada pino a pino, sem forma própria, também se sonda.
   const probeNets: ProbeNet[] = useMemo(() => {
     if (!map) return [];
     return map.nets.flatMap((net) => {
       const trace = netTraceName(traceNames, net.name);
-      if (!trace || net.shapes.length === 0) return [];
+      if (!trace) return [];
+      const pins = netPins(map, net.name);
+      if (net.shapes.length === 0 && pins.length === 0) return [];
       const on = visible.find((v) => v.trace.name === trace);
       return [
         {
           name: net.name,
           trace,
           shapes: net.shapes,
+          pins,
           color: on ? traceStyle(on.index).color : null,
         },
       ];
     });
   }, [map, traceNames, visible]);
+  // todos os terminais (terra inclusa): registram o frame pic → SVG dos alvos
+  const terminals = useMemo(
+    () => map?.elements.flatMap((el) => (el.pins ?? []).map((p) => ({ x: p.x, y: p.y }))) ?? [],
+    [map],
+  );
   const diagnostics: SimDiagnostic[] = useMemo(() => {
     if (failure) {
       // `pic` com erro: os diagnósticos do lançamento JÁ são os da extração
@@ -324,6 +356,18 @@ export function SimulatePanel({
   };
 
   const stale = sim.source !== null && sim.source !== source && !running;
+  // medidas `.measure` do run na tela (re-run de slider que falha mantém o
+  // último run bom — e as medidas dele)
+  const measurements = sim.run?.measurements;
+  // a figura mostrada (ou null): UMA condição, já estreitada para o JSX
+  const shownFigure = active && pic !== null ? sim.figure : null;
+  const netlist = pic?.netlist ?? "";
+  // UMA vez por run (e netlist), não por render nem por instância do painel
+  const measures = useMemo(
+    () => (measurements?.length ? measureRows(measurements, netlist) : []),
+    [measurements, netlist],
+  );
+  const measurePanel = measures.length > 0 && <MeasurePanel rows={measures} />;
   const run = () => {
     setWriteNote(null);
     sim.start(source);
@@ -351,6 +395,23 @@ export function SimulatePanel({
                   ? t(sim.rerun ? "sim.reranIn" : "sim.ranIn", { ms: formatSI(sim.ms / 1000, "s") })
                   : ""}
           </span>
+          <Tip label={t("sim.fineTip")}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleFine}
+              aria-pressed={sim.fine}
+              aria-label={t("sim.fine")}
+              data-testid="sim-fine"
+              className={cn(
+                sim.fine &&
+                  "bg-(--color-accent-soft) text-(--color-success) hover:bg-(--color-accent-soft)",
+              )}
+            >
+              <Footprints size={13} />
+              <span className="max-sm:hidden">{t("sim.fine")}</span>
+            </Button>
+          </Tip>
           {running ? (
             <Button variant="outline" size="sm" onClick={sim.cancel} data-testid="sim-cancel">
               <Loader2 size={13} className="animate-spin motion-reduce:animate-none" />
@@ -374,15 +435,16 @@ export function SimulatePanel({
 
       {/* A figura fica FORA da rolagem: o realce de legenda/netlist/tabela
           continua à vista enquanto se rola até eles. */}
-      {active && sim.figure && pic && (
+      {shownFigure && (
         <div
           ref={figWrapRef}
           className="relative z-10 shrink-0 border-b border-(--color-border) bg-(--color-paper) px-4 py-3"
         >
           <SimFigure
-            figure={sim.figure}
+            figure={shownFigure}
             highlight={highlight}
             nets={probeNets}
+            terminals={terminals}
             onToggleNet={toggleNet}
             onHoverNet={setHoverNet}
             elements={sliderElements}
@@ -425,6 +487,12 @@ export function SimulatePanel({
               )}
             </div>
           )}
+          {/* fora da rolagem, logo sob a figura: no celular fica ACIMA do
+              bottom sheet do slider, e o valor acompanha o arrasto */}
+          {measurePanel && (
+            // com o slider aberto no celular, as medidas sobem para o topo do sheet
+            <div className={cn("mt-2", control && "max-sm:hidden")}>{measurePanel}</div>
+          )}
           {control && (
             <ElementSlider
               key={control.refdes}
@@ -435,6 +503,7 @@ export function SimulatePanel({
               onReset={() => setValue(control, null, true)}
               onClose={closeSlider}
               anchor={anchor}
+              mobileTop={measurePanel || undefined}
             />
           )}
         </div>
@@ -447,6 +516,8 @@ export function SimulatePanel({
           </EmptyState>
         )}
         {marked && sim.status === "idle" && <EmptyState>{t("sim.idle")}</EmptyState>}
+
+        {!shownFigure && measurePanel}
 
         {stale && (
           <p className="font-mono text-[11px] text-(--color-warning)" data-testid="sim-stale">

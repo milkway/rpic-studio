@@ -19,6 +19,8 @@ function fakeSession(params: Params): SimSession {
       throw new Error("unused");
     },
     pic: undefined,
+    options: undefined,
+    tmaxDivisor: undefined,
     free: () => undefined,
   };
 }
@@ -26,7 +28,7 @@ function fakeSession(params: Params): SimSession {
 const picOf = (refdes: string[]): PicExtraction => ({
   netlist: "",
   diagnostics: [],
-  map: { elements: refdes.map((r) => ({ refdes: r, shapes: { start: 0, end: 0 } })), nets: [] },
+  map: { elements: refdes.map((r) => ({ refdes: r, shapes: { start: 0, end: 0 }, pins: [] })), nets: [] },
 });
 
 describe("sessionControls: nome do parâmetro principal", () => {
@@ -74,12 +76,14 @@ describe("SimHost: parâmetro do controle e adoção do fonte reescrito", () => 
         diagnostics: [],
         map: {
           elements: [
-            { refdes: "V1", shapes: { start: 0, end: 1 } },
-            { refdes: "R1", shapes: { start: 1, end: 2 } },
+            { refdes: "V1", shapes: { start: 0, end: 1 }, pins: [] },
+            { refdes: "R1", shapes: { start: 1, end: 2 }, pins: [] },
           ],
           nets: [],
         },
       },
+      options: undefined,
+      tmaxDivisor: undefined,
       free: () => undefined,
     };
   }
@@ -211,5 +215,64 @@ describe("SimHost: parâmetro do controle e adoção do fonte reescrito", () => 
     expect(c2.fresh).toBe(false);
     expect(c2.controls?.find((x) => x.refdes === "R1")?.value).toBe(3300);
     expect(opens).toBe(2); // uma abertura por host, nenhuma reabertura
+  });
+});
+
+describe("SimHost: modo passos finos (issue #19)", () => {
+  /** Sessão que registra as atribuições de `options`/`tmaxDivisor`. */
+  function modeSession(log: string[]): SimSession {
+    let options: SimSession["options"];
+    let tmax: SimSession["tmaxDivisor"];
+    return {
+      alter: () => undefined,
+      alterable: () => [],
+      param: () => null,
+      runTyped: () => ({ plots: [], measurements: [], notes: [], diagnostics: [] }),
+      pic: { netlist: "", diagnostics: [], map: { elements: [], nets: [] } },
+      get options() {
+        return options;
+      },
+      set options(v) {
+        log.push(`options=${JSON.stringify(v)}`);
+        options = v;
+      },
+      get tmaxDivisor() {
+        return tmax;
+      },
+      set tmaxDivisor(v) {
+        log.push(`tmax=${v}`);
+        tmax = v;
+      },
+      free: () => undefined,
+    };
+  }
+
+  it("liga/desliga pelos setters da sessão viva, sem reabrir; só quando muda", async () => {
+    const log: string[] = [];
+    let opens = 0;
+    const host = new SimHost({
+      ensure: async () => undefined,
+      openSession: () => {
+        opens++;
+        return modeSession(log);
+      },
+      renderPic: () => "<svg/>",
+    });
+    await host.handle({ type: "run", id: 1, source: "A" });
+    expect(log).toEqual([]); // modo normal na abertura: nada a mexer
+    const on = await host.handle({ type: "run", id: 2, source: "A", fine: true });
+    expect(on.fresh).toBe(false);
+    expect(log).toEqual(['options={"trtol":1}', "tmax=10"]);
+    // re-run de slider no modo fino: não repete os setters
+    await host.handle({ type: "run", id: 3, source: "A", fine: true, alters: {} });
+    expect(log).toHaveLength(2);
+    // desligar devolve as opções do deck e limpa o divisor
+    const off = await host.handle({ type: "run", id: 4, source: "A" });
+    expect(off.fresh).toBe(false);
+    expect(log.slice(2)).toEqual(["options=null", "tmax=null"]);
+    // fonte novo já pedido no fino: sessão nova recebe o modo
+    await host.handle({ type: "run", id: 5, source: "B", fine: true });
+    expect(log.slice(4)).toEqual(['options={"trtol":1}', "tmax=10"]);
+    expect(opens).toBe(2);
   });
 });

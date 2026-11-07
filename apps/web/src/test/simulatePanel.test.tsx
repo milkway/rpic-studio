@@ -2,20 +2,39 @@
 // handler do worker real com o dune real (bytes) — protocolo + UI + realce.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { useMemo, useState } from "react";
+import { act, fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { useMemo, useState, type ReactNode } from "react";
 import { ready } from "@strategicprojects/rpic";
 import prelude from "virtual:dune-prelude";
 import { ensureDune, extractPic, openSession, renderPic } from "@/lib/dune";
 import { compileWithPrelude } from "@/lib/dunePrelude";
 import { applySourceEdit, type SourceEdit } from "@/lib/simSource";
 import { I18nProvider } from "@/lib/i18n";
+import { applyPrefs } from "@/lib/prefs";
+import { measureRows } from "@/lib/simMeasure";
 import { SimHost, transferablesOf, type SimRequest, type SimResponse } from "@/lib/simProtocol";
 import type { WorkerLike } from "@/lib/simClient";
 import { SimulatePanel } from "@/components/simulate/SimulatePanel";
-import { DIVIDER_FIGURE, RC_FIGURE } from "./fixtures-sim";
+import { TooltipProvider } from "@/components/ui/Tooltip";
+import { DIVIDER_FIGURE, MEASURE_FIGURE, PIN_FIGURE, RC_FIGURE } from "./fixtures-sim";
 
 const require = createRequire(import.meta.url);
+
+// espião em `measureRows`: as linhas de medida são calculadas UMA vez por run
+vi.mock("@/lib/simMeasure", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/lib/simMeasure")>();
+  return { ...mod, measureRows: vi.fn(mod.measureRows) };
+});
+// o cabeçalho do painel tem `Tip` (Radix exige o provider, como no App); o
+// I18nProvider preenche os `{placeholders}` (o contexto padrão não)
+function Providers({ children }: { children: ReactNode }) {
+  return (
+    <I18nProvider>
+      <TooltipProvider>{children}</TooltipProvider>
+    </I18nProvider>
+  );
+}
+const render = (ui: Parameters<typeof rtlRender>[0]) => rtlRender(ui, { wrapper: Providers });
 
 beforeAll(async () => {
   await ready(readFileSync(require.resolve("@strategicprojects/rpic/pkg/rpic_wasm_bg.wasm")));
@@ -24,6 +43,9 @@ beforeAll(async () => {
   );
 });
 
+const npointsOf = (res: SimResponse) =>
+  res.type === "ok" ? res.run.plots.map((p) => p.npoints) : [];
+
 class InlineWorker implements WorkerLike {
   onmessage: ((e: MessageEvent<SimResponse>) => void) | null = null;
   onerror: ((e: ErrorEvent) => void) | null = null;
@@ -31,7 +53,7 @@ class InlineWorker implements WorkerLike {
   hold = false;
   sent: SimRequest[] = [];
   /** O que o host respondeu a cada pedido (sessão reaberta?). */
-  responses: { fresh: boolean; source: string }[] = [];
+  responses: { fresh: boolean; source: string; npoints: number[] }[] = [];
   // a sessão vive no "worker", como no real
   host = new SimHost({ ensure: () => ensureDune(), openSession, renderPic, extractPic });
   /** Modo passo a passo: o pedido espera `process()` (o worker o trata) e a
@@ -51,7 +73,7 @@ class InlineWorker implements WorkerLike {
   async process() {
     const msg = this.inbox.shift()!;
     const res = await this.host.handle(msg);
-    this.responses.push({ fresh: res.fresh, source: msg.source });
+    this.responses.push({ fresh: res.fresh, source: msg.source, npoints: npointsOf(res) });
     this.outbox.push(res);
   }
   deliver() {
@@ -61,7 +83,7 @@ class InlineWorker implements WorkerLike {
     } as MessageEvent<SimResponse>);
   }
   private reply(msg: SimRequest, res: SimResponse) {
-    this.responses.push({ fresh: res.fresh, source: msg.source });
+    this.responses.push({ fresh: res.fresh, source: msg.source, npoints: npointsOf(res) });
     // como o worker real: os buffers das colunas são TRANSFERIDOS
     this.onmessage?.({
       data: structuredClone(res, { transfer: transferablesOf(res) }),
@@ -611,5 +633,223 @@ describe("SimulatePanel", () => {
         }),
       );
     });
+  });
+});
+
+describe("passos finos (issue #19)", () => {
+  afterEach(() => window.localStorage.clear());
+
+  it("alternar re-roda UMA vez na mesma sessão com mais pontos, e persiste", async () => {
+    const workers: InlineWorker[] = [];
+    render(
+      <SimulatePanel
+        source={RC_FIGURE}
+        active
+        workerFactory={() => {
+          const w = new InlineWorker();
+          workers.push(w);
+          return w;
+        }}
+      />,
+    );
+    const toggle = screen.getByTestId("sim-fine");
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(screen.getByTestId("sim-run"));
+    await waitFor(() =>
+      expect(screen.getByTestId("sim-status")).toHaveAttribute("data-state", "done"),
+    );
+    const w = workers[0];
+    expect(w.sent).toHaveLength(1);
+    expect(w.sent[0].fine).toBeUndefined();
+    const coarse = w.responses[0].npoints[0];
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(w.responses).toHaveLength(2));
+    expect(w.sent).toHaveLength(2); // UM re-run
+    expect(w.sent[1]).toMatchObject({ source: RC_FIGURE, fine: true });
+    expect(w.responses[1].fresh).toBe(false); // sem reabrir a sessão
+    expect(w.responses[1].npoints[0]).toBeGreaterThan(coarse * 3);
+    expect(workers).toHaveLength(1);
+    expect(JSON.parse(window.localStorage.getItem("rpic:settings.v1")!).simFineSteps).toBe(true);
+
+    // slider no modo fino: o re-run leva o modo
+    const fig = await screen.findByTestId("sim-figure");
+    const pad = await waitFor(() => {
+      const p = fig.querySelector('.sim-hit-el[data-el="R1"]');
+      expect(p).not.toBeNull();
+      return p!;
+    });
+    fireEvent.click(pad);
+    const input = screen.getByTestId("sim-slider-input");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "2k" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(w.sent.at(-1)).toMatchObject({ alters: { R1: 2000 }, fine: true }));
+
+    // desligar volta ao deck como está
+    fireEvent.click(toggle);
+    await waitFor(() => expect(w.sent.at(-1)?.fine).toBeUndefined());
+    await waitFor(() => expect(w.responses.at(-1)?.npoints[0]).toBe(coarse));
+    expect(JSON.parse(window.localStorage.getItem("rpic:settings.v1")!).simFineSteps).toBe(false);
+  });
+
+  it("o modo salvo vale no 1º Simular; prefs da conta (rpic:prefs) são relidas", async () => {
+    window.localStorage.setItem("rpic:settings.v1", JSON.stringify({ simFineSteps: true }));
+    const workers: InlineWorker[] = [];
+    render(
+      <SimulatePanel
+        source={RC_FIGURE}
+        active
+        workerFactory={() => {
+          const w = new InlineWorker();
+          workers.push(w);
+          return w;
+        }}
+      />,
+    );
+    expect(screen.getByTestId("sim-fine")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByTestId("sim-run"));
+    expect(workers[0].sent[0]).toMatchObject({ fine: true });
+    await waitFor(() =>
+      expect(screen.getByTestId("sim-status")).toHaveAttribute("data-state", "done"),
+    );
+    act(() => applyPrefs({ settings: { layout: "horizontal", simFineSteps: false } }));
+    expect(screen.getByTestId("sim-fine")).toHaveAttribute("aria-pressed", "false");
+    await waitFor(() => expect(workers[0].sent).toHaveLength(2));
+    expect(workers[0].sent[1].fine).toBeUndefined();
+  });
+});
+
+describe("painel de medidas .measure (issue #20)", () => {
+  const rowsOf = (panel: HTMLElement) =>
+    [...panel.querySelectorAll<HTMLElement>('[data-testid="sim-measure"]')].map((li) => ({
+      name: li.dataset.name,
+      error: li.dataset.error,
+      text: li.textContent ?? "",
+    }));
+
+  it("sem .measure não aparece", async () => {
+    render(<SimulatePanel source={RC_FIGURE} active workerFactory={() => new InlineWorker()} />);
+    fireEvent.click(screen.getByTestId("sim-run"));
+    await waitFor(() =>
+      expect(screen.getByTestId("sim-status")).toHaveAttribute("data-state", "done"),
+    );
+    expect(screen.queryByTestId("sim-measures")).toBeNull();
+  });
+
+  it("valor SI + trig/targ; a que falha mostra a razão; o slider atualiza e ela fica", async () => {
+    render(
+      <SimulatePanel source={MEASURE_FIGURE} active workerFactory={() => new InlineWorker()} />,
+    );
+    fireEvent.click(screen.getByTestId("sim-run"));
+    await waitFor(() =>
+      expect(screen.getByTestId("sim-status")).toHaveAttribute("data-state", "done"),
+    );
+    const panel = await screen.findByTestId("sim-measures");
+    let rows = rowsOf(panel);
+    expect(rows.map((r) => [r.name, r.error])).toEqual([
+      ["trise", "0"],
+      ["never", "1"],
+    ]);
+    // 10–90 % de um RC com τ = 1 ms ≈ 2,2 ms
+    expect(rows[0].text).toContain("2.2 ms");
+    expect(rows[0].text).toMatch(/trig 10\d µs · targ 2\.3 ms/);
+    expect(rows[1].text).toContain("out of interval (WHEN)");
+
+    // slider: R1 → 2k dobra τ; o valor acompanha o re-run, a falha continua lá
+    const fig = await screen.findByTestId("sim-figure");
+    const pad = await waitFor(() => {
+      const p = fig.querySelector('.sim-hit-el[data-el="R1"]');
+      expect(p).not.toBeNull();
+      return p!;
+    });
+    // abrir o slider re-renderiza e monta a 2ª instância do painel: sem recalcular
+    const spy = vi.mocked(measureRows);
+    const before = spy.mock.calls.length;
+    expect(before).toBeGreaterThan(0);
+    fireEvent.click(pad);
+    expect(spy.mock.calls.length).toBe(before);
+    // celular: o sheet do slider traz as medidas no topo (acima dos controles)
+    expect(screen.getByTestId("sim-slider-top")).toContainElement(
+      screen.getAllByTestId("sim-measures")[1],
+    );
+    const input = screen.getByTestId("sim-slider-input");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "2k" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() =>
+      expect(screen.getByTestId("sim-status")).toHaveAttribute("data-rerun", "1"),
+    );
+    await waitFor(() =>
+      expect(rowsOf(screen.getAllByTestId("sim-measures")[0])[0].text).toContain("4.39 ms"),
+    );
+    rows = rowsOf(screen.getAllByTestId("sim-measures")[0]);
+    expect(rows[1]).toMatchObject({ name: "never", error: "1" });
+    // o re-run (um run novo) recalcula UMA vez para as duas instâncias
+    expect(spy.mock.calls.length).toBe(before + 1);
+  });
+});
+
+describe("probe nos terminais (issue #21)", () => {
+  it("figura pino a pino: alvo em cada terminal; clicar liga/desliga v(rede); corpo = slider", async () => {
+    render(<SimulatePanel source={PIN_FIGURE} active workerFactory={() => new InlineWorker()} />);
+    fireEvent.click(screen.getByTestId("sim-run"));
+    await waitFor(() =>
+      expect(screen.getByTestId("sim-status")).toHaveAttribute("data-state", "done"),
+    );
+    const fig = await screen.findByTestId("sim-figure");
+    const legendText = () =>
+      screen
+        .getAllByTestId("sim-legend")
+        .map((l) => l.textContent ?? "")
+        .join(" ")
+        .toLowerCase();
+    expect(legendText()).toContain("v(n2)");
+    // n1/n2 não têm forma no mapa: os alvos são os terminais
+    const pin = await waitFor(() => {
+      const p = fig.querySelector<SVGGElement>('.sim-hit-pin[data-net="n2"]');
+      expect(p).not.toBeNull();
+      return p!;
+    });
+    expect(fig.querySelectorAll('.sim-hit-pin[data-net="n2"]')).toHaveLength(1); // R1.N = R2.P
+    expect(fig.querySelectorAll('.sim-hit-pin[data-net="n1"]')).toHaveLength(1); // V1.P = R1.P
+    expect(fig.querySelector('.sim-hit-pin[data-net="0"]')).toBeNull(); // terra não sonda
+    expect(fig.querySelector('.sim-hit:not(.sim-hit-pin)[data-net="n2"]')).toBeNull();
+    // na ponta do resistor R1 (o fim do zigue-zague desenhado), por cima da caixa do elemento
+    const circle = pin.querySelector("circle")!;
+    const r1 = fig.querySelector('[id="s10"] polyline, [id="s9"] polyline, [id="s11"] polyline');
+    const last = r1?.getAttribute("points")?.trim().split(/\s+/).at(-1)?.split(",").map(Number);
+    expect(last).toBeDefined();
+    expect(Number(circle.getAttribute("cx"))).toBeCloseTo(last![0], 3);
+    expect(Number(circle.getAttribute("cy"))).toBeCloseTo(last![1], 3);
+    expect(pin.parentNode?.lastChild).toBe(fig.querySelector(".sim-hit-pin:last-of-type"));
+    // teclado: a rede sem forma tem o alvo no 1º terminal
+    expect(pin.getAttribute("role")).toBe("button");
+    expect(pin.getAttribute("aria-pressed")).toBe("true");
+    expect(pin.classList.contains("sim-pin-on")).toBe(true);
+
+    fireEvent.click(circle);
+    expect(legendText()).not.toContain("v(n2)");
+    expect(legendText()).toContain("v(n1)");
+    expect(pin.getAttribute("aria-pressed")).toBe("false");
+    expect(pin.classList.contains("sim-pin-on")).toBe(false);
+    fireEvent.keyDown(pin, { key: "Enter" });
+    expect(legendText()).toContain("v(n2)");
+    expect(pin.style.getPropertyValue("--probe-color")).toMatch(/var\(--color-trace-\d\)/);
+    // o corpo do elemento continua abrindo o slider
+    fireEvent.click(fig.querySelector('.sim-hit-el[data-el="R1"]')!);
+    expect(screen.getByTestId("sim-slider")).toHaveAttribute("data-refdes", "R1");
+  });
+
+  it("figura com fios: os terminais somam alvos à rede, o fio segue sendo o alvo de teclado", async () => {
+    render(<SimulatePanel source={RC_FIGURE} active workerFactory={() => new InlineWorker()} />);
+    fireEvent.click(screen.getByTestId("sim-run"));
+    const fig = await screen.findByTestId("sim-figure");
+    await waitFor(() =>
+      expect(fig.querySelectorAll('.sim-hit-pin[data-net="Vout"]').length).toBeGreaterThan(0),
+    );
+    expect(fig.querySelectorAll('.sim-hit[data-net="Vout"][role="button"]')).toHaveLength(1);
+    expect(fig.querySelector('.sim-hit-pin[data-net="Vout"]')?.hasAttribute("role")).toBe(false);
   });
 });

@@ -27,6 +27,7 @@ class FakeWorker implements WorkerLike {
 
 const RUN: PicRun = {
   plots: [],
+  measurements: [],
   notes: ["boa"],
   diagnostics: [],
   pic: { netlist: "R1 a 0 1k", diagnostics: [], map: { elements: [], nets: [] } },
@@ -116,4 +117,78 @@ describe("useSimulation: re-run que falha", () => {
     await act(async () => workers[1].reply(ok(workers[1].last().id, true)));
     expect(hook.result.current.status).toBe("done");
   });
+});
+
+describe("useSimulation: passos finos (issue #19)", () => {
+  it("alternar re-roda UMA vez (re-run, sem reabrir) e os sliders levam o modo", async () => {
+    const { hook, workers } = await setup();
+    const w = workers[0];
+    const n = w.sent.length;
+    expect(w.last().fine).toBeUndefined();
+    act(() => hook.result.current.setFine(true));
+    expect(w.sent).toHaveLength(n + 1);
+    expect(w.last()).toMatchObject({ source: "src", fine: true });
+    await act(async () => w.reply(ok(w.last().id, false)));
+    expect(hook.result.current.fine).toBe(true);
+    expect(hook.result.current.rerun).toBe(true);
+    // o mesmo modo de novo: nada sai
+    act(() => hook.result.current.setFine(true));
+    expect(w.sent).toHaveLength(n + 1);
+    // slider no modo fino
+    act(() => hook.result.current.setAlters({ R1: 2e3 }, true));
+    expect(w.last()).toMatchObject({ alters: { R1: 2e3 }, fine: true });
+    await act(async () => w.reply(ok(w.last().id, false)));
+    // Simular de novo também leva o modo
+    act(() => hook.result.current.start("src"));
+    expect(w.last()).toMatchObject({ fine: true });
+    expect(workers).toHaveLength(1);
+  });
+
+  it("ocioso: só guarda o modo; o 1º Simular já sai no fino", () => {
+    const workers: FakeWorker[] = [];
+    const hook = renderHook(() =>
+      useSimulation(() => {
+        const w = new FakeWorker();
+        workers.push(w);
+        return w;
+      }),
+    );
+    act(() => hook.result.current.setFine(true));
+    expect(workers).toHaveLength(0);
+    act(() => hook.result.current.start("src"));
+    expect(workers[0].last()).toMatchObject({ fine: true });
+  });
+});
+
+it("passos finos numa execução que FALHOU sem resultado: não re-roda nem vira 're-run'", async () => {
+  const workers: FakeWorker[] = [];
+  const hook = renderHook(() =>
+    useSimulation(() => {
+      const w = new FakeWorker();
+      workers.push(w);
+      return w;
+    }),
+  );
+  act(() => hook.result.current.start("src"));
+  const w = workers[0];
+  await act(async () =>
+    w.reply({
+      type: "error",
+      id: w.last().id,
+      fresh: true,
+      ms: 1,
+      timing,
+      error: { message: "no deck", kind: "pic", diagnostics: [] },
+    }),
+  );
+  expect(hook.result.current.run).toBeNull();
+  const n = w.sent.length;
+  act(() => hook.result.current.setFine(true));
+  expect(w.sent).toHaveLength(n); // nada sai
+  expect(hook.result.current.fine).toBe(true);
+  expect(hook.result.current.status).toBe("error");
+  expect(hook.result.current.rerun).toBe(false); // sem selo "re-rodou em"
+  // o próximo Simular leva o modo
+  act(() => hook.result.current.start("src"));
+  expect(w.last()).toMatchObject({ fine: true });
 });

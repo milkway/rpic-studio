@@ -44,6 +44,8 @@ export interface RunInput {
   opts?: PicSimOptions;
   alters?: Alters;
   adopt?: readonly SimAdopt[];
+  /** Modo "passos finos" (ver `SimRequest.fine`). */
+  fine?: boolean;
 }
 
 interface Waiter {
@@ -107,6 +109,7 @@ export class SimClient {
       if (input.opts) msg.opts = input.opts;
       if (input.alters) msg.alters = input.alters;
       if (input.adopt) msg.adopt = input.adopt;
+      if (input.fine) msg.fine = true;
       worker.postMessage(msg);
     });
   }

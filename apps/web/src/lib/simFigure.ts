@@ -86,3 +86,162 @@ export function toggleProbe(
   }
   return { probes: next, full: true };
 }
+
+// ---- Alvos de probe nos TERMINAIS (issue #21) ----
+//
+// Figura ligada pino a pino (sem `line`) tem redes SEM formas próprias: o
+// `map.elements[].pins` (dune-sim ≥ 0.3.3) dá cada terminal em polegadas pic
+// (y para cima, o frame da cena do rpic). O SVG do rpic é esse frame × 96
+// com y invertido e uma TRANSLAÇÃO (a origem da página) que o SVG não diz —
+// ela sai dos próprios traços: os terminais caem nas pontas dos fios/terminais
+// desenhados dos elementos, então a translação mais votada pelos pinos é a certa.
+
+/** Unidades SVG do rpic por polegada pic. */
+export const SVG_PER_INCH = 96;
+
+export interface PicPoint {
+  x: number;
+  y: number;
+}
+
+/** Chave de um terminal (mesmo ponto = mesma chave): UMA definição para
+ *  `netPins` e `pinFrame` deduplicarem igual. */
+export function terminalKey(p: PicPoint): string {
+  return `${p.x.toFixed(6)},${p.y.toFixed(6)}`;
+}
+
+/** Terminais distintos de uma rede (`pins[].net`), em polegadas pic. */
+export function netPins(map: OverlayMap, net: string): PicPoint[] {
+  const key = net.toLowerCase();
+  const seen = new Set<string>();
+  const out: PicPoint[] = [];
+  for (const el of map.elements) {
+    for (const p of el.pins ?? []) {
+      if (p.net.toLowerCase() !== key) continue;
+      const k = terminalKey(p);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push({ x: p.x, y: p.y });
+    }
+  }
+  return out;
+}
+
+/** Pontas dos traços desenhados de um SVG do rpic (unidades do viewBox):
+ *  `line` (as duas), `polyline`/`polygon` (todos os vértices) e `path` (o 1º
+ *  ponto e o último par). Clones de acerto (`.sim-hit`) ficam de fora. */
+export function svgEndpoints(root: ParentNode): [number, number][] {
+  const out: [number, number][] = [];
+  const num = (el: Element, a: string) => Number(el.getAttribute(a));
+  for (const el of root.querySelectorAll("line, polyline, polygon, path")) {
+    if (el.closest(".sim-hit")) continue;
+    const tag = el.tagName.toLowerCase();
+    if (tag === "line") {
+      out.push([num(el, "x1"), num(el, "y1")], [num(el, "x2"), num(el, "y2")]);
+      continue;
+    }
+    const nums = (el.getAttribute(tag === "path" ? "d" : "points") ?? "")
+      .match(/-?\d*\.?\d+(?:e[-+]?\d+)?/gi)
+      ?.map(Number);
+    if (!nums || nums.length < 2) continue;
+    if (tag === "path") {
+      out.push([nums[0], nums[1]], [nums[nums.length - 2], nums[nums.length - 1]]);
+    } else {
+      for (let i = 0; i + 1 < nums.length; i += 2) out.push([nums[i], nums[i + 1]]);
+    }
+  }
+  return out.filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
+}
+
+/** Tolerância (unidades SVG) para dois votos serem a MESMA translação: o
+ *  ruído de ponto flutuante do rpic fica em ~1e-6; 0,05 sobra. */
+const FRAME_EPS = 0.05;
+
+interface Cluster {
+  tx: number;
+  ty: number;
+  /** Terminais (índices) que votaram nesta translação — um voto cada. */
+  voters: Set<number>;
+}
+
+/** Agrupa as translações candidatas por TOLERÂNCIA (|Δ| < `FRAME_EPS` contra
+ *  os grupos existentes), não por arredondamento: um par que cai dos dois
+ *  lados de uma fronteira de arredondamento continua um só grupo. Grade de
+ *  células de tamanho `FRAME_EPS` + as 8 vizinhas = busca local. */
+export function frameClusters(
+  endpoints: readonly [number, number][],
+  pins: readonly PicPoint[],
+): Cluster[] {
+  const clusters: Cluster[] = [];
+  const grid = new Map<string, Cluster[]>();
+  const cell = (v: number) => Math.floor(v / FRAME_EPS);
+  pins.forEach((p, i) => {
+    for (const [ex, ey] of endpoints) {
+      const tx = ex - p.x * SVG_PER_INCH;
+      const ty = ey + p.y * SVG_PER_INCH;
+      const cx = cell(tx);
+      const cy = cell(ty);
+      let found: Cluster | null = null;
+      for (let dx = -1; dx <= 1 && !found; dx++) {
+        for (let dy = -1; dy <= 1 && !found; dy++) {
+          for (const c of grid.get(`${cx + dx},${cy + dy}`) ?? []) {
+            if (Math.abs(c.tx - tx) < FRAME_EPS && Math.abs(c.ty - ty) < FRAME_EPS) {
+              found = c;
+              break;
+            }
+          }
+        }
+      }
+      if (found) {
+        found.voters.add(i);
+        continue;
+      }
+      const c: Cluster = { tx, ty, voters: new Set([i]) };
+      clusters.push(c);
+      const k = `${cx},${cy}`;
+      const bucket = grid.get(k);
+      if (bucket) bucket.push(c);
+      else grid.set(k, [c]);
+    }
+  });
+  return clusters;
+}
+
+/** Translação do frame pic → SVG (`x·96 + tx`, `−y·96 + ty`) que põe o maior
+ *  número de terminais DISTINTOS sobre pontas de traço desenhadas. Aceita só
+ *  um máximo ÚNICO (≥ 2º + 1) com ≥ max(2, ⌈n/2⌉) votos; senão `null` (sem
+ *  alvos de terminal — melhor que alvos no lugar errado).
+ *
+ *  PROVISÓRIO: o SVG não traz a origem da página; milkway/dune#19 pede que o
+ *  dune exponha o frame (origem do canvas/rescale) — com ele, este voto (e
+ *  `frameClusters`/`svgEndpoints`) sai e o mapeamento vira conta direta. */
+export function pinFrame(
+  endpoints: readonly [number, number][],
+  pins: readonly PicPoint[],
+): { tx: number; ty: number } | null {
+  const distinct = [...new Map(pins.map((p) => [terminalKey(p), p])).values()];
+  if (distinct.length === 0 || endpoints.length === 0) return null;
+  const clusters = frameClusters(endpoints, distinct);
+  // vencedor ÚNICO com folga: empate (ex.: todos os terminais na mesma
+  // altura também casam 1" abaixo) = sem frame, nunca "o 1º inserido"
+  let best: Cluster | null = null;
+  let second = 0;
+  for (const c of clusters) {
+    const n = c.voters.size;
+    if (!best || n > best.voters.size) {
+      second = best?.voters.size ?? 0;
+      best = c;
+    } else if (n > second) {
+      second = n;
+    }
+  }
+  if (!best) return null;
+  const votes = best.voters.size;
+  if (votes < second + 1 || votes < Math.max(2, Math.ceil(distinct.length / 2))) return null;
+  return { tx: best.tx, ty: best.ty };
+}
+
+/** Um terminal no SVG (unidades do viewBox) pela translação de `pinFrame`. */
+export function pinToSvg(p: PicPoint, f: { tx: number; ty: number }): [number, number] {
+  return [p.x * SVG_PER_INCH + f.tx, -p.y * SVG_PER_INCH + f.ty];
+}

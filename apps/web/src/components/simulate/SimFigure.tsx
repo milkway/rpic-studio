@@ -4,12 +4,16 @@ import { sanitizeSvg } from "@/lib/sanitize";
 import type { SimFigureResult } from "@/lib/simProtocol";
 import { useI18n } from "@/lib/i18n";
 import { formatSpice, relabel } from "@/lib/simValues";
+import { pinFrame, pinToSvg, svgEndpoints, type PicPoint } from "@/lib/simFigure";
 
 /** Rede sondável da figura: as formas dela e o traço `v(rede)` que liga. */
 export interface ProbeNet {
   name: string;
   trace: string;
   shapes: number[];
+  /** Terminais de elemento na rede, em polegadas pic (`map.elements[].pins`):
+   *  viram alvos de toque — a rede ligada pino a pino não tem forma própria. */
+  pins?: PicPoint[];
   /** Cor do traço quando ligado no gráfico; `null` = desligado. */
   color: string | null;
 }
@@ -36,6 +40,10 @@ interface SimFigureProps {
   nets?: ProbeNet[];
   onToggleNet?: (net: string) => void;
   onHoverNet?: (net: string | null) => void;
+  /** TODOS os terminais do mapa (terra inclusa), em polegadas pic: registram
+   *  o frame pic → SVG dos alvos de terminal (`pinFrame`). Só os das `nets`
+   *  podem empatar — ex.: todos na mesma altura casam também 1" abaixo. */
+  terminals?: PicPoint[];
   /** Elementos clicáveis (slider): clicar abre o slider do valor. */
   elements?: SliderElement[];
   /** Elemento com o slider aberto (`aria-expanded`). */
@@ -46,10 +54,39 @@ interface SimFigureProps {
 
 const HIT = "sim-hit";
 
-/** Rede sob o evento: o alvo é sempre um clone de acerto `.sim-hit`. */
+/** Rede sob o evento: o alvo é sempre um clone de acerto `.sim-hit`. Num
+ *  TERMINAL, os círculos de dois pinos próximos (elemento curto) se
+ *  sobrepõem e o desenhado depois roubaria o clique: com a posição do
+ *  ponteiro, vale o pino de CENTRO mais próximo entre os que contêm o ponto. */
 function netOf(e: SyntheticEvent): string | null {
   const hit = (e.target as Element).closest?.(`.${HIT}`);
-  return hit?.getAttribute("data-net") ?? null;
+  if (!hit) return null;
+  if (hit.classList.contains("sim-hit-pin")) {
+    const near = nearestPin(hit, e.nativeEvent);
+    if (near) return near.getAttribute("data-net");
+  }
+  return hit.getAttribute("data-net");
+}
+
+/** O `.sim-hit-pin` de centro mais próximo do ponteiro dentre os que o
+ *  contêm. Sem posição (teclado/foco) ou sem layout: `null`. */
+function nearestPin(hit: Element, ev: Event): Element | null {
+  const { clientX, clientY } = ev as MouseEvent;
+  if (typeof clientX !== "number" || typeof clientY !== "number") return null;
+  const svg = hit.closest("svg");
+  if (!svg) return null;
+  let best: Element | null = null;
+  let bestD = Infinity;
+  for (const pin of svg.querySelectorAll(".sim-hit-pin")) {
+    const r = pin.querySelector("circle")?.getBoundingClientRect();
+    if (!r || r.width === 0) continue;
+    const d = Math.hypot(clientX - (r.left + r.width / 2), clientY - (r.top + r.height / 2));
+    if (d <= r.width / 2 && d < bestD) {
+      best = pin;
+      bestD = d;
+    }
+  }
+  return best;
 }
 
 const EL = "sim-hit-el";
@@ -150,6 +187,37 @@ function overlayValue(
   groups[0].appendChild(tx);
 }
 
+/** Raio do alvo de um terminal, em px de tela. O círculo NÃO leva o traço
+ *  largo dos `.sim-hit` (CSS): o raio é o alvo exato, e a sobreposição de
+ *  dois pinos próximos se resolve pelo centro mais próximo (`netOf`). */
+const PIN_R_PX = 11;
+/** Raio do ponto que marca o terminal (hover/foco/rede ligada), px de tela. */
+const PIN_DOT_PX = 2.5;
+
+/** Alvo de probe num TERMINAL: `<g class="sim-hit sim-hit-pin">` com um
+ *  círculo de toque e o ponto de marca, no FIM do `<svg>` (por cima de tudo,
+ *  inclusive da caixa do elemento: terminal = rede, corpo = slider). */
+function addPinTarget(svg: SVGSVGElement, net: string, x: number, y: number, scale: number) {
+  const NS = "http://www.w3.org/2000/svg";
+  const g = document.createElementNS(NS, "g");
+  g.setAttribute("class", `${HIT} sim-hit-pin`);
+  g.setAttribute("data-net", net);
+  g.setAttribute("data-testid", `sim-pin-${net}`);
+  const hit = document.createElementNS(NS, "circle");
+  hit.setAttribute("cx", String(x));
+  hit.setAttribute("cy", String(y));
+  hit.setAttribute("r", String(PIN_R_PX / scale));
+  hit.setAttribute("fill", "none");
+  const dot = document.createElementNS(NS, "circle");
+  dot.setAttribute("class", "sim-pin-dot");
+  dot.setAttribute("cx", String(x));
+  dot.setAttribute("cy", String(y));
+  dot.setAttribute("r", String(PIN_DOT_PX / scale));
+  g.append(hit, dot);
+  svg.appendChild(g);
+  return g;
+}
+
 /** Folga do alvo de toque em volta da forma, em px de tela. */
 const PAD_PX = 10;
 
@@ -184,6 +252,7 @@ export function SimFigure({
   nets = [],
   onToggleNet,
   onHoverNet,
+  terminals = [],
   elements = [],
   selected = null,
   onSelectElement,
@@ -197,7 +266,13 @@ export function SimFigure({
   // clones de acerto e classes de realce/probe a cada re-render (ex.: hover).
   const html = useMemo(() => ({ __html: svg }), [svg]);
   // a camada de acerto só muda com a GEOMETRIA das redes (não com as cores)
-  const hitKey = nets.map((n) => `${n.name}:${n.trace}:${n.shapes.join(",")}`).join("|");
+  const hitKey = nets
+    .map(
+      (n) =>
+        `${n.name}:${n.trace}:${n.shapes.join(",")}:${(n.pins ?? []).map((p) => `${p.x},${p.y}`).join(";")}`,
+    )
+    .join("|");
+  const terminalsKey = terminals.map((p) => `${p.x},${p.y}`).join(";");
   const elKey = elements.map((e) => `${e.refdes}:${e.shapes.join(",")}:${e.label}`).join("|");
   const alteredKey = elements
     .map((e) => (e.altered ? `${e.refdes}=${e.altered.value}:${e.altered.keyword ?? ""}` : ""))
@@ -214,6 +289,7 @@ export function SimFigure({
     if (!root) return;
     root.querySelectorAll(`.${HIT}`).forEach((el) => el.remove());
     const byName = new Map(nets.map((n) => [n.name, n]));
+    const keyboard = new Set<string>();
     for (const net of byName.values()) {
       net.shapes.forEach((id, k) => {
         const orig = root.querySelector(`[id="s${id}"]`);
@@ -229,14 +305,41 @@ export function SimFigure({
           clone.setAttribute("tabindex", "0");
           clone.setAttribute("role", "button");
           clone.setAttribute("aria-label", t("sim.probeNet", { trace: net.trace }));
+          keyboard.add(net.name);
         }
         orig.after(clone);
         addTouchPad(clone as SVGGraphicsElement);
       });
     }
+    // Alvos nos TERMINAIS (pinos dos elementos): a posição pic → SVG sai da
+    // translação que casa os terminais com as pontas desenhadas (`pinFrame`).
+    // Rede sem forma própria (pino a pino) ganha o alvo de teclado no 1º pino.
+    const svgEl = root.querySelector("svg");
+    const wantPins = [...byName.values()].some((n) => n.pins?.length);
+    const frame =
+      svgEl && wantPins
+        ? pinFrame(
+            svgEndpoints(svgEl),
+            terminals.length ? terminals : [...byName.values()].flatMap((n) => n.pins ?? []),
+          )
+        : null;
+    if (svgEl && frame) {
+      const scale = svgEl.getScreenCTM?.()?.a || 1;
+      for (const net of byName.values()) {
+        for (const p of net.pins ?? []) {
+          const [x, y] = pinToSvg(p, frame);
+          const g = addPinTarget(svgEl, net.name, x, y, scale);
+          if (keyboard.has(net.name)) continue;
+          keyboard.add(net.name);
+          g.setAttribute("tabindex", "0");
+          g.setAttribute("role", "button");
+          g.setAttribute("aria-label", t("sim.probeNet", { trace: net.trace }));
+        }
+      }
+    }
     root.classList.toggle("probe-on", byName.size > 0 || elements.length > 0);
     // `hitKey` resume a geometria de `nets`: trocar só a COR não recria clones
-  }, [svg, hitKey, t, elKey]);
+  }, [svg, hitKey, t, elKey, terminalsKey]);
 
   // Caixas de acerto dos ELEMENTOS ajustáveis (clicar abre o slider).
   useEffect(() => {
@@ -306,6 +409,14 @@ export function SimFigure({
     const on = new Map(nets.map((n) => [n.name, n.color !== null]));
     root.querySelectorAll(`.${HIT}[role="button"]`).forEach((el) => {
       el.setAttribute("aria-pressed", String(on.get(el.getAttribute("data-net") ?? "") ?? false));
+    });
+    // terminais da rede ligada: o ponto de marca na cor do traço
+    const colorOf = new Map(nets.map((n) => [n.name, n.color]));
+    root.querySelectorAll<SVGElement>(".sim-hit-pin").forEach((g) => {
+      const color = colorOf.get(g.getAttribute("data-net") ?? "") ?? null;
+      g.classList.toggle("sim-pin-on", color !== null);
+      if (color === null) g.style.removeProperty("--probe-color");
+      else g.style.setProperty("--probe-color", color);
     });
     for (const net of nets) {
       if (net.color === null) continue;

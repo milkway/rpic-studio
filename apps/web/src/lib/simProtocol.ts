@@ -35,7 +35,17 @@ export interface SimRequest {
   alters?: Alters;
   /** Cadeia de reescritas não confirmadas, em ordem; a última termina em `source`. */
   adopt?: readonly SimAdopt[];
+  /** Modo "passos finos" (visualização): `trtol = 1` + TMAX ÷ 10 na sessão,
+   *  pelos setters do dune-sim — sem reabrir, sem mexer no deck. Ausente = o
+   *  deck como está (o worker volta ao modo normal). */
+  fine?: boolean;
 }
+
+/** Opções de engine do modo "passos finos": a estimativa de erro do
+ *  transiente sem a folga 7× do Berkeley (`trtol` padrão = 7). */
+export const FINE_OPTIONS = { trtol: 1 } as const;
+/** Divisor do TMAX efetivo de todo `.tran` no modo "passos finos". */
+export const FINE_TMAX_DIVISOR = 10;
 
 /** Erro do simulador já serializável (um `Error` perde `kind`/`diagnostics`
  *  no structured clone do postMessage). */
@@ -197,6 +207,8 @@ interface Live {
   originals: Map<string, number>;
   /** O que está aplicado na sessão agora. */
   applied: Map<string, number>;
+  /** Modo "passos finos" aplicado na sessão agora (abre no normal). */
+  fine: boolean;
 }
 
 const EMPTY_PIC: PicExtraction = { netlist: "", diagnostics: [], map: { elements: [], nets: [] } };
@@ -357,6 +369,7 @@ export class SimHost {
         controls,
         originals: new Map(controls.map((c) => [c.refdes, c.value])),
         applied: new Map(),
+        fine: false,
       };
       timing.open = performance.now() - tOpen;
       extra = { figure, controls };
@@ -374,6 +387,7 @@ export class SimHost {
 
     const tAlter = performance.now();
     try {
+      applyMode(live, req.fine === true);
       applyAlters(live, req.alters ?? {});
     } catch (e) {
       timing.alter += performance.now() - tAlter;
@@ -407,6 +421,16 @@ function alterOne(live: Live, refdes: string, value: number): void {
   const param = live.controls.find((c) => c.refdes === refdes)?.param;
   if (param) live.session.alter(refdes, param, value);
   else live.session.alter(refdes, value);
+}
+
+/** Liga/desliga o modo "passos finos" na sessão viva (setters `options` e
+ *  `tmaxDivisor` do dune-sim ≥ 0.3.3): só mexe quando muda. Desligar devolve
+ *  as opções do deck (`null`) e limpa o divisor. */
+function applyMode(live: Live, fine: boolean): void {
+  if (live.fine === fine) return;
+  live.session.options = fine ? { ...FINE_OPTIONS } : null;
+  live.session.tmaxDivisor = fine ? FINE_TMAX_DIVISOR : null;
+  live.fine = fine;
 }
 
 /** Leva a sessão de `applied` a `want`: desfaz quem saiu, aplica quem mudou. */
