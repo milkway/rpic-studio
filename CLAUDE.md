@@ -32,7 +32,10 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
 - **Releases do rpic**: o workflow `.github/workflows/rpic-release-watch.yml` abre uma issue
   com checklist de investigação quando o rpic-lang taggeia versão nova (compara com a versão
   do lockfile). Ao atualizar a dependência, rodar a suíte completa — `compile.test.ts` valida
-  todos os exemplos no WASM real e pega drift de comportamento. **Atual: v0.11.0** (`link "<url>"` —
+  todos os exemplos no WASM real e pega drift de comportamento. **Atual: web ^0.15.0 / API v0.11.0**
+  (web: 0.15.0 trouxe o build GEO `rpic_wasm_geo` + `compileGeoJSON` + o módulo `/maplibre`, usados
+  pelo painel Mapa — ver o item do painel Mapa abaixo; as features de LINGUAGEM descritas a seguir
+  são as da v0.11.0) (`link "<url>"` —
   hyperlink por objeto, inline OU statement `link A "url"`; o SVG embrulha o `<g id="sN">` num
   `<a class="rpic-link">`, URLs validadas contra XSS, `objects[].link` no bundle — o inspetor tem
   campo de URL (`objects-link`, kind "link" no `objectEdit.ts`) e o DOMPurify PRESERVA o `<a href>`
@@ -53,7 +56,11 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   `morph` além de `draw`/`fade`/`pop`, `out`, `repeat`/`yoyo`/`ease`, `stagger`, `animate scroll`; o
   player npm converte formas em `<path>` p/ `move`/`morph`). O pin fica em TRÊS lugares:
   `apps/web/package.json` E a raiz `package.json` (web WASM `@strategicprojects/rpic`), e a git-dep
-  da API em `apps/api/Cargo.toml` (`rpic-core`/`rpic-render` na `tag = "v0.11.0"`). Depois de mudar a
+  da API em `apps/api/Cargo.toml` (`rpic-core`/`rpic-render` na `tag = "v0.11.0"`). **Hoje os pins
+  DIVERGEM de propósito**: web `^0.15.0` (raiz + apps/web, pelo build geo do painel Mapa, #8) e API
+  ainda na tag v0.11.0 — o render server-side não usa geo, e mudar a tag faz a API recompilar o
+  `rpic-core`/`render` do zero no deploy (ver Deploy); fica para um bump próprio, que deve então
+  realinhar os três. Depois de mudar a
   tag, rodar `cargo update --manifest-path apps/api/Cargo.toml -p rpic-core -p rpic-render` — editar
   só o `Cargo.toml` deixa o `Cargo.lock` STALE (foi assim que o lock ficou preso no v0.7.0 dois bumps
   seguidos; o Docker do servidor resolvia sozinho e mascarava). Obs.: o sqlx 0.9 do lock exige
