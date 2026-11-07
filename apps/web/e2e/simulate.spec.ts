@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { RLC_FIGURE } from "../src/test/fixtures-sim";
 
 // Figura RC do corpus do dune (corpus/pic/rc.pic).
 const RC = `.PS
@@ -405,4 +406,50 @@ test("slider no celular: bottom sheet, toque abre, sem overflow horizontal", asy
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   await page.screenshot({ path: info.outputPath("simulate-slider-mobile.png") });
   await ctx.close();
+});
+
+test("preview de fonte spice usa o prelude do dune: sem erro falso, e o SIM simula (#17)", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const duneRequests: string[] = [];
+  page.on("request", (r) => {
+    if (/dune_wasm_bg.*\.wasm/.test(r.url())) duneRequests.push(r.url());
+  });
+  await openWith(page, RLC_FIGURE, "light");
+  const stage = page.getByTestId("preview-stage");
+  await expect(stage.locator('svg g[id="s0"]')).toBeAttached({ timeout: 20_000 });
+  // além da carência do "vermelho preguiçoso" (600 ms): nenhum erro aparece
+  await page.waitForTimeout(1_200);
+  await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "ok");
+  await expect(page.getByTestId("compile-error")).toHaveCount(0);
+  // o prelude é texto: o preview não baixa o wasm do dune
+  expect(duneRequests).toHaveLength(0);
+  await page.screenshot({ path: info.outputPath("spice-preview-rlc.png") });
+
+  await page.getByRole("tab", { name: /Simulate|SIM/ }).click();
+  await page.getByTestId("sim-run").click();
+  await expect(page.getByTestId("sim-status")).toHaveAttribute("data-state", "done", {
+    timeout: 20_000,
+  });
+  await expect(page.getByTestId("sim-chart-svg").first()).toBeVisible();
+  await expect(page.getByTestId("sim-netlist-code")).toContainText("V1 In 0 AC 1");
+  await expect(page.getByTestId("compile-error")).toHaveCount(0);
+});
+
+test("sem `spice = 1` a mesma figura continua dando o erro do rpic (sem prelude)", async ({ page }) => {
+  const unmarked = RLC_FIGURE.replace("spice = 1\n", "");
+  await page.goto("/");
+  await page.evaluate((src) => {
+    localStorage.clear();
+    localStorage.setItem(
+      "rpic:draft.v1",
+      JSON.stringify({ source: src, circuits: true, savedAt: new Date().toISOString() }),
+    );
+    localStorage.setItem("rpic:locale.v1", "en");
+  }, unmarked);
+  await page.reload();
+  await expect(page.locator('[data-testid="code-pane"] .cm-content')).toContainText("vsource");
+  await expect(page.getByTestId("compile-error")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "error");
 });
