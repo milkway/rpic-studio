@@ -23,7 +23,11 @@ export interface GeoMapHandle {
 }
 
 export function createGeoMap(container: HTMLElement): GeoMapHandle {
-  const pic = createPicMap<MapLibreMap>({ Map: MapLibreMap, NavigationControl }, container);
+  const pic = createPicMap<MapLibreMap>({ Map: MapLibreMap, NavigationControl }, container, {
+    // painel fixo, não página que rola: a roda dá zoom direto (sem o aviso
+    // "Ctrl + scroll" dos gestos cooperativos)
+    cooperativeGestures: false,
+  });
   return {
     setGeoJSON: (fc, layers) => pic.setGeoJSON(fc, layers),
     fitTo: (fc) => pic.fitTo(fc),
