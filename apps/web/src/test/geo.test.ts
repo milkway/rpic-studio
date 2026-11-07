@@ -52,6 +52,27 @@ describe("geopic (WASM geo real)", () => {
     expect(merc.registration.frame).toBe("mercator");
   });
 
+  it("layers: { textScale: 1.5 } multiplica o text-size das camadas de texto", async () => {
+    const src = examples.find((e) => e.id === "geo-callout")!.source;
+    const base = (await handleGeoRequest(req(src), api)) as GeoOk;
+    const big = (await handleGeoRequest(req(src, { textScale: 1.5 }), api)) as GeoOk;
+    expect(big.type).toBe("ok");
+    const size = (r: GeoOk) => r.layers.find((l) => l.id === "pic-text")!.layout!["text-size"];
+    expect(size(big)).not.toEqual(size(base));
+    // os mesmos ids de camada, só os tamanhos mudam
+    expect(big.layers.map((l) => l.id)).toEqual(base.layers.map((l) => l.id));
+    // os números da expressão (zoom stops/fatores) — algum escala por 1.5
+    const nums = (v: unknown): number[] =>
+      Array.isArray(v) ? v.flatMap(nums) : typeof v === "number" ? [v] : [];
+    const a = nums(size(base));
+    const b = nums(size(big));
+    expect(a.length).toBe(b.length);
+    expect(a.some((x, i) => x !== 0 && Math.abs(b[i]! / x - 1.5) < 1e-9)).toBe(true);
+    // fora de (0, 16] o engine recusa
+    const bad = await handleGeoRequest(req(src, { textScale: 17 }), api);
+    expect(bad.type).toBe("error");
+  });
+
   it("geo_scale escala o desenho", async () => {
     const src = examples.find((e) => e.id === "geo-callout")!.source;
     const a = (await handleGeoRequest(req(src), api)) as GeoOk;

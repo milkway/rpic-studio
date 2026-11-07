@@ -3,6 +3,8 @@ import { Download, Loader2 } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import type { Diagnostic, GeoWarning } from "@strategicprojects/rpic";
 import { downloadBlob } from "@/lib/exports";
+import { pushPrefsSoon } from "@/lib/prefs";
+import { loadMapTextScale, MAP_TEXT_SCALES, saveSettings } from "@/lib/storage";
 import { explainDiagnostic, explainRawError, type ErrorInfo } from "@/lib/errorInfo";
 import type { GeoFailure, GeoFrame } from "@/lib/geoProtocol";
 import type { GeoWorkerFactory } from "@/lib/geoClient";
@@ -95,7 +97,15 @@ export function MapPane({
 }: MapPaneProps) {
   const { t, locale } = useI18n();
   const [frame, setFrame] = useState<GeoFrame | "">("");
-  const geo = useGeo(source, { frame, circuits, texlabels, enabled: active, workerFactory });
+  // tamanho dos rótulos: persistido com as outras preferências (rpic:settings.v1);
+  // trocar recompila e redesenha, mas NÃO reenquadra (não é troca de documento)
+  const [textScale, setTextScale] = useState(loadMapTextScale);
+  const changeTextScale = (next: number) => {
+    setTextScale(next);
+    saveSettings({ mapTextScale: next });
+    pushPrefsSoon();
+  };
+  const geo = useGeo(source, { frame, circuits, texlabels, textScale, enabled: active, workerFactory });
 
   const containerRef = useRef<HTMLDivElement>(null);
   // A instância do mapa é ESTADO (não ref): o efeito de dados roda de novo
@@ -133,7 +143,7 @@ export function MapPane({
   // troca "arma" o pedido (fonte+frame+opções) que ela exige: se já há
   // resultado dele (mesma fonte recarregada), enquadra já; senão, enquadra
   // quando ESSE pedido responder; se ele falhar, desarma.
-  const currentKey = geoKey(source, frame, circuits, texlabels);
+  const currentKey = geoKey(source, frame, circuits, texlabels, textScale);
   const armRef = useRef<string | null>(null);
   const fittedMapRef = useRef<GeoMapHandle | null>(null);
   const prevTrigger = useRef({ fitKey, frame });
@@ -219,6 +229,24 @@ export function MapPane({
               <option value="mercator">mercator</option>
             </select>
           </label>
+          <Tip label={t("map.labelsTip")}>
+            <label className="flex items-center gap-1.5 font-mono text-[11px] text-(--color-text-muted)">
+              <span className="max-sm:hidden">{t("map.labels")}</span>
+              <select
+                value={String(textScale)}
+                onChange={(e) => changeTextScale(Number(e.target.value))}
+                data-testid="map-text-scale"
+                aria-label={t("map.labelsTip")}
+                className="h-7 rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-1 text-xs text-(--color-text)"
+              >
+                {MAP_TEXT_SCALES.map((s) => (
+                  <option key={s} value={String(s)}>
+                    {s}×
+                  </option>
+                ))}
+              </select>
+            </label>
+          </Tip>
           <Tip label={t("map.downloadTip")}>
             <Button
               variant="outline"

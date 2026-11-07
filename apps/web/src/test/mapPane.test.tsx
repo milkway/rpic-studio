@@ -32,8 +32,10 @@ class InlineWorker implements GeoWorkerLike {
   onmessage: ((e: MessageEvent<GeoResponse>) => void) | null = null;
   onerror: ((e: ErrorEvent) => void) | null = null;
   posted = 0;
+  last: GeoRequest | null = null;
   postMessage(msg: GeoRequest) {
     this.posted++;
+    this.last = msg;
     void handleGeoRequest(msg, { ensure: () => ensureGeo(), compileGeo }).then((res) =>
       this.onmessage?.({ data: structuredClone(res) } as MessageEvent<GeoResponse>),
     );
@@ -144,6 +146,41 @@ describe("MapPane", () => {
     await new Promise((r) => setTimeout(r, 300));
     expect(worker.posted).toBe(0);
     expect(map.calls.set).toBe(0);
+  });
+});
+
+describe("MapPane — tamanho dos rótulos", () => {
+  afterEach(() => window.localStorage.clear());
+
+  it("o pedido leva o textScale; trocar redesenha SEM reenquadrar e persiste", async () => {
+    const { map, worker } = setup(CALLOUT);
+    await waitFor(() => expect(map.calls.set).toBe(1));
+    expect(map.calls.fit).toBe(1);
+    expect(worker.last?.opts.textScale).toBe(1);
+    const select = screen.getByTestId("map-text-scale");
+    expect(select).toHaveValue("1");
+    expect([...select.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
+      "1×",
+      "1.25×",
+      "1.5×",
+      "2×",
+    ]);
+
+    fireEvent.change(select, { target: { value: "1.5" } });
+    await waitFor(() => expect(map.calls.set).toBe(2));
+    expect(worker.last?.opts.textScale).toBe(1.5);
+    expect(map.calls.fit).toBe(1);
+    expect(JSON.parse(window.localStorage.getItem("rpic:settings.v1")!).mapTextScale).toBe(1.5);
+  });
+
+  it("abre com o fator salvo; valor salvo inválido cai em 1×", async () => {
+    window.localStorage.setItem("rpic:settings.v1", JSON.stringify({ mapTextScale: 2 }));
+    const a = setup(CALLOUT);
+    expect(screen.getByTestId("map-text-scale")).toHaveValue("2");
+    await waitFor(() => expect(a.worker.last?.opts.textScale).toBe(2));
+    window.localStorage.setItem("rpic:settings.v1", JSON.stringify({ mapTextScale: 99 }));
+    const { loadMapTextScale } = await import("@/lib/storage");
+    expect(loadMapTextScale()).toBe(1);
   });
 });
 
