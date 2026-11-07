@@ -114,30 +114,43 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
   // Fonte `spice = 1` (issue #17): compila com o prelude do dune à frente — a
   // mesma figura do painel SIM. O texto do prelude é um chunk à parte, baixado
   // só aqui; até chegar, o preview espera (sem acusar o erro falso de `vsource`).
+  // Se a carga FALHA, o fonte daquele momento cai no `compile` puro (o usuário vê
+  // o erro real do rpic, nunca um editor morto) e a próxima edição tenta de novo
+  // (`loadDunePrelude` não guarda a rejeição).
   const spice = useMemo(() => detectSpice(debounced), [debounced]);
   const [preludeReady, setPreludeReady] = useState(() => dunePreludeLoaded() !== null);
+  const [preludeFailedFor, setPreludeFailedFor] = useState<string | null>(null);
   const { t } = useI18n();
   const tRef = useRef(t);
   tRef.current = t;
   useEffect(() => {
-    if (!spice || preludeReady) return;
+    if (!spice || preludeReady || preludeFailedFor === debounced) return;
     let cancelled = false;
     loadDunePrelude()
       .then(() => {
         if (!cancelled) setPreludeReady(true);
       })
       .catch((e) => {
-        if (!cancelled) setState((s) => ({ ...s, error: tRef.current("preview.preludeLoadFailed", { error: String(e) }) }));
+        if (cancelled) return;
+        console.warn("rpic studio: falha ao carregar o prelude do dune", e);
+        setPreludeFailedFor(debounced);
+        setState((s) => ({
+          ...s,
+          error: tRef.current("preview.preludeLoadFailed", { error: String(e) }),
+          errorDiag: null,
+        }));
       });
     return () => {
       cancelled = true;
     };
-  }, [spice, preludeReady]);
+  }, [spice, preludeReady, preludeFailedFor, debounced]);
 
   useEffect(() => {
     if (state.loading) return;
     const prelude = spice ? dunePreludeLoaded() : null;
-    if (spice && prelude === null) return; // espera o prelude (efeito acima)
+    // espera o prelude (efeito acima) — salvo se a carga falhou p/ ESTE fonte:
+    // aí compila sem ele (fallback)
+    if (spice && prelude === null && preludeFailedFor !== debounced) return;
     try {
       const t0 = performance.now();
       const bundle = compileFigure(debounced, { circuits, texlabels }, prelude);
@@ -183,7 +196,7 @@ export function useRpic(source: string, { circuits, texlabels }: RpicOptions): R
         errorTimerRef.current = null;
       }
     };
-  }, [debounced, circuits, texlabels, state.loading, spice, preludeReady]);
+  }, [debounced, circuits, texlabels, state.loading, spice, preludeReady, preludeFailedFor]);
 
   return { ...state, getPicMapping };
 }
