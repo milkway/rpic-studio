@@ -437,6 +437,27 @@ test("preview de fonte spice usa o prelude do dune: sem erro falso, e o SIM simu
   await expect(page.getByTestId("compile-error")).toHaveCount(0);
 });
 
+test("fonte spice: elemento do prelude é inspecionável — duplo-clique pula para a linha da chamada", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWith(page, RLC_FIGURE, "light");
+  const stage = page.getByTestId("preview-stage");
+  await expect(stage.locator('svg g[id="s0"]')).toBeAttached({ timeout: 20_000 });
+  await expect(page.getByTestId("objects-handle").first()).toBeAttached({ timeout: 5_000 });
+  // rótulo de valor do R1 ("100"), desenhado DENTRO do macro `resistor` do prelude
+  const label = stage.locator("svg text", { hasText: /^100$/ });
+  const bb = (await label.boundingBox())!;
+  await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);
+  // coordenadas pic funcionam (o mapeamento achou âncora)
+  await expect(page.getByTestId("pic-coords")).toBeVisible({ timeout: 5_000 });
+  await page.mouse.dblclick(bb.x + bb.width / 2, bb.y + bb.height / 2);
+  const r1Line = RLC_FIGURE.split("\n").findIndex((l) => l.startsWith("R1: resistor")) + 1;
+  await expect
+    .poll(() => page.evaluate(() => document.querySelector(".cm-activeLineGutter")?.textContent))
+    .toBe(String(r1Line));
+});
+
 test("sem `spice = 1` a mesma figura continua dando o erro do rpic (sem prelude)", async ({ page }) => {
   const unmarked = RLC_FIGURE.replace("spice = 1\n", "");
   await page.goto("/");

@@ -11,7 +11,8 @@
 // bundle/erro é re-baseada para o fonte do usuário: linha > deslocamento →
 // linha do usuário; linha dentro do prelude → `file: DUNE_PRELUDE_FILE`
 // (contextualizada como arquivo incluído, nunca marcada no editor).
-import { compile, type Bundle, type CompileError, type CompileOptions } from "./rpic";
+import { compile, type Bundle, type CompileError, type CompileOptions, type ObjectGeometry } from "./rpic";
+import type { Scene } from "@strategicprojects/rpic";
 
 /** Nome de "arquivo" dos diagnósticos/objetos que caem dentro do prelude. */
 export const DUNE_PRELUDE_FILE = "dune prelude";
@@ -63,15 +64,47 @@ function rebaseMessage(message: string, offset: number): string {
   });
 }
 
+/** Objetos desenhados DENTRO de macros (prelude do dune ou lib de circuitos)
+ *  são atribuídos à CHAMADA do usuário que os gerou — o bloco mais interno com
+ *  `span` no fonte do usuário (o `V1: vsource(...)`; o rpic ≥ 0.16 agrupa a
+ *  chamada plana num bloco). Assim o inspetor os seleciona e o clique pula para
+ *  a linha do elemento. Sem bloco do usuário em volta, ficam como estão. */
+function attributeToCallSite(
+  objects: ObjectGeometry[],
+  scene: Scene | undefined,
+  offset: number,
+): ObjectGeometry[] {
+  if (!scene) return objects;
+  const items = new Map(scene.items.map((it) => [it.id, it]));
+  return objects.map((o) => {
+    if (o.file == null) return o; // já re-baseado para o usuário
+    const blocks = items.get(o.id)?.block ?? [];
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      const span = items.get(blocks[i])?.span;
+      if (span && span.file == null && span.line > offset) {
+        const moved: ObjectGeometry = { ...o, line: span.line - offset, col: span.col, end_col: span.end_col };
+        delete moved.file;
+        return moved;
+      }
+    }
+    return o;
+  });
+}
+
 /** Compila `source` com o prelude do dune à frente e devolve o bundle com as
  *  posições no referencial do usuário. Força `circuits` (o prelude se apoia na
- *  biblioteca de circuitos, como no `renderPic` do dune). Em erro, lança um
- *  `CompileError` com mensagem e `errorInfo` re-baseados. */
+ *  biblioteca de circuitos, como no `renderPic` do dune) e pede a `scene` só
+ *  para ler os blocos com a posição da chamada — ela NÃO sai no bundle (as
+ *  posições dela estão no referencial combinado).
+ *  Em erro, lança um `CompileError` com mensagem e `errorInfo` re-baseados.
+ *
+ *  Todo o re-baseamento mora AQUI: quando o `compile()` do rpic ganhar
+ *  preludes nomeados (unidades como o `-c`), este módulo encolhe a um repasse. */
 export function compileWithPrelude(source: string, preludeText: string, opts?: CompileOptions): Bundle {
   const offset = preludeOffset(preludeText);
   let bundle: Bundle;
   try {
-    bundle = compile(preludeText + "\n" + source, { ...opts, circuits: true });
+    bundle = compile(preludeText + "\n" + source, { ...opts, circuits: true, scene: true });
   } catch (e) {
     const err = e as CompileError;
     if (err instanceof Error) {
@@ -81,10 +114,15 @@ export function compileWithPrelude(source: string, preludeText: string, opts?: C
     }
     throw err;
   }
+  const { scene, ...rest } = bundle;
   const out: Bundle = {
-    ...bundle,
+    ...rest,
     warnings: (bundle.warnings ?? []).map((w) => rebaseSpan(w, offset)),
-    objects: (bundle.objects ?? []).map((o) => rebaseSpan(o, offset)),
+    objects: attributeToCallSite(
+      (bundle.objects ?? []).map((o) => rebaseSpan(o, offset)),
+      scene,
+      offset,
+    ),
   };
   if (bundle.places) out.places = bundle.places.map((p) => rebaseSpan(p, offset));
   if (bundle.passthrough) {

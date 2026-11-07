@@ -67,6 +67,38 @@ describe("prelude do dune no preview (issue #17)", () => {
     expect(b.passthrough!.map((p) => [p.text, p.line])).toEqual([[".ac dec 50 10 100k", 13]]);
   });
 
+  it("objetos dos elementos são atribuídos à linha da CHAMADA do usuário (inspetor)", () => {
+    const b = compileWithPrelude(RLC_FIGURE, prelude, opts);
+    const visible = b.objects.filter((o) => o.bbox && o.bbox.w + o.bbox.h > 0);
+    // nada visível fica preso ao prelude/circuits: tudo é clicável no inspetor
+    expect(visible.filter((o) => o.file)).toEqual([]);
+    const linesOf = (re: RegExp) => {
+      const n = RLC_FIGURE.split("\n").findIndex((l) => re.test(l)) + 1;
+      return visible.filter((o) => o.line === n);
+    };
+    for (const [re, col] of [
+      [/^V1: vsource/, 5],
+      [/^L1: inductor/, 5],
+      [/^C1: capacitor/, 5],
+      [/^R1: resistor/, 5],
+      [/^ground\(/, 1],
+    ] as const) {
+      const objs = linesOf(re);
+      expect(objs.length, String(re)).toBeGreaterThan(1); // traços + rótulo de valor
+      for (const o of objs) expect(o.col, String(re)).toBe(col);
+    }
+    // o SVG é o mesmo com ou sem a `scene` pedida (só lemos os blocos dela)
+    expect(b.svg).toBe(compile(prelude + "\n" + RLC_FIGURE, { circuits: true }).svg);
+    expect(b.scene).toBeUndefined();
+  });
+
+  it("figura só de elementos: o mapeamento de coordenadas acha âncora", () => {
+    const only = ".PS\nspice = 1\nR1: resistor((0,0), (1,0), 1k)\n.PE\n";
+    const b = compileWithPrelude(only, prelude, opts);
+    expect(b.objects.some((o) => o.bbox && !o.file)).toBe(true);
+    expect(solvePicMapping(only, { ...opts, prelude }, b.objects)).not.toBeNull();
+  });
+
   it("erro do usuário volta re-baseado (mensagem e errorInfo)", () => {
     const broken = RLC_FIGURE.replace("C1: capacitor(A, Out, 1u)", "C1: capacitor(A, Out 1u)");
     const err = compileError(() => compileWithPrelude(broken, prelude, opts));
