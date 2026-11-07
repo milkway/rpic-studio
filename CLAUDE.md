@@ -290,7 +290,10 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   já tem o lean/math, então o geo só coexiste num grafo de módulos separado. Erros serializados
   (`pic` → `explainDiagnostic`, `geo` → `kind: message — hint`). O MapLibre (`lib/geomap.ts`,
   `@strategicprojects/rpic/maplibre` + `maplibre-gl` 6) é import DINÂMICO e tem chunk próprio
-  (`manualChunks` → `maplibre`; sem isso ele e o CSS iam p/ o `vendor` da carga inicial).
+  (`manualChunks` → `maplibre`; sem isso ele e o CSS iam p/ o `vendor` da carga inicial). O port
+  puro `@strategicprojects/rpic/maplibre` vai p/ o chunk `geolayers` (~5 KB): o `MapPane` o importa
+  ESTÁTICO, e no chunk `maplibre` ele arrastava 1 MB + CSS p/ o `modulepreload` inicial (conferir
+  `dist/index.html` após mexer nos chunks).
   `fitTo` no 1º desenho, na troca de documento e na troca de frame; ao reaparecer, `resize()`.
   Controle **rótulos** (`map-text-scale`, presets `MAP_TEXT_SCALES` 1/1.25/1.5/2 em `storage.ts`,
   persistido em `rpic:settings.v1` → `mapTextScale`, sincronizado com a conta e relido no
