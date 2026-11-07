@@ -9,6 +9,18 @@
 // nova. Cancelar mata o worker (e a sessão junto): o próximo pedido reabre.
 import type { PicExtraction, PicRun, PicSimOptions, SimDiagnostic, SimSession } from "./dune";
 import { unitForRefdes, type Alters, type SimControl } from "./simValues";
+import { hasAcAnalysis } from "./simSource";
+
+/** O fonte da sessão viva foi REESCRITO pela escrita de volta de um slider:
+ *  o texto novo difere de `from` só nos valores de `originals` (refdes →
+ *  valor agora escrito no fonte). O worker ADOTA o fonte novo sem reabrir a
+ *  sessão (sem perder o plot/estado): os valores viram os originais e a
+ *  figura é redesenhada com os rótulos novos. Sessão que não é a de `from`
+ *  (worker novo após Cancelar) = abertura normal do fonte novo. */
+export interface SimAdopt {
+  from: string;
+  originals: Readonly<Record<string, number>>;
+}
 
 export interface SimRequest {
   type: "run";
@@ -19,6 +31,7 @@ export interface SimRequest {
    *  volta ao valor do fonte — o pedido é idempotente, e um worker novo
    *  (após Cancelar) reconstrói o mesmo estado. */
   alters?: Alters;
+  adopt?: SimAdopt;
 }
 
 /** Erro do simulador já serializável (um `Error` perde `kind`/`diagnostics`
@@ -46,12 +59,12 @@ export interface SimTiming {
 
 interface Common {
   id: number;
-  /** A sessão foi (re)aberta neste pedido? Só então `figure`/`controls` vêm. */
+  /** A sessão foi (re)aberta neste pedido? */
   fresh: boolean;
-  /** Figura nova (só em `fresh`; num re-run a da sessão segue valendo).
-   *  `null` = o wasm nem carregou. */
+  /** Figura nova (em `fresh` e ao adotar um fonte reescrito; num re-run a da
+   *  sessão segue valendo). `null` = o wasm nem carregou. */
   figure?: SimFigureResult | null;
-  /** Elementos ajustáveis (só em `fresh`). */
+  /** Elementos ajustáveis (em `fresh` e ao adotar). */
   controls?: SimControl[];
   ms: number;
   timing: SimTiming;
@@ -64,6 +77,9 @@ export interface SimApi {
   ensure: () => Promise<void>;
   openSession: (source: string, opts?: PicSimOptions) => SimSession;
   renderPic: (source: string) => string;
+  /** Re-extração ao adotar um fonte reescrito (netlist com o valor novo).
+   *  Ausente: o netlist mostrado fica o da abertura. */
+  extractPic?: (source: string) => PicExtraction;
 }
 
 export function toSimFailure(e: unknown, fallbackKind = "internal"): SimFailure {
@@ -123,24 +139,38 @@ export function principalParam(
   return names[0];
 }
 
+const usable = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && v !== 0;
+
 /** Elementos com valor principal ajustável: `alterable()` não vazio e um
  *  valor finito ≠ 0 (o slider é log em torno dele). Fonte só com `PULSE(…)`
- *  (DC ausente) fica de fora. */
+ *  (DC ausente) fica de fora. Sob `.ac` no deck, a fonte independente (V/I)
+ *  com `AC x` move a MAGNITUDE AC (`acmag`) — mexer no `dc` não mudaria nada
+ *  no Bode; sem `AC` cai no principal (`dc`). */
 export function sessionControls(session: SimSession, pic: PicExtraction): SimControl[] {
   const out: SimControl[] = [];
+  const ac = hasAcAnalysis(pic.netlist);
   for (const el of pic.map.elements) {
     let names: string[];
-    let value: number | Float64Array | null;
+    let param: string | null = null;
+    let value: number | Float64Array | null = null;
     try {
       names = session.alterable(el.refdes);
-      value = names.length ? session.param(el.refdes) : null;
+      if (!names.length) continue;
+      if (ac && /^[VI]/i.test(el.refdes) && names.includes("acmag")) {
+        const mag = session.param(el.refdes, "acmag");
+        if (usable(mag)) {
+          param = "acmag";
+          value = mag;
+        }
+      }
+      if (param === null) value = session.param(el.refdes);
     } catch {
       continue;
     }
-    if (typeof value !== "number" || !Number.isFinite(value) || value === 0) continue;
+    if (!usable(value)) continue;
     out.push({
       refdes: el.refdes,
-      param: principalParam(session, el.refdes, names, value),
+      param: param ?? principalParam(session, el.refdes, names, value),
       value,
       unit: unitForRefdes(el.refdes),
     });
@@ -155,6 +185,8 @@ interface Live {
   opts: string;
   session: SimSession;
   pic: PicExtraction;
+  /** Os controles da sessão (refdes, parâmetro, valor do fonte). */
+  controls: SimControl[];
   /** refdes → valor do fonte (p/ desfazer uma alteração). */
   originals: Map<string, number>;
   /** O que está aplicado na sessão agora. */
@@ -175,6 +207,35 @@ export class SimHost {
     this.live = null;
   }
 
+  /** Adota o fonte reescrito (ver `SimAdopt`): os valores escritos viram os
+   *  originais (e ficam aplicados na sessão), figura e netlist do texto novo. */
+  private adoptSource(
+    source: string,
+    originals: Readonly<Record<string, number>>,
+  ): { figure: SimFigureResult; controls: SimControl[] } {
+    const live = this.live!;
+    for (const [refdes, value] of Object.entries(originals)) {
+      if (!live.originals.has(refdes)) continue;
+      if (live.applied.get(refdes) !== value) alterOne(live, refdes, value);
+      live.applied.delete(refdes);
+      live.originals.set(refdes, value);
+    }
+    live.controls = live.controls.map((c) =>
+      Object.hasOwn(originals, c.refdes) ? { ...c, value: originals[c.refdes] } : c,
+    );
+    live.source = source;
+    if (this.api.extractPic) {
+      try {
+        const pic = this.api.extractPic(source);
+        // o mapa (ids sN) não muda com um valor — só o netlist
+        live.pic = { ...pic, map: live.pic.map };
+      } catch {
+        // fica o netlist anterior
+      }
+    }
+    return { figure: renderFigure(this.api, source), controls: live.controls };
+  }
+
   async handle(req: SimRequest): Promise<SimResponse> {
     const t0 = performance.now();
     const timing: SimTiming = { open: 0, alter: 0, run: 0 };
@@ -192,9 +253,33 @@ export class SimHost {
       };
     }
 
+    let extra: { figure?: SimFigureResult; controls?: SimControl[] } = {};
+    const adopt = req.adopt;
+    if (
+      adopt &&
+      this.live &&
+      this.live.source === adopt.from &&
+      adopt.from !== req.source &&
+      this.live.opts === optsKey(req.opts)
+    ) {
+      const tAdopt = performance.now();
+      try {
+        extra = this.adoptSource(req.source, adopt.originals);
+      } catch (e) {
+        timing.alter = performance.now() - tAdopt;
+        return {
+          type: "error",
+          id: req.id,
+          fresh: false,
+          error: { ...toSimFailure(e), pic: this.live.pic },
+          ms: performance.now() - t0,
+          timing,
+        };
+      }
+      timing.alter = performance.now() - tAdopt;
+    }
     const fresh =
       !this.live || this.live.source !== req.source || this.live.opts !== optsKey(req.opts);
-    let extra: { figure?: SimFigureResult; controls?: SimControl[] } = {};
     if (fresh) {
       this.dispose();
       const figure = renderFigure(this.api, req.source);
@@ -223,6 +308,7 @@ export class SimHost {
         opts: optsKey(req.opts),
         session,
         pic,
+        controls,
         originals: new Map(controls.map((c) => [c.refdes, c.value])),
         applied: new Map(),
       };
@@ -244,10 +330,10 @@ export class SimHost {
     try {
       applyAlters(live, req.alters ?? {});
     } catch (e) {
-      timing.alter = performance.now() - tAlter;
+      timing.alter += performance.now() - tAlter;
       return fail(e);
     }
-    timing.alter = performance.now() - tAlter;
+    timing.alter += performance.now() - tAlter;
 
     const tRun = performance.now();
     try {
@@ -269,17 +355,25 @@ export class SimHost {
   }
 }
 
+/** `alter` pelo parâmetro do controle (`acmag` sob `.ac`, senão o
+ *  principal); elemento sem controle usa o principal. */
+function alterOne(live: Live, refdes: string, value: number): void {
+  const param = live.controls.find((c) => c.refdes === refdes)?.param;
+  if (param) live.session.alter(refdes, param, value);
+  else live.session.alter(refdes, value);
+}
+
 /** Leva a sessão de `applied` a `want`: desfaz quem saiu, aplica quem mudou. */
 function applyAlters(live: Live, want: Alters): void {
   for (const refdes of [...live.applied.keys()]) {
     if (Object.hasOwn(want, refdes)) continue;
     const orig = live.originals.get(refdes);
-    if (orig !== undefined) live.session.alter(refdes, orig);
+    if (orig !== undefined) alterOne(live, refdes, orig);
     live.applied.delete(refdes);
   }
   for (const [refdes, value] of Object.entries(want)) {
     if (live.applied.get(refdes) === value) continue;
-    live.session.alter(refdes, value);
+    alterOne(live, refdes, value);
     live.applied.set(refdes, value);
   }
 }

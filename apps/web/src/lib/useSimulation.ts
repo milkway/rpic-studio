@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SimCancelled, SimClient, SimSuperseded, type WorkerFactory } from "./simClient";
-import type { SimFailure, SimFigureResult, SimResponse, SimTiming } from "./simProtocol";
+import type { SimAdopt, SimFailure, SimFigureResult, SimResponse, SimTiming } from "./simProtocol";
 import type { Alters, SimControl } from "./simValues";
 import type { PicRun } from "./dune";
 
@@ -66,6 +66,10 @@ export function useSimulation(factory?: WorkerFactory) {
   const timer = useRef<number | null>(null);
   const lastSent = useRef(0);
   const sentKey = useRef<string | null>(null);
+  /** Fonte reescrito pela escrita de volta que o worker ainda não confirmou:
+   *  vai em TODO pedido até uma resposta a um pedido que o levou (a fila de um
+   *  lugar pode descartar o 1º). */
+  const pendingAdopt = useRef<SimAdopt | null>(null);
 
   useEffect(
     () => () => {
@@ -78,8 +82,11 @@ export function useSimulation(factory?: WorkerFactory) {
 
   const client = useCallback(() => (clientRef.current ??= new SimClient(factory)), [factory]);
 
-  /** Aplica uma resposta do worker ao estado (execução nova OU re-run). */
-  const apply = useCallback((res: SimResponse, rerun: boolean, sentAt: number) => {
+  /** Aplica uma resposta do worker ao estado (execução nova OU re-run).
+   *  `source` = o do pedido: figura/controles de um fonte que já não é o da
+   *  sessão (ex.: resposta a um pedido anterior à escrita de volta) não pisam
+   *  nos do fonte corrente. */
+  const apply = useCallback((res: SimResponse, rerun: boolean, sentAt: number, source: string) => {
     const roundTrip = performance.now() - sentAt;
     setState((s) => ({
       ...s,
@@ -92,9 +99,9 @@ export function useSimulation(factory?: WorkerFactory) {
       run: res.type === "ok" ? res.run : rerun ? s.run : null,
       failure: res.type === "ok" ? null : res.error,
       // num re-run a figura/controles da sessão seguem; se o worker reabriu
-      // a sessão (ex.: depois de Cancelar), vêm de novo
-      figure: res.fresh && res.figure !== undefined ? res.figure : s.figure,
-      controls: res.fresh && res.controls ? res.controls : s.controls,
+      // a sessão (ex.: depois de Cancelar) ou adotou um fonte reescrito, vêm
+      figure: res.figure !== undefined && source === s.source ? res.figure : s.figure,
+      controls: res.controls && source === s.source ? res.controls : s.controls,
       rerun,
       timing: res.timing,
       roundTrip,
@@ -146,12 +153,13 @@ export function useSimulation(factory?: WorkerFactory) {
         alters,
         ...(same ? {} : { controls: [] }),
       }));
-      sentKey.current = JSON.stringify(alters);
+      sentKey.current = JSON.stringify([source, alters]);
+      pendingAdopt.current = null;
       const sentAt = performance.now();
       client()
         .run({ source, alters })
         .then(
-          (res) => apply(res, false, sentAt),
+          (res) => apply(res, false, sentAt, source),
           (e: unknown) => onReject(e),
         );
     },
@@ -162,15 +170,20 @@ export function useSimulation(factory?: WorkerFactory) {
     timer.current = null;
     const { source, alters } = stateRef.current;
     if (source === null) return;
-    const key = JSON.stringify(alters);
+    const key = JSON.stringify([source, alters]);
     if (key === sentKey.current) return;
     sentKey.current = key;
     lastSent.current = performance.now();
     const sentAt = performance.now();
+    const adopt = pendingAdopt.current;
     client()
-      .rerun({ source, alters })
+      .rerun(adopt ? { source, alters, adopt } : { source, alters })
       .then(
-        (res) => apply(res, true, sentAt),
+        (res) => {
+          // o worker viu o pedido com a adoção: confirmada (ou reabriu)
+          if (adopt && pendingAdopt.current === adopt) pendingAdopt.current = null;
+          apply(res, true, sentAt, source);
+        },
         (e: unknown) => onReject(e, true),
       );
   }, [client, apply, onReject]);
@@ -196,6 +209,32 @@ export function useSimulation(factory?: WorkerFactory) {
     [dispatch],
   );
 
+  /** A escrita de volta reescreveu o fonte: `source` é o texto novo e
+   *  `originals` os valores agora escritos nele (refdes → valor). Esses
+   *  elementos deixam de estar alterados (fonte e sessão concordam), os
+   *  controles passam a tê-los como original e o worker adota o fonte novo
+   *  SEM reabrir a sessão (plot, probes e cursor ficam). */
+  const adopt = useCallback(
+    (source: string, originals: Readonly<Record<string, number>>) => {
+      const s = stateRef.current;
+      if (s.source === null || s.source === source) return;
+      const alters: Record<string, number> = { ...s.alters };
+      for (const refdes of Object.keys(originals)) delete alters[refdes];
+      const controls = s.controls.map((c) =>
+        Object.hasOwn(originals, c.refdes) ? { ...c, value: originals[c.refdes] } : c,
+      );
+      const prev = pendingAdopt.current;
+      pendingAdopt.current = prev
+        ? { from: prev.from, originals: { ...prev.originals, ...originals } }
+        : { from: s.source, originals: { ...originals } };
+      stateRef.current = { ...s, source, alters, controls };
+      setState((cur) => ({ ...cur, source, alters, controls }));
+      if (timer.current !== null) window.clearTimeout(timer.current);
+      dispatch();
+    },
+    [dispatch],
+  );
+
   const cancel = useCallback(() => {
     if (timer.current !== null) window.clearTimeout(timer.current);
     timer.current = null;
@@ -203,5 +242,5 @@ export function useSimulation(factory?: WorkerFactory) {
     clientRef.current?.cancel();
   }, []);
 
-  return { ...state, start, cancel, setAlters };
+  return { ...state, start, cancel, setAlters, adopt };
 }

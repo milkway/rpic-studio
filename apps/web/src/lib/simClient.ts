@@ -3,7 +3,7 @@
 // Cancelar = `terminate()` — a próxima execução cria um worker novo (e
 // recarrega o wasm, do cache HTTP, e reabre a sessão).
 import type { PicSimOptions } from "./dune";
-import type { SimRequest, SimResponse } from "./simProtocol";
+import type { SimAdopt, SimRequest, SimResponse } from "./simProtocol";
 import type { Alters } from "./simValues";
 
 /** O subconjunto de `Worker` que usamos (os testes injetam um falso). */
@@ -43,6 +43,7 @@ export interface RunInput {
   source: string;
   opts?: PicSimOptions;
   alters?: Alters;
+  adopt?: SimAdopt;
 }
 
 interface Waiter {
@@ -105,6 +106,7 @@ export class SimClient {
       const msg: SimRequest = { type: "run", id, source: input.source };
       if (input.opts) msg.opts = input.opts;
       if (input.alters) msg.alters = input.alters;
+      if (input.adopt) msg.adopt = input.adopt;
       worker.postMessage(msg);
     });
   }
