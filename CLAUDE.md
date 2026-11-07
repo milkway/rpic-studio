@@ -307,7 +307,17 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   i18n, nunca marcado no editor; o prefixo `"L:C:"` da mensagem também). O texto vem do módulo
   virtual `virtual:dune-prelude` (plugin no `vite.config.ts`, extraído NO BUILD do dune-sim
   instalado — `prelude()` do pacote exige o wasm de 2 MB, que só o worker carrega): chunk
-  lazy de ~7 KB gz, baixado só para fonte spice; até chegar, o preview espera. Fonte sem
+  lazy de ~7 KB gz, baixado só para fonte spice; até chegar, o preview espera. Carga que
+  FALHA: aquele fonte cai no `compile` puro (o usuário vê o erro real do rpic, editor vivo;
+  `errorDiag` limpo) e a próxima edição tenta de novo; a miniatura idem (`console.warn` 1×).
+  **Inspetor**: as formas dos elementos nascem dentro de macros (prelude/circuits) e o
+  `objects` do rpic as marca com `file` — o overlay e o `solvePicMapping` ignoram objeto com
+  `file`. Então o `compileWithPrelude` pede `scene: true` (só p/ ler; o SVG não muda e a scene
+  não sai do bundle) e re-atribui cada objeto de macro ao bloco mais interno cujo `span` está
+  no fonte do usuário (o `V1: vsource(...)`; rpic ≥ 0.16 agrupa a chamada plana) — clique
+  pula para a linha do elemento e as coordenadas acham âncora. Sem bloco do usuário em
+  volta, fica `file`. Todo o re-baseamento mora SÓ em `lib/dunePrelude.ts`: some quando o
+  `compile()` do rpic ganhar preludes nomeados (unidades como o `-c`). Fonte sem
   `spice = 1` = `compile` puro, byte a byte como antes.
 
 - **Painel Mapa (geopic, issue #8)** — aba `MAP`/`MAPA` no `PreviewTabs`, que SÓ existe quando
