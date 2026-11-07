@@ -11,7 +11,7 @@
 // bundle/erro é re-baseada para o fonte do usuário: linha > deslocamento →
 // linha do usuário; linha dentro do prelude → `file: DUNE_PRELUDE_FILE`
 // (contextualizada como arquivo incluído, nunca marcada no editor).
-import { compile, type Bundle, type CompileError, type CompileOptions, type Diagnostic } from "./rpic";
+import { compile, type Bundle, type CompileError, type CompileOptions } from "./rpic";
 
 /** Nome de "arquivo" dos diagnósticos/objetos que caem dentro do prelude. */
 export const DUNE_PRELUDE_FILE = "dune prelude";
@@ -44,34 +44,22 @@ export function dunePreludeLoaded(): string | null {
 
 /** Quantas linhas o prefixo `prelude + "\n"` ocupa antes da linha 1 do usuário. */
 export function preludeOffset(text: string): number {
-  let n = 1;
-  for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) === 10) n++;
-  return n;
+  return text.split("\n").length;
 }
 
-/** Linha do texto combinado → `{ line, inPrelude }` (só para `file` nulo). */
-function rebaseLine(line: number, offset: number): { line: number; inPrelude: boolean } {
-  return line > offset ? { line: line - offset, inPrelude: false } : { line, inPrelude: true };
-}
-
-function rebaseDiag(d: Diagnostic, offset: number): Diagnostic {
-  if (d.file != null || d.line == null) return d;
-  const r = rebaseLine(d.line, offset);
-  return r.inPrelude ? { ...d, file: DUNE_PRELUDE_FILE } : { ...d, line: r.line };
-}
-
-/** Objeto/lugar/passthrough com `line?`/`file?` (o mesmo critério de `rebaseDiag`). */
-function rebaseSpan<T extends { line?: number; file?: string }>(x: T, offset: number): T {
+/** Re-baseia UMA posição (diagnóstico, objeto, lugar, passthrough): `file` já
+ *  definido (circuits, `copy`) fica como está; linha dentro do prelude ganha
+ *  `file: DUNE_PRELUDE_FILE`; senão a linha volta ao referencial do usuário. */
+function rebaseSpan<T extends { line?: number | null; file?: string | null }>(x: T, offset: number): T {
   if (x.file != null || x.line == null) return x;
-  const r = rebaseLine(x.line, offset);
-  return r.inPrelude ? { ...x, file: DUNE_PRELUDE_FILE } : { ...x, line: r.line };
+  return x.line > offset ? { ...x, line: x.line - offset } : { ...x, file: DUNE_PRELUDE_FILE };
 }
 
 /** Prefixo `"L:C: "` da mensagem do compilador, no mesmo referencial. */
 function rebaseMessage(message: string, offset: number): string {
   return message.replace(/^(\d+):(\d+):/, (_m, l: string, c: string) => {
-    const r = rebaseLine(Number(l), offset);
-    return r.inPrelude ? `${DUNE_PRELUDE_FILE}:${l}:${c}:` : `${r.line}:${c}:`;
+    const n = Number(l);
+    return n > offset ? `${n - offset}:${c}:` : `${DUNE_PRELUDE_FILE}:${l}:${c}:`;
   });
 }
 
@@ -88,14 +76,14 @@ export function compileWithPrelude(source: string, preludeText: string, opts?: C
     const err = e as CompileError;
     if (err instanceof Error) {
       err.message = rebaseMessage(err.message, offset);
-      if (err.errorInfo) err.errorInfo = rebaseDiag(err.errorInfo, offset);
-      if (err.warnings) err.warnings = err.warnings.map((w) => rebaseDiag(w, offset));
+      if (err.errorInfo) err.errorInfo = rebaseSpan(err.errorInfo, offset);
+      if (err.warnings) err.warnings = err.warnings.map((w) => rebaseSpan(w, offset));
     }
     throw err;
   }
   const out: Bundle = {
     ...bundle,
-    warnings: (bundle.warnings ?? []).map((w) => rebaseDiag(w, offset)),
+    warnings: (bundle.warnings ?? []).map((w) => rebaseSpan(w, offset)),
     objects: (bundle.objects ?? []).map((o) => rebaseSpan(o, offset)),
   };
   if (bundle.places) out.places = bundle.places.map((p) => rebaseSpan(p, offset));
