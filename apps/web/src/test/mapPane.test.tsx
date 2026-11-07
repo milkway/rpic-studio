@@ -102,7 +102,8 @@ describe("MapPane", () => {
     await waitFor(() => expect(map.calls.set).toBe(1));
     rerender(CALLOUT.replace("geo_scale = 400", "geo_scale = 800"), 0);
     await waitFor(() => expect(screen.getByTestId("map-status").textContent).toContain("800 m/in"));
-    expect(map.calls.set).toBe(2);
+    // o status vem do render; o setGeoJSON, do efeito passivo logo depois
+    await waitFor(() => expect(map.calls.set).toBe(2));
     expect(map.calls.fit).toBe(1);
 
     fireEvent.change(screen.getByTestId("map-frame"), { target: { value: "mercator" } });
