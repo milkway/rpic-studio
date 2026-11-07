@@ -19,6 +19,27 @@ const appVersion = readVersion(fileURLToPath(new URL("./package.json", import.me
 const rpicVersion = readVersion(join(rpicRoot, "package.json"));
 // O simulador dune (`@strategicprojects/dune-sim`) vem do npm.
 
+// Prelude do dune (`vsource`, `isource`, …) como módulo virtual, extraído NO
+// BUILD (Node) do dune-sim instalado: o preview compila fontes `spice = 1` com
+// ele (lib/dunePrelude.ts) sem baixar o wasm do dune (~2 MB) na thread
+// principal — `prelude()` do pacote exige o wasm iniciado. Sempre em sincronia
+// com a versão instalada (é o mesmo texto que o `renderPic` do dune usa).
+const DUNE_PRELUDE_ID = "virtual:dune-prelude";
+function dunePrelude() {
+  return {
+    name: "dune-prelude",
+    resolveId(id: string) {
+      return id === DUNE_PRELUDE_ID ? "\0" + DUNE_PRELUDE_ID : null;
+    },
+    async load(id: string) {
+      if (id !== "\0" + DUNE_PRELUDE_ID) return null;
+      const dune = await import("@strategicprojects/dune-sim");
+      await dune.ready(readFileSync(require.resolve("@strategicprojects/dune-sim/pkg/dune_wasm_bg.wasm")));
+      return `export default ${JSON.stringify(dune.prelude())};`;
+    },
+  };
+}
+
 export default defineConfig({
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
@@ -29,7 +50,7 @@ export default defineConfig({
   // Lê o .env único da raiz do monorepo.
   envDir: fileURLToPath(new URL("../..", import.meta.url)),
   // cast: vitest empacota sua própria versão do vite (tipos de plugin divergem)
-  plugins: [react(), tailwindcss()] as never,
+  plugins: [react(), tailwindcss(), dunePrelude()] as never,
   resolve: {
     // Aliases exatos (regex): "@rpic/design-system/tokens.css" continua
     // resolvendo pelos exports do package do workspace.
