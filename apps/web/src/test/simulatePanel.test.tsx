@@ -370,12 +370,15 @@ describe("SimulatePanel", () => {
       edits,
       workers,
       reject = false,
+      noCalls = false,
     }: {
       initial: string;
       edits: SourceEdit[];
       workers: InlineWorker[];
       /** O "editor" recusa a edição (texto divergente/fora do documento). */
       reject?: boolean;
+      /** Sem posições (preview ainda compilando / em erro). */
+      noCalls?: boolean;
     }) {
       const [source, setSource] = useState(initial);
       const calls = useMemo(
@@ -392,7 +395,7 @@ describe("SimulatePanel", () => {
           <SimulatePanel
             source={source}
             active
-            calls={calls}
+            calls={noCalls ? null : calls}
             onSourceEdit={(e, base) => {
               if (reject || base !== source) return false;
               edits.push(e);
@@ -557,6 +560,20 @@ describe("SimulatePanel", () => {
       expect(note).toHaveAttribute("data-ok", "0");
       expect(note.textContent).toMatch(/R1.*not a plain number/);
       expect(screen.getByTestId("sim-altered-chip")).toBeInTheDocument();
+    });
+
+    it("sem posições ainda: não escreve e diz para esperar o preview (≠ código mudou)", async () => {
+      const edits: SourceEdit[] = [];
+      render(<Harness initial={RC_FIGURE} edits={edits} workers={[]} noCalls />);
+      await openSlider("R1");
+      const range = screen.getByTestId("sim-slider-range") as HTMLInputElement;
+      fireEvent.change(range, { target: { value: range.max } });
+      fireEvent.pointerUp(range);
+      expect(edits).toHaveLength(0);
+      const note = screen.getByTestId("sim-writeback");
+      expect(note).toHaveAttribute("data-ok", "0");
+      expect(note.textContent).toMatch(/positions aren't ready/);
+      expect(note.textContent).not.toMatch(/changed since/);
     });
 
     it("editor que recusa a edição: a sessão não adota, fica alterado e diz que o código mudou", async () => {

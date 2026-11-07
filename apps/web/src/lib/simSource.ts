@@ -80,7 +80,8 @@ export type WriteBackFailure =
   | "no-call" // nenhuma chamada rotulada com esse refdes (ou duas)
   | "unknown-macro" // macro fora da tabela
   | "not-literal" // o valor não é um número literal (variável, expressão, PULSE…)
-  | "stale"; // as posições não batem com o texto (fonte mudou)
+  | "stale" // as posições não batem com o texto (fonte mudou)
+  | "unavailable"; // ainda sem posições p/ este texto (preview compilando, ou em erro)
 
 export type ValueEditResult =
   | { ok: true; edit: SourceEdit; written: string; calls: ElementCall[] }

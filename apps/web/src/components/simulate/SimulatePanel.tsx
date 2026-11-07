@@ -236,6 +236,7 @@ export function SimulatePanel({
     "unknown-macro": "sim.wb.unknownMacro",
     "not-literal": "sim.wb.notLiteral",
     stale: "sim.wb.stale",
+    unavailable: "sim.wb.unavailable",
   };
   /** Escreve o valor solto no argumento de valor da chamada do elemento: o
    *  fonte passa a dizer o que a sessão simula, então o elemento deixa de
@@ -258,7 +259,10 @@ export function SimulatePanel({
         : calls && calls.source === source
           ? calls.calls
           : null;
-    if (sim.source !== source || !current) return fail("stale");
+    // código mudou desde a execução ≠ posições ainda não prontas p/ este texto
+    // (debounce do preview, ou a última compilação falhou)
+    if (sim.source !== source) return fail("stale");
+    if (!current) return fail("unavailable");
     const r = valueEdit(source, current, c.refdes, c.param, value);
     if (!r.ok) return fail(r.reason, r.macro);
     // o editor só aplica contra o texto em que a edição foi calculada; se não
