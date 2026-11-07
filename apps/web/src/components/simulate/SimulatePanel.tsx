@@ -88,7 +88,9 @@ export function SimulatePanel({
   const { t } = useI18n();
   // "passos finos" persistido com as outras preferências (rpic:settings.v1);
   // o estado vivo é o do hook (vai em todo pedido ao worker)
-  const sim = useSimulation(workerFactory, loadSimFineSteps());
+  // lido UMA vez (inicializador preguiçoso, como o MapPane), não a cada render
+  const [initialFine] = useState(loadSimFineSteps);
+  const sim = useSimulation(workerFactory, initialFine);
   const { setFine } = sim;
   const toggleFine = () => {
     const next = !sim.fine;
