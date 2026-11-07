@@ -227,7 +227,7 @@ export function MapPane({
         <div
           ref={containerRef}
           data-testid="map-canvas"
-          className={cn("absolute inset-0 transition-opacity", failed && geo.result && "opacity-40")}
+          className={cn("h-full w-full transition-opacity", failed && geo.result && "opacity-40")}
         />
         {(busy || mapState === "failed") && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center font-mono text-[12px] text-(--color-text-muted)">
