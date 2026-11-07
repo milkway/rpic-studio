@@ -86,7 +86,10 @@ export function useSimulation(factory?: WorkerFactory) {
       status: res.type === "ok" ? "done" : "error",
       startedAt: null,
       ms: res.ms,
-      run: res.type === "ok" ? res.run : null,
+      // re-run de slider que falha (ex.: `alter` recusado) mantém o último
+      // resultado bom na tela — o erro aparece junto, sem apagar o gráfico
+      // no meio do arrasto. Execução nova que falha limpa.
+      run: res.type === "ok" ? res.run : rerun ? s.run : null,
       failure: res.type === "ok" ? null : res.error,
       // num re-run a figura/controles da sessão seguem; se o worker reabriu
       // a sessão (ex.: depois de Cancelar), vêm de novo
@@ -100,7 +103,7 @@ export function useSimulation(factory?: WorkerFactory) {
     }));
   }, []);
 
-  const onReject = useCallback((e: unknown) => {
+  const onReject = useCallback((e: unknown, rerun = false) => {
     if (e instanceof SimSuperseded) return;
     if (e instanceof SimCancelled) {
       // um `run` novo também cancela o anterior — só marca se ninguém assumiu
@@ -113,7 +116,7 @@ export function useSimulation(factory?: WorkerFactory) {
       ...s,
       status: "error",
       startedAt: null,
-      run: null,
+      run: rerun ? s.run : null,
       failure: {
         message: e instanceof Error ? e.message : String(e),
         kind: "load",
@@ -143,7 +146,10 @@ export function useSimulation(factory?: WorkerFactory) {
       const sentAt = performance.now();
       client()
         .run({ source, alters })
-        .then((res) => apply(res, false, sentAt), onReject);
+        .then(
+          (res) => apply(res, false, sentAt),
+          (e: unknown) => onReject(e),
+        );
     },
     [client, apply, onReject],
   );
@@ -159,7 +165,10 @@ export function useSimulation(factory?: WorkerFactory) {
     const sentAt = performance.now();
     client()
       .rerun({ source, alters })
-      .then((res) => apply(res, true, sentAt), onReject);
+      .then(
+        (res) => apply(res, true, sentAt),
+        (e: unknown) => onReject(e, true),
+      );
   }, [client, apply, onReject]);
 
   /** Troca as alterações e re-roda a sessão. `commit` (soltar o slider,
