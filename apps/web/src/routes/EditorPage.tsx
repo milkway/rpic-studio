@@ -46,6 +46,7 @@ import { useI18n, type Locale } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import { PREFS_EVENT, pushPrefsSoon } from "@/lib/prefs";
 import { detectCircuits, detectTexLabels } from "@/lib/detect";
+import { applySourceEdit, type SourceEdit } from "@/lib/simSource";
 import { mathActive, rememberMathPreference } from "@/lib/rpic";
 
 interface DocState {
@@ -289,6 +290,12 @@ export function EditorPage() {
   );
 
   const setSource = useCallback((source: string) => setDoc((d) => ({ ...d, source })), []);
+  // escrita de volta do Simular: pelo editor (UMA transação — o undo reverte);
+  // sem editor montado, direto no documento
+  const editSource = useCallback((edit: SourceEdit) => {
+    if (codeRef.current) codeRef.current.applyEdit(edit);
+    else setDoc((d) => ({ ...d, source: applySourceEdit(d.source, edit) }));
+  }, []);
 
   // Paleta de circuitos: garante `copy "circuits"` e insere o snippet do
   // elemento escolhido antes de `.PE` (idempotente — ver lib/circuitCatalog).
@@ -473,6 +480,8 @@ export function EditorPage() {
             objects={rpic.objects}
             onJumpToLine={(line, col) => codeRef.current?.focusAt(line, col ?? 1)}
             onSourceChange={setSource}
+            simCalls={rpic.calls}
+            onSourceEdit={editSource}
             scroll={rpic.scroll}
             interactions={rpic.interactions}
             getPicMap={rpic.getPicMapping}

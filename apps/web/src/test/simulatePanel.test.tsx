@@ -3,15 +3,22 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { ensureDune, openSession, renderPic } from "@/lib/dune";
+import { useMemo, useState } from "react";
+import { ready } from "@strategicprojects/rpic";
+import prelude from "virtual:dune-prelude";
+import { ensureDune, extractPic, openSession, renderPic } from "@/lib/dune";
+import { compileWithPrelude } from "@/lib/dunePrelude";
+import { applySourceEdit, type SourceEdit } from "@/lib/simSource";
+import { I18nProvider } from "@/lib/i18n";
 import { SimHost, transferablesOf, type SimRequest, type SimResponse } from "@/lib/simProtocol";
 import type { WorkerLike } from "@/lib/simClient";
 import { SimulatePanel } from "@/components/simulate/SimulatePanel";
-import { RC_FIGURE } from "./fixtures-sim";
+import { DIVIDER_FIGURE, RC_FIGURE } from "./fixtures-sim";
 
 const require = createRequire(import.meta.url);
 
 beforeAll(async () => {
+  await ready(readFileSync(require.resolve("@strategicprojects/rpic/pkg/rpic_wasm_bg.wasm")));
   await ensureDune(
     readFileSync(require.resolve("@strategicprojects/dune-sim/pkg/dune_wasm_bg.wasm")),
   );
@@ -24,7 +31,7 @@ class InlineWorker implements WorkerLike {
   hold = false;
   sent: SimRequest[] = [];
   // a sessão vive no "worker", como no real
-  host = new SimHost({ ensure: () => ensureDune(), openSession, renderPic });
+  host = new SimHost({ ensure: () => ensureDune(), openSession, renderPic, extractPic });
   postMessage(msg: SimRequest) {
     this.sent.push(msg);
     if (this.hold) return; // "simulação infinita": nunca responde
@@ -328,5 +335,166 @@ describe("SimulatePanel", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  describe("escrita de volta no fonte (issue #22)", () => {
+    /** O painel com o fonte num estado (o "editor"): as chamadas vêm do MESMO
+     *  compile com prelude que o preview faz. */
+    function Harness({
+      initial,
+      edits,
+      workers,
+    }: {
+      initial: string;
+      edits: SourceEdit[];
+      workers: InlineWorker[];
+    }) {
+      const [source, setSource] = useState(initial);
+      const calls = useMemo(
+        () => ({
+          source,
+          calls:
+            compileWithPrelude(source, prelude, { circuits: true, texlabels: false }).calls ?? [],
+        }),
+        [source],
+      );
+      return (
+        <I18nProvider>
+          <pre data-testid="harness-source">{source}</pre>
+          <SimulatePanel
+            source={source}
+            active
+            calls={calls}
+            onSourceEdit={(e) => {
+              edits.push(e);
+              setSource((s) => applySourceEdit(s, e));
+            }}
+            workerFactory={() => {
+              const w = new InlineWorker();
+              workers.push(w);
+              return w;
+            }}
+          />
+        </I18nProvider>
+      );
+    }
+
+    async function openSlider(refdes: string) {
+      fireEvent.click(screen.getByTestId("sim-run"));
+      await waitFor(() =>
+        expect(screen.getByTestId("sim-status")).toHaveAttribute("data-state", "done"),
+      );
+      const fig = await screen.findByTestId("sim-figure");
+      const pad = await waitFor(() => {
+        const p = fig.querySelector(`.sim-hit-el[data-el="${refdes}"]`);
+        expect(p).not.toBeNull();
+        return p!;
+      });
+      fireEvent.click(pad);
+      return fig;
+    }
+    const srcLine = (prefix: string) =>
+      (screen.getByTestId("harness-source").textContent ?? "")
+        .split("\n")
+        .find((l) => l.startsWith(prefix));
+
+    it("arrastar não escreve; soltar escreve o valor, e o elemento deixa de estar alterado", async () => {
+      const edits: SourceEdit[] = [];
+      const workers: InlineWorker[] = [];
+      render(<Harness initial={RC_FIGURE} edits={edits} workers={workers} />);
+      const fig = await openSlider("R1");
+      const range = screen.getByTestId("sim-slider-range") as HTMLInputElement;
+      const input = screen.getByTestId("sim-slider-input") as HTMLInputElement;
+
+      // arrasto: muda a simulação (alterado), o fonte fica
+      fireEvent.change(range, { target: { value: "600" } });
+      await waitFor(() => expect(input.value).not.toBe("1k"));
+      expect(edits).toHaveLength(0);
+      expect(srcLine("R1:")).toBe("R1: resistor(Vin, Vout, 1k)");
+      expect(screen.getByTestId("sim-altered-chip")).toBeInTheDocument();
+      const dragged = input.value;
+
+      // soltar: o fonte segue o slider; sem chip, reset desabilitado
+      fireEvent.pointerUp(range);
+      expect(edits).toHaveLength(1);
+      expect(srcLine("R1:")).toBe(`R1: resistor(Vin, Vout, ${dragged})`);
+      await waitFor(() => expect(screen.queryByTestId("sim-altered-chip")).toBeNull());
+      expect(screen.getByTestId("sim-slider-reset")).toBeDisabled();
+      expect(screen.getByTestId("sim-writeback")).toHaveAttribute("data-ok", "1");
+      expect(screen.queryByTestId("sim-stale")).toBeNull();
+      // o worker ADOTOU o fonte novo (mesma sessão, sem worker novo) e
+      // redesenhou a figura com o rótulo novo — nada de rótulo em itálico
+      expect(workers).toHaveLength(1);
+      await waitFor(() =>
+        expect(workers[0].sent.at(-1)).toMatchObject({
+          alters: {},
+          adopt: { originals: { R1: expect.any(Number) } },
+        }),
+      );
+      await waitFor(() =>
+        expect([...fig.querySelectorAll("text")].some((t) => t.textContent === dragged)).toBe(true),
+      );
+      expect(fig.querySelector(".sim-altered")).toBeNull();
+      // o netlist mostrado acompanha
+      await waitFor(() =>
+        expect(screen.getByTestId("sim-netlist-code").textContent).toContain(
+          `R1 Vin Vout ${dragged}`,
+        ),
+      );
+
+      // teclado: o passo re-roda na hora, mas só escreve ao SOLTAR a tecla
+      fireEvent.keyDown(range, { key: "ArrowRight" });
+      await waitFor(() => expect(input.value).not.toBe(dragged));
+      expect(edits).toHaveLength(1);
+      const stepped = input.value;
+      fireEvent.keyUp(range, { key: "ArrowRight" });
+      expect(edits).toHaveLength(2);
+      expect(srcLine("R1:")).toBe(`R1: resistor(Vin, Vout, ${stepped})`);
+
+      // campo + Enter: idem
+      fireEvent.focus(input);
+      fireEvent.change(input, { target: { value: "4.7k" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(srcLine("R1:")).toBe("R1: resistor(Vin, Vout, 4.7k)");
+      await waitFor(() => expect(screen.queryByTestId("sim-altered-chip")).toBeNull());
+    });
+
+    it("valor que não é literal: não escreve, fica alterado e a linha de status diz por quê", async () => {
+      const src = RC_FIGURE.replace(
+        "R1: resistor(Vin, Vout, 1k)",
+        "R1: resistor(Vin, Vout, {1000})",
+      );
+      const edits: SourceEdit[] = [];
+      render(<Harness initial={src} edits={edits} workers={[]} />);
+      await openSlider("R1");
+      const range = screen.getByTestId("sim-slider-range") as HTMLInputElement;
+      fireEvent.change(range, { target: { value: range.max } });
+      fireEvent.pointerUp(range);
+      expect(edits).toHaveLength(0);
+      const note = screen.getByTestId("sim-writeback");
+      expect(note).toHaveAttribute("data-ok", "0");
+      expect(note.textContent).toMatch(/R1.*not a plain number/);
+      expect(screen.getByTestId("sim-altered-chip")).toBeInTheDocument();
+    });
+
+    it("sob .ac a fonte ajusta acmag: cabeçalho, AC no campo e escrita só do sub-trecho", async () => {
+      const edits: SourceEdit[] = [];
+      const workers: InlineWorker[] = [];
+      render(<Harness initial={DIVIDER_FIGURE} edits={edits} workers={workers} />);
+      await openSlider("V1");
+      const slider = screen.getByTestId("sim-slider");
+      expect(slider.textContent).toContain("acmag");
+      expect(screen.getByTestId("sim-slider-keyword").textContent).toBe("AC");
+      const input = screen.getByTestId("sim-slider-input") as HTMLInputElement;
+      expect(input.value).toBe("1");
+      fireEvent.focus(input);
+      fireEvent.change(input, { target: { value: "1.5" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(srcLine("V1:")).toBe("V1: vsource(A, (0,0), DC 10 AC 1.5)");
+      expect(screen.getByTestId("sim-writeback").textContent).toContain("V1 = AC 1.5");
+      await waitFor(() =>
+        expect(workers[0].sent.at(-1)).toMatchObject({ adopt: { originals: { V1: 1.5 } } }),
+      );
+    });
   });
 });
