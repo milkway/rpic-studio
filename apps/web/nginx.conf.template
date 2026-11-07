@@ -5,6 +5,13 @@ server {
   server_name _;
   absolute_redirect off;
 
+  # nginx's mime.types has no `.mjs`: MapLibre's worker (`maplibre-gl-worker-*.mjs`)
+  # came out as application/octet-stream and the browser refused to start it
+  # ("Worker failed to load"), so the Map pane drew nothing in production.
+  # `types` in a server block replaces the inherited table, hence the include.
+  include /etc/nginx/mime.types;
+  types { application/javascript mjs; }
+
   # API → serviço Rust/Axum. Upstream em variável + resolver do Docker para o
   # nginx subir mesmo sem o serviço "api" (app funciona 100% anônimo sem ele).
   location __BASE__api/ {
