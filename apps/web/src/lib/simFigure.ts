@@ -153,34 +153,76 @@ export function svgEndpoints(root: ParentNode): [number, number][] {
   return out.filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
 }
 
+/** Tolerância (unidades SVG) para dois votos serem a MESMA translação: o
+ *  ruído de ponto flutuante do rpic fica em ~1e-6; 0,05 sobra. */
+const FRAME_EPS = 0.05;
+
+interface Cluster {
+  tx: number;
+  ty: number;
+  /** Terminais (índices) que votaram nesta translação — um voto cada. */
+  voters: Set<number>;
+}
+
+/** Agrupa as translações candidatas por TOLERÂNCIA (|Δ| < `FRAME_EPS` contra
+ *  os grupos existentes), não por arredondamento: um par que cai dos dois
+ *  lados de uma fronteira de arredondamento continua um só grupo. Grade de
+ *  células de tamanho `FRAME_EPS` + as 8 vizinhas = busca local. */
+export function frameClusters(
+  endpoints: readonly [number, number][],
+  pins: readonly PicPoint[],
+): Cluster[] {
+  const clusters: Cluster[] = [];
+  const grid = new Map<string, Cluster[]>();
+  const cell = (v: number) => Math.floor(v / FRAME_EPS);
+  pins.forEach((p, i) => {
+    for (const [ex, ey] of endpoints) {
+      const tx = ex - p.x * SVG_PER_INCH;
+      const ty = ey + p.y * SVG_PER_INCH;
+      const cx = cell(tx);
+      const cy = cell(ty);
+      let found: Cluster | null = null;
+      for (let dx = -1; dx <= 1 && !found; dx++) {
+        for (let dy = -1; dy <= 1 && !found; dy++) {
+          for (const c of grid.get(`${cx + dx},${cy + dy}`) ?? []) {
+            if (Math.abs(c.tx - tx) < FRAME_EPS && Math.abs(c.ty - ty) < FRAME_EPS) {
+              found = c;
+              break;
+            }
+          }
+        }
+      }
+      if (found) {
+        found.voters.add(i);
+        continue;
+      }
+      const c: Cluster = { tx, ty, voters: new Set([i]) };
+      clusters.push(c);
+      const k = `${cx},${cy}`;
+      const bucket = grid.get(k);
+      if (bucket) bucket.push(c);
+      else grid.set(k, [c]);
+    }
+  });
+  return clusters;
+}
+
 /** Translação do frame pic → SVG (`x·96 + tx`, `−y·96 + ty`) que põe o maior
- *  número de terminais DISTINTOS sobre pontas de traço desenhadas. `null` se
- *  nem metade dos terminais casa (figura que não sabemos posicionar: melhor
- *  sem alvo que alvo no lugar errado). */
+ *  número de terminais DISTINTOS sobre pontas de traço desenhadas.
+ *
+ *  PROVISÓRIO: o SVG não traz a origem da página; milkway/dune#19 pede que o
+ *  dune exponha o frame (origem do canvas/rescale) — com ele, este voto (e
+ *  `frameClusters`/`svgEndpoints`) sai e o mapeamento vira conta direta. */
 export function pinFrame(
   endpoints: readonly [number, number][],
   pins: readonly PicPoint[],
 ): { tx: number; ty: number } | null {
   const distinct = [...new Map(pins.map((p) => [terminalKey(p), p])).values()];
   if (distinct.length === 0 || endpoints.length === 0) return null;
-  const q = (v: number) => Math.round(v * 20) / 20; // 0,05 unidade SVG
-  const votes = new Map<string, { tx: number; ty: number; n: number }>();
-  for (const p of distinct) {
-    const mine = new Set<string>();
-    for (const [ex, ey] of endpoints) {
-      const tx = q(ex - p.x * SVG_PER_INCH);
-      const ty = q(ey + p.y * SVG_PER_INCH);
-      const k = `${tx},${ty}`;
-      if (mine.has(k)) continue; // um voto por terminal
-      mine.add(k);
-      const v = votes.get(k);
-      if (v) v.n++;
-      else votes.set(k, { tx: ex - p.x * SVG_PER_INCH, ty: ey + p.y * SVG_PER_INCH, n: 1 });
-    }
-  }
-  let best: { tx: number; ty: number; n: number } | null = null;
-  for (const v of votes.values()) if (!best || v.n > best.n) best = v;
-  if (!best || best.n < Math.ceil(distinct.length / 2)) return null;
+  const clusters = frameClusters(endpoints, distinct);
+  let best: Cluster | null = null;
+  for (const c of clusters) if (!best || c.voters.size > best.voters.size) best = c;
+  if (!best || best.voters.size < Math.ceil(distinct.length / 2)) return null;
   return { tx: best.tx, ty: best.ty };
 }
 

@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { ensureDune, extractPic, renderPic } from "@/lib/dune";
-import { netPins, pinFrame, pinToSvg, svgEndpoints } from "@/lib/simFigure";
+import { frameClusters, netPins, pinFrame, pinToSvg, svgEndpoints } from "@/lib/simFigure";
 import { PIN_FIGURE } from "./fixtures-sim";
 
 const require = createRequire(import.meta.url);
@@ -62,5 +62,23 @@ describe("terminais na figura do dune", () => {
       const [x, y] = pinToSvg(p, f);
       expect(ends.some(([ex, ey]) => Math.hypot(ex - x, ey - y) < 0.01)).toBe(true);
     }
+  });
+});
+
+describe("frameClusters (tolerância, não arredondamento)", () => {
+  it("par que atravessa uma fronteira de arredondamento vira UM grupo", () => {
+    // tx = 77.325 ± ruído: arredondar a 0,05 separaria 77.3249… e 77.3251…
+    const pins = [
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+    ];
+    const ends: [number, number][] = [
+      [77.32499999, 130],
+      [96 + 77.32500001, 130],
+    ];
+    const clusters = frameClusters(ends, pins);
+    const big = clusters.filter((c) => c.voters.size === 2);
+    expect(big).toHaveLength(1);
+    expect(pinFrame(ends, pins)?.tx).toBeCloseTo(77.325, 6);
   });
 });
