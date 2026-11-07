@@ -159,3 +159,36 @@ describe("useSimulation: passos finos (issue #19)", () => {
     expect(workers[0].last()).toMatchObject({ fine: true });
   });
 });
+
+it("passos finos numa execução que FALHOU sem resultado: não re-roda nem vira 're-run'", async () => {
+  const workers: FakeWorker[] = [];
+  const hook = renderHook(() =>
+    useSimulation(() => {
+      const w = new FakeWorker();
+      workers.push(w);
+      return w;
+    }),
+  );
+  act(() => hook.result.current.start("src"));
+  const w = workers[0];
+  await act(async () =>
+    w.reply({
+      type: "error",
+      id: w.last().id,
+      fresh: true,
+      ms: 1,
+      timing,
+      error: { message: "no deck", kind: "pic", diagnostics: [] },
+    }),
+  );
+  expect(hook.result.current.run).toBeNull();
+  const n = w.sent.length;
+  act(() => hook.result.current.setFine(true));
+  expect(w.sent).toHaveLength(n); // nada sai
+  expect(hook.result.current.fine).toBe(true);
+  expect(hook.result.current.status).toBe("error");
+  expect(hook.result.current.rerun).toBe(false); // sem selo "re-rodou em"
+  // o próximo Simular leva o modo
+  act(() => hook.result.current.start("src"));
+  expect(w.last()).toMatchObject({ fine: true });
+});

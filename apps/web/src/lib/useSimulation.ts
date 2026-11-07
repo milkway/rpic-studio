@@ -251,7 +251,7 @@ export function useSimulation(factory?: WorkerFactory, initialFine = false) {
   );
 
   /** Liga/desliga os "passos finos". Com uma sessão em uso (rodando ou com
-   *  resultado na tela), re-roda UMA vez como re-run (a sessão troca as
+   *  resultado na tela; não numa falha sem resultado), re-roda UMA vez como re-run (a sessão troca as
    *  opções pelos setters, sem reabrir: plot/probes/cursor ficam). Ocioso ou
    *  cancelado, só guarda o modo para o próximo Simular. */
   const setFine = useCallback(
@@ -261,6 +261,10 @@ export function useSimulation(factory?: WorkerFactory, initialFine = false) {
       stateRef.current = { ...s, fine };
       setState((cur) => ({ ...cur, fine }));
       if (s.source === null || s.status === "idle" || s.status === "cancelled") return;
+      // execução que FALHOU sem resultado na tela (ex.: erro de extração): não
+      // há sessão útil a re-rodar — e um "re-rodou em" sobre um erro mentiria.
+      // O próximo Simular já sai no modo novo.
+      if (s.status === "error" && s.run === null) return;
       if (timer.current !== null) window.clearTimeout(timer.current);
       dispatch();
     },
