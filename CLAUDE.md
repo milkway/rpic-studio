@@ -302,16 +302,24 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   `shiftCalls` — até o preview recompilar). Qual argumento é o valor: tabela `VALUE_ARG` (macros
   do prelude; PROVISÓRIA até o `OverlayMap` do dune trazer os spans do valor). Fontes: só o
   sub-trecho do parâmetro (`DC x`/número nu inicial = dc, `AC x` = acmag; `SIN(…)` fica); grafia
-  `spiceLiteral` (3 algarismos, mais se preciso p/ voltar exato), cauda de unidade preservada.
+  `spiceLiteral` (3 algarismos, mais se preciso p/ voltar exato), cauda de unidade preservada SÓ
+  se não virar sufixo (`10mF`→`1`, nunca `1F` = femto; `rewriteNumber`). UMA gramática de número
+  SPICE e UMA tabela de sufixos (`SPICE_NUMBER`/`suffixOf` em `simValues.ts`). Soltar o ponteiro
+  sem ter movido não commita nem escreve; `applyEdit(edit, base)` devolve `false` se o editor
+  não tem o texto `base` → nada é adotado.
   Confere o texto no span antes de trocar; sem posição confiável (macro fora da tabela, valor não
-  literal tipo `{1000}`/variável, fonte mudou) NÃO escreve e a linha `sim-writeback` diz por
+  literal tipo `{1000}`/variável, fonte mudou, ou posições ainda não prontas — mensagem própria)
+  NÃO escreve e a linha `sim-writeback` diz por
   quê — o elemento fica alterado como antes. Escrito = a sessão ADOTA o fonte novo
-  (`SimRequest.adopt {from, originals}`, mandado em todo pedido até a resposta — a fila de um
-  lugar pode descartar o 1º): sem reabrir (plot/probes/cursor ficam), o valor vira o original,
+  (`SimRequest.adopt` = CADEIA de passos `{from, to, originals}` não confirmados, mandada em todo
+  pedido; a resposta traz `liveSource` e o cliente corta a cadeia até ele — duas escritas
+  rápidas A→B→C seguem a sessão onde quer que ela esteja; adoção TRANSACIONAL, desfaz os alters
+  se um falha): sem reabrir (plot/probes/cursor ficam), o valor vira o original,
   figura redesenhada e netlist re-extraído (`extractPic`); `from` que não bate = abertura normal.
   O centro da escala do slider é o valor NA ABERTURA (senão o polegar salta ao soltar).
   **`.ac` → `acmag`**: com `.ac` no netlist, fonte V/I com `AC x` vira slider de `acmag`
-  (cabeçalho mostra o parâmetro, campo com `AC`/`DC` à frente); o worker sempre usa
+  (cabeçalho mostra o parâmetro, campo com `AC`/`DC` à frente; o `relabel` da figura recebe a
+  palavra-chave e troca o número certo em `DC 1 AC 1`); o worker sempre usa
   `alter(refdes, param, v)` com o parâmetro do controle (reset também). O wasm 0.3.0
   NÃO devolve `.measure` no run (Rawfile = plots/notes/diagnostics) — painel de medidas pendente. Cores `--color-trace-1..6` (validadas p/ CVD) num `@theme static` —
   PEGADINHA: variável de `@theme` sem utility que a use é PODADA pelo Tailwind v4;
