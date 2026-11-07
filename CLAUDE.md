@@ -32,7 +32,7 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
 - **Releases do rpic**: o workflow `.github/workflows/rpic-release-watch.yml` abre uma issue
   com checklist de investigação quando o rpic-lang taggeia versão nova (compara com a versão
   do lockfile). Ao atualizar a dependência, rodar a suíte completa — `compile.test.ts` valida
-  todos os exemplos no WASM real e pega drift de comportamento. **Atual: web ^0.16.0 / API v0.11.0**
+  todos os exemplos no WASM real e pega drift de comportamento. **Atual: web ^0.16.0 / API v0.16.1**
   (web: 0.16.0 trouxe `layers: { textScale }` e `before: 'labels'` no `/maplibre`; 0.15.0 trouxe o build GEO `rpic_wasm_geo` + `compileGeoJSON` + o módulo `/maplibre`, usados
   pelo painel Mapa — ver o item do painel Mapa abaixo; as features de LINGUAGEM descritas a seguir
   são as da v0.11.0) (`link "<url>"` —
@@ -56,11 +56,11 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   `morph` além de `draw`/`fade`/`pop`, `out`, `repeat`/`yoyo`/`ease`, `stagger`, `animate scroll`; o
   player npm converte formas em `<path>` p/ `move`/`morph`). O pin fica em TRÊS lugares:
   `apps/web/package.json` E a raiz `package.json` (web WASM `@strategicprojects/rpic`), e a git-dep
-  da API em `apps/api/Cargo.toml` (`rpic-core`/`rpic-render` na `tag = "v0.11.0"`). **Hoje os pins
+  da API em `apps/api/Cargo.toml` (`rpic-core`/`rpic-render` na `tag = "v0.16.1"`). **Os pins
   DIVERGEM de propósito**: web `^0.16.0` (raiz + apps/web, pelo build geo do painel Mapa, #8) e API
-  ainda na tag v0.11.0 — o render server-side não usa geo, e mudar a tag faz a API recompilar o
-  `rpic-core`/`render` do zero no deploy (ver Deploy); fica para um bump próprio, que deve então
-  realinhar os três. Depois de mudar a
+  alinhados em 2026-11-08 (#14): web `^0.16.0`, API `tag = "v0.16.1"` — o render server-side
+  (PNG/PDF) usa o mesmo engine que o navegador. Mudar a tag faz a API recompilar o
+  `rpic-core`/`render` do zero no deploy (ver Deploy). Depois de mudar a
   tag, rodar `cargo update --manifest-path apps/api/Cargo.toml -p rpic-core -p rpic-render` — editar
   só o `Cargo.toml` deixa o `Cargo.lock` STALE (foi assim que o lock ficou preso no v0.7.0 dois bumps
   seguidos; o Docker do servidor resolvia sozinho e mascarava). Obs.: o sqlx 0.9 do lock exige
@@ -353,7 +353,7 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   `detectGeo(source)` (`geo_lon`/`geo_lat` ou `<Rótulo>_lon`/`_lat` atribuídos no início de
   statement) e ABRE SOZINHA quando o documento é trocado (`docEpoch` do `EditorPage`: exemplo,
   link `#pic=`, diagrama salvo) ou no 1º render — nunca ao digitar. Web npm em **0.16.0** (a API
-  Rust segue na tag v0.11.0 — bump separado). **O build geo roda num WEB WORKER**
+  Rust na tag v0.16.1 desde #14). **O build geo roda num WEB WORKER**
   (`lib/geo.worker.ts` + `geo.ts` + `geoProtocol.ts` + `geoClient.ts`, hook `useGeo`): o pacote
   guarda UM wasm por instância de módulo e o 1º `ready()` fixa lean/math/geo — a thread principal
   já tem o lean/math, então o geo só coexiste num grafo de módulos separado. Erros serializados
