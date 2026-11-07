@@ -100,4 +100,20 @@ describe("useSimulation: re-run que falha", () => {
     );
     expect(hook.result.current.run).toBeNull();
   });
+
+  it("worker que morre num re-run: o mesmo pedido pode ser repetido", async () => {
+    const { hook, workers } = await setup();
+    act(() => hook.result.current.setAlters({ R1: 2e3 }, true));
+    expect(workers[0].last().alters).toEqual({ R1: 2e3 });
+    await act(async () => workers[0].onerror?.({ message: "worker crashed" } as ErrorEvent));
+    expect(hook.result.current.status).toBe("error");
+    expect(hook.result.current.failure?.message).toBe("worker crashed");
+    expect(hook.result.current.run).toBe(RUN);
+    // tentar de novo com o MESMO valor sai (worker novo), não é de-duplicado
+    act(() => hook.result.current.setAlters({ R1: 2e3 }, true));
+    expect(workers).toHaveLength(2);
+    expect(workers[1].last()).toMatchObject({ alters: { R1: 2e3 } });
+    await act(async () => workers[1].reply(ok(workers[1].last().id, true)));
+    expect(hook.result.current.status).toBe("done");
+  });
 });

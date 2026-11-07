@@ -112,6 +112,10 @@ export function useSimulation(factory?: WorkerFactory) {
       }
       return;
     }
+    // falha fora do protocolo (o worker morreu): o pedido não chegou ao fim,
+    // então o MESMO conjunto de alterações tem de poder sair de novo — senão o
+    // de-dup do `dispatch` engole a nova tentativa (como em `cancel`)
+    sentKey.current = null;
     setState((s) => ({
       ...s,
       status: "error",
