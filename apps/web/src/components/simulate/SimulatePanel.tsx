@@ -43,7 +43,7 @@ import { SimFigure, type ProbeNet, type SliderElement } from "./SimFigure";
 import { ElementSlider, sourceKeyword } from "./ElementSlider";
 import { TimeScrubber } from "./TimeScrubber";
 import { groupByUnit, MAX_TRACES, traceStyle, WaveformChart } from "./WaveformChart";
-import { NetlistBlock, ScalarTable, SimDiagnostics } from "./SimResultParts";
+import { MeasurePanel, NetlistBlock, ScalarTable, SimDiagnostics } from "./SimResultParts";
 
 interface SimulatePanelProps {
   source: string;
@@ -342,6 +342,13 @@ export function SimulatePanel({
   };
 
   const stale = sim.source !== null && sim.source !== source && !running;
+  // medidas `.measure` do run na tela (re-run de slider que falha mantém o
+  // último run bom — e as medidas dele)
+  const measurements = sim.run?.measurements ?? [];
+  const showFigure = active && sim.figure !== null && pic !== null;
+  const measurePanel = measurements.length > 0 && (
+    <MeasurePanel measurements={measurements} netlist={pic?.netlist ?? ""} />
+  );
   const run = () => {
     setWriteNote(null);
     sim.start(source);
@@ -409,7 +416,7 @@ export function SimulatePanel({
 
       {/* A figura fica FORA da rolagem: o realce de legenda/netlist/tabela
           continua à vista enquanto se rola até eles. */}
-      {active && sim.figure && pic && (
+      {showFigure && sim.figure && (
         <div
           ref={figWrapRef}
           className="relative z-10 shrink-0 border-b border-(--color-border) bg-(--color-paper) px-4 py-3"
@@ -460,6 +467,12 @@ export function SimulatePanel({
               )}
             </div>
           )}
+          {/* fora da rolagem, logo sob a figura: no celular fica ACIMA do
+              bottom sheet do slider, e o valor acompanha o arrasto */}
+          {measurePanel && (
+            // com o slider aberto no celular, as medidas sobem para o topo do sheet
+            <div className={cn("mt-2", control && "max-sm:hidden")}>{measurePanel}</div>
+          )}
           {control && (
             <ElementSlider
               key={control.refdes}
@@ -470,6 +483,7 @@ export function SimulatePanel({
               onReset={() => setValue(control, null, true)}
               onClose={closeSlider}
               anchor={anchor}
+              mobileTop={measurePanel || undefined}
             />
           )}
         </div>
@@ -482,6 +496,8 @@ export function SimulatePanel({
           </EmptyState>
         )}
         {marked && sim.status === "idle" && <EmptyState>{t("sim.idle")}</EmptyState>}
+
+        {!showFigure && measurePanel}
 
         {stale && (
           <p className="font-mono text-[11px] text-(--color-warning)" data-testid="sim-stale">

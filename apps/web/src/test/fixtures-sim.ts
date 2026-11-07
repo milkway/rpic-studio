@@ -46,3 +46,12 @@ dot at Out
 .ac dec 50 10 100k
 .PE
 `;
+
+/** RC com DOIS `.measure` (issue #20): o tempo de subida 10–90 % (TRIG/TARG,
+ *  ≈ 2,2·τ = 2,2 ms) e um WHEN que nunca acontece (linha com `error`). */
+export const MEASURE_FIGURE = RC_FIGURE.replace(
+  ".tran 20u 5m\n",
+  ".tran 20u 5m\n" +
+    ".measure tran trise TRIG v(Vout) VAL=0.5 RISE=1 TARG v(Vout) VAL=4.5 RISE=1\n" +
+    ".meas tran never WHEN v(Vout)=100\n",
+);

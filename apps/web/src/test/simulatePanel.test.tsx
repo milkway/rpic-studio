@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { act, fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { ready } from "@strategicprojects/rpic";
 import prelude from "virtual:dune-prelude";
 import { ensureDune, extractPic, openSession, renderPic } from "@/lib/dune";
@@ -15,12 +15,19 @@ import { SimHost, transferablesOf, type SimRequest, type SimResponse } from "@/l
 import type { WorkerLike } from "@/lib/simClient";
 import { SimulatePanel } from "@/components/simulate/SimulatePanel";
 import { TooltipProvider } from "@/components/ui/Tooltip";
-import { DIVIDER_FIGURE, RC_FIGURE } from "./fixtures-sim";
+import { DIVIDER_FIGURE, MEASURE_FIGURE, RC_FIGURE } from "./fixtures-sim";
 
 const require = createRequire(import.meta.url);
-// o cabeçalho do painel tem `Tip` (Radix exige o provider, como no App)
-const render = (ui: Parameters<typeof rtlRender>[0]) =>
-  rtlRender(ui, { wrapper: TooltipProvider });
+// o cabeçalho do painel tem `Tip` (Radix exige o provider, como no App); o
+// I18nProvider preenche os `{placeholders}` (o contexto padrão não)
+function Providers({ children }: { children: ReactNode }) {
+  return (
+    <I18nProvider>
+      <TooltipProvider>{children}</TooltipProvider>
+    </I18nProvider>
+  );
+}
+const render = (ui: Parameters<typeof rtlRender>[0]) => rtlRender(ui, { wrapper: Providers });
 
 beforeAll(async () => {
   await ready(readFileSync(require.resolve("@strategicprojects/rpic/pkg/rpic_wasm_bg.wasm")));
@@ -704,5 +711,68 @@ describe("passos finos (issue #19)", () => {
     expect(screen.getByTestId("sim-fine")).toHaveAttribute("aria-pressed", "false");
     await waitFor(() => expect(workers[0].sent).toHaveLength(2));
     expect(workers[0].sent[1].fine).toBeUndefined();
+  });
+});
+
+describe("painel de medidas .measure (issue #20)", () => {
+  const rowsOf = (panel: HTMLElement) =>
+    [...panel.querySelectorAll<HTMLElement>('[data-testid="sim-measure"]')].map((li) => ({
+      name: li.dataset.name,
+      error: li.dataset.error,
+      text: li.textContent ?? "",
+    }));
+
+  it("sem .measure não aparece", async () => {
+    render(<SimulatePanel source={RC_FIGURE} active workerFactory={() => new InlineWorker()} />);
+    fireEvent.click(screen.getByTestId("sim-run"));
+    await waitFor(() =>
+      expect(screen.getByTestId("sim-status")).toHaveAttribute("data-state", "done"),
+    );
+    expect(screen.queryByTestId("sim-measures")).toBeNull();
+  });
+
+  it("valor SI + trig/targ; a que falha mostra a razão; o slider atualiza e ela fica", async () => {
+    render(
+      <SimulatePanel source={MEASURE_FIGURE} active workerFactory={() => new InlineWorker()} />,
+    );
+    fireEvent.click(screen.getByTestId("sim-run"));
+    await waitFor(() =>
+      expect(screen.getByTestId("sim-status")).toHaveAttribute("data-state", "done"),
+    );
+    const panel = await screen.findByTestId("sim-measures");
+    let rows = rowsOf(panel);
+    expect(rows.map((r) => [r.name, r.error])).toEqual([
+      ["trise", "0"],
+      ["never", "1"],
+    ]);
+    // 10–90 % de um RC com τ = 1 ms ≈ 2,2 ms
+    expect(rows[0].text).toContain("2.2 ms");
+    expect(rows[0].text).toMatch(/trig 10\d µs · targ 2\.3 ms/);
+    expect(rows[1].text).toContain("out of interval (WHEN)");
+
+    // slider: R1 → 2k dobra τ; o valor acompanha o re-run, a falha continua lá
+    const fig = await screen.findByTestId("sim-figure");
+    const pad = await waitFor(() => {
+      const p = fig.querySelector('.sim-hit-el[data-el="R1"]');
+      expect(p).not.toBeNull();
+      return p!;
+    });
+    fireEvent.click(pad);
+    // celular: o sheet do slider traz as medidas no topo (acima dos controles)
+    expect(screen.getByTestId("sim-slider-top")).toContainElement(
+      screen.getAllByTestId("sim-measures")[1],
+    );
+    const input = screen.getByTestId("sim-slider-input");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "2k" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() =>
+      expect(screen.getByTestId("sim-status")).toHaveAttribute("data-rerun", "1"),
+    );
+    await waitFor(() =>
+      expect(rowsOf(screen.getAllByTestId("sim-measures")[0])[0].text).toContain("4.39 ms"),
+    );
+    rows = rowsOf(screen.getAllByTestId("sim-measures")[0]);
+    expect(rows[1]).toMatchObject({ name: "never", error: "1" });
   });
 });

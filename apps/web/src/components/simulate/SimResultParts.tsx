@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { AlertTriangle, Check, ChevronRight, Copy, TriangleAlert } from "lucide-react";
 import { cn } from "@rpic/design-system";
-import type { Plot, SimDiagnostic } from "@/lib/dune";
+import type { Measurement, Plot, SimDiagnostic } from "@/lib/dune";
+import { measureRows } from "@/lib/simMeasure";
 import { formatSI, isComplex, unitOf } from "@/lib/waveform";
 import { copyText } from "@/lib/exports";
 import { useI18n } from "@/lib/i18n";
@@ -197,6 +198,66 @@ export function ScalarTable({
           })}
         </tbody>
       </table>
+    </section>
+  );
+}
+
+/** Painel compacto das medidas `.measure` do run: nome, valor (prefixo SI) e
+ *  o detalhe que o ngspice imprime ao lado (trig/targ, at, with, janela
+ *  from/to). Linha que falhou mostra a razão e NUNCA some. Atualiza a cada
+ *  run, os re-runs de slider inclusive (o valor "respira" com o arrasto). */
+export function MeasurePanel({
+  measurements,
+  netlist,
+}: {
+  measurements: readonly Measurement[];
+  netlist: string;
+}) {
+  const { t } = useI18n();
+  if (measurements.length === 0) return null;
+  const rows = measureRows(measurements, netlist);
+  return (
+    <section
+      className="rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) px-2.5 py-1.5"
+      data-testid="sim-measures"
+      aria-label={t("sim.measures")}
+    >
+      <h3 className="font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
+        {t("sim.measures")}
+      </h3>
+      <ul className="max-h-28 overflow-auto font-mono text-[11.5px]">
+        {rows.map((r) => (
+          <li
+            key={r.key}
+            data-testid="sim-measure"
+            data-name={r.name}
+            data-error={r.error === null ? "0" : "1"}
+            className="flex min-w-0 flex-wrap items-baseline gap-x-2 leading-snug"
+          >
+            <span className="font-semibold text-(--color-text)">{r.name}</span>
+            <span
+              className={cn(
+                "tabular-nums",
+                r.error === null ? "text-(--color-text-body)" : "text-(--color-text-muted)",
+              )}
+              data-testid="sim-measure-value"
+            >
+              {r.value}
+            </span>
+            {r.error !== null ? (
+              <span className="min-w-0 text-[10.5px] text-(--color-warning)">
+                {t("sim.measureFailed", { reason: r.error })}
+              </span>
+            ) : (
+              r.details.length > 0 && (
+                <span className="min-w-0 text-[10.5px] text-(--color-text-muted) tabular-nums">
+                  {r.details.join(" · ")}
+                </span>
+              )
+            )}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

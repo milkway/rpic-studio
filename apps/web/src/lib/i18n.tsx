@@ -237,6 +237,8 @@ const en = {
   "sim.clearCursor": "Hide the time cursor",
   "sim.fine": "fine steps",
   "sim.fineTip": "Fine steps: more integration points (trtol = 1, TMAX ÷ 10); does not change the deck",
+  "sim.measures": "Measurements",
+  "sim.measureFailed": "failed: {reason}",
 
   // editor
   "editor.draft": "draft",
@@ -609,6 +611,8 @@ const pt: Record<MessageKey, string> = {
   "sim.clearCursor": "Esconder o cursor de tempo",
   "sim.fine": "passos finos",
   "sim.fineTip": "Passos finos: mais pontos de integração (trtol = 1, TMAX ÷ 10); não altera o deck",
+  "sim.measures": "Medidas",
+  "sim.measureFailed": "falhou: {reason}",
 
   "editor.draft": "rascunho",
   "editor.examples": "Exemplos",
