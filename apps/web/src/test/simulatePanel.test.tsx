@@ -451,12 +451,21 @@ describe("SimulatePanel", () => {
       expect(edits).toHaveLength(2);
       expect(srcLine("R1:")).toBe(`R1: resistor(Vin, Vout, ${stepped})`);
 
-      // campo + Enter: idem
+      // campo + Enter: idem, sem arredondar o valor digitado
       fireEvent.focus(input);
-      fireEvent.change(input, { target: { value: "4.7k" } });
+      fireEvent.change(input, { target: { value: "4.753k" } });
       fireEvent.keyDown(input, { key: "Enter" });
-      expect(srcLine("R1:")).toBe("R1: resistor(Vin, Vout, 4.7k)");
+      expect(srcLine("R1:")).toBe("R1: resistor(Vin, Vout, 4.753k)");
       await waitFor(() => expect(screen.queryByTestId("sim-altered-chip")).toBeNull());
+
+      // clique/toque PARADO no slider (sem mover): nada de commit nem escrita —
+      // não quantiza o valor digitado
+      const sent = workers[0].sent.length;
+      fireEvent.pointerDown(range);
+      fireEvent.pointerUp(range);
+      expect(edits).toHaveLength(3);
+      expect(srcLine("R1:")).toBe("R1: resistor(Vin, Vout, 4.753k)");
+      expect(workers[0].sent).toHaveLength(sent);
     });
 
     it("valor que não é literal: não escreve, fica alterado e a linha de status diz por quê", async () => {

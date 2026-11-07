@@ -67,6 +67,9 @@ export function ElementSlider({
 }: ElementSliderProps) {
   const { t } = useI18n();
   const rangeRef = useRef<HTMLInputElement>(null);
+  /** O polegar andou desde o `pointerdown`? Clique/toque parado não commita
+   *  nem escreve de volta (quantizaria um valor digitado fino, `4.753k`). */
+  const moved = useRef(false);
   const [draft, setDraft] = useState<string | null>(null);
   const original = control.value;
   // o CENTRO da escala é o valor do fonte na ABERTURA do slider: a escrita de
@@ -194,8 +197,16 @@ export function ElementSlider({
           value={pos}
           aria-label={label}
           aria-valuetext={formatSI(value, unit)}
-          onChange={(e) => onChange(valueAt(Number(e.currentTarget.value), center), false)}
+          onChange={(e) => {
+            moved.current = true;
+            onChange(valueAt(Number(e.currentTarget.value), center), false);
+          }}
+          onPointerDown={() => {
+            moved.current = false;
+          }}
           onPointerUp={(e) => {
+            if (!moved.current) return;
+            moved.current = false;
             const v = valueAt(Number(e.currentTarget.value), center);
             onChange(v, true);
             onSettle?.(v);
