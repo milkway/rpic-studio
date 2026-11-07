@@ -185,7 +185,11 @@ describe("SimHost: a Session viva no worker (sliders)", () => {
     const other = await host.handle({ type: "run", id: 4, source: DIVIDER_FIGURE });
     expect(other.fresh).toBe(true);
     // fonte DC: o V1 do divisor (DC 10) é ajustável, em volts
-    expect(other.controls?.find((c) => c.refdes === "V1")).toMatchObject({ value: 10, unit: "V" });
+    expect(other.controls?.find((c) => c.refdes === "V1")).toMatchObject({
+      param: "dc",
+      value: 10,
+      unit: "V",
+    });
     host.dispose();
   });
 });

@@ -84,6 +84,45 @@ function renderFigure(api: SimApi, source: string): SimFigureResult {
   }
 }
 
+/** Nome ngspice do valor PRINCIPAL (o que `alter(refdes, v)`/`param(refdes)`
+ *  movem) pela letra do elemento. O dune-sim 0.3.0 não expõe esse nome. */
+const PRINCIPAL: Readonly<Record<string, string>> = {
+  R: "resistance",
+  C: "capacitance",
+  L: "inductance",
+  V: "dc",
+  I: "dc",
+  E: "gain",
+  F: "gain",
+  G: "gain",
+  H: "gain",
+  D: "area",
+  Q: "area",
+  J: "area",
+  Z: "area",
+};
+
+/** O nome do parâmetro que o slider move, CONFERIDO na sessão: o da letra do
+ *  elemento se `alterable()` o lista e o valor bate com `param(refdes)`; senão
+ *  o 1º nome cujo valor bate; em último caso `names[0]`. */
+export function principalParam(
+  session: SimSession,
+  refdes: string,
+  names: string[],
+  value: number,
+): string {
+  const guess = PRINCIPAL[refdes[0]?.toUpperCase() ?? ""];
+  const candidates = guess && names.includes(guess) ? [guess, ...names] : names;
+  for (const name of candidates) {
+    try {
+      if (session.param(refdes, name) === value) return name;
+    } catch {
+      // nome que a sessão recusa: tenta o próximo
+    }
+  }
+  return names[0];
+}
+
 /** Elementos com valor principal ajustável: `alterable()` não vazio e um
  *  valor finito ≠ 0 (o slider é log em torno dele). Fonte só com `PULSE(…)`
  *  (DC ausente) fica de fora. */
@@ -99,7 +138,12 @@ export function sessionControls(session: SimSession, pic: PicExtraction): SimCon
       continue;
     }
     if (typeof value !== "number" || !Number.isFinite(value) || value === 0) continue;
-    out.push({ refdes: el.refdes, param: names[0], value, unit: unitOf(el.refdes) });
+    out.push({
+      refdes: el.refdes,
+      param: principalParam(session, el.refdes, names, value),
+      value,
+      unit: unitOf(el.refdes),
+    });
   }
   return out;
 }
