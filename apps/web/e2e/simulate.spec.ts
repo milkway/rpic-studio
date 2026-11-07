@@ -452,6 +452,20 @@ test("slider: teclado escreve no fim do passo; valor não-literal fica alterado 
   await expect.poll(() => traceDs(page)).toBe(original);
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("sim-slider")).toHaveCount(0);
+  // a figura do fonte escrito (`1u`, sem rótulo reescrito de "alterado") chega
+  // num re-run próprio, antes OU depois do Esc: espera ela, e o foco tem de ter
+  // sobrevivido ao redesenho (#26) — e o clique em R1 abaixo mede a figura final
+  await expect
+    .poll(() =>
+      page
+        .getByTestId("sim-figure")
+        .evaluate(
+          (fig) =>
+            [...fig.querySelectorAll("text")].some((t) => t.textContent === "1u") &&
+            fig.querySelector("text[data-orig-text], .sim-altered") === null,
+        ),
+    )
+    .toBe(true);
   await expect(page.locator('.sim-hit-el[data-el="C1"]')).toBeFocused();
 
   // R1 não-literal: fica alterado (chip, itálico) e a linha de status explica
