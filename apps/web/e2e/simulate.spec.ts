@@ -256,3 +256,153 @@ test("scrubber do .tran: arrastar e animar o cursor de tempo", async ({ page }, 
   await expect(time).toHaveText("12 ms", { timeout: 8_000 });
   await expect(page.getByTestId("sim-scrubber-play")).toHaveAttribute("aria-pressed", "false");
 });
+
+// ---- sliders: clicar num componente ajusta o valor e re-roda a sessão ----
+
+/** Centro (px de página) da caixa de acerto de um elemento ajustável. */
+async function elementPoint(page: Page, refdes: string) {
+  return page.locator(`.sim-hit-el[data-el="${refdes}"]`).evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  });
+}
+
+/** Os `d` de todos os traços desenhados (assinatura do gráfico). */
+const traceDs = (page: Page) =>
+  page
+    .locator('[data-testid^="sim-trace-"]')
+    .evaluateAll((els) => els.map((e) => e.getAttribute("d") ?? "").join("|"));
+
+async function runRC(page: Page) {
+  await page.getByRole("tab", { name: /Simulate|SIM/ }).click();
+  await page.getByTestId("sim-run").click();
+  await expect(page.getByTestId("sim-status")).toHaveAttribute("data-state", "done", {
+    timeout: 20_000,
+  });
+  await expect(page.locator('.sim-hit-el[data-el="R1"]')).toBeAttached();
+}
+
+test("slider: clicar no resistor abre o slider ancorado; arrastar muda o gráfico ao vivo", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWith(page, RC, "light");
+  const duneRequests: string[] = [];
+  page.on("request", (r) => {
+    if (/dune_wasm_bg.*\.wasm/.test(r.url())) duneRequests.push(r.url());
+  });
+  await runRC(page);
+  const loads = duneRequests.length;
+  // a fonte só com PULSE (sem DC) não tem slider
+  await expect(page.locator('.sim-hit-el[data-el="V1"]')).toHaveCount(0);
+
+  const r1 = await elementPoint(page, "R1");
+  await page.mouse.click(r1.x, r1.y);
+  const slider = page.getByTestId("sim-slider");
+  await expect(slider).toBeVisible();
+  await expect(slider).toHaveAttribute("data-refdes", "R1");
+  await expect(page.getByTestId("sim-slider-input")).toHaveValue("1k");
+  // ancorado SOB o elemento
+  const box = (await slider.boundingBox())!;
+  expect(box.y).toBeGreaterThan(r1.y);
+  expect(Math.abs(box.x + box.width / 2 - r1.x)).toBeLessThan(box.width / 2);
+
+  // arrastar o slider para a direita: o gráfico muda a cada passo, sem soltar
+  const before = await traceDs(page);
+  const range = page.getByTestId("sim-slider-range");
+  const rb = (await range.boundingBox())!;
+  await page.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(rb.x + rb.width * 0.7, rb.y + rb.height / 2, { steps: 8 });
+  await expect.poll(() => traceDs(page)).not.toBe(before);
+  await expect(page.getByTestId("sim-status")).toHaveAttribute("data-rerun", "1");
+  const mid = await traceDs(page);
+  await page.mouse.move(rb.x + rb.width * 0.95, rb.y + rb.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await expect.poll(() => traceDs(page)).not.toBe(mid);
+  // mesma sessão: nada de wasm novo
+  expect(duneRequests.length).toBe(loads);
+
+  // badge: rótulo da figura reescrito em itálico + chip
+  const label = page.locator('[data-testid="sim-figure"] .sim-altered text').first();
+  await expect(label).not.toHaveText("1k");
+  await expect(label).toHaveCSS("font-style", "italic");
+  await expect(page.getByTestId("sim-altered-chip")).toContainText("1 altered");
+  await page.screenshot({ path: info.outputPath("simulate-slider.png") });
+});
+
+test("slider: teclado (setas/Home), reset e reset-all voltam o gráfico original", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWith(page, RC, "dark");
+  await runRC(page);
+  const original = await traceDs(page);
+
+  // teclado: Tab até o alvo do elemento e Enter abre; o foco vai ao slider
+  await page.locator('.sim-hit-el[data-el="C1"]').focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("sim-slider")).toHaveAttribute("data-refdes", "C1");
+  await expect(page.getByTestId("sim-slider-range")).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByTestId("sim-slider-input")).toHaveValue("1.21u");
+  await expect.poll(() => traceDs(page)).not.toBe(original);
+  await page.keyboard.press("Home");
+  await expect(page.getByTestId("sim-slider-input")).toHaveValue("1u");
+  await expect.poll(() => traceDs(page)).toBe(original); // sessão = execução fresca
+  await page.keyboard.press("PageUp");
+  await expect(page.getByTestId("sim-slider-input")).toHaveValue("10u");
+  await page.getByTestId("sim-slider-reset").click();
+  await expect(page.getByTestId("sim-slider-input")).toHaveValue("1u");
+  await expect.poll(() => traceDs(page)).toBe(original);
+
+  // dois elementos alterados (o campo aceita notação SPICE) → chip lista; reset all
+  await page.keyboard.press("PageDown");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("sim-slider")).toHaveCount(0);
+  await expect(page.locator('.sim-hit-el[data-el="C1"]')).toBeFocused();
+  const r1 = await elementPoint(page, "R1");
+  await page.mouse.click(r1.x, r1.y);
+  const input = page.getByTestId("sim-slider-input");
+  await input.fill("4.7k");
+  await input.press("Enter");
+  await expect(page.getByTestId("sim-altered-chip")).toContainText("2 altered");
+  await page.getByTestId("sim-altered-chip").click();
+  await expect(page.getByTestId("sim-altered-list")).toContainText("R1");
+  await expect(page.getByTestId("sim-altered-list")).toContainText("C1");
+  await page.getByTestId("sim-reset-all").click();
+  await expect(page.getByTestId("sim-altered-chip")).toHaveCount(0);
+  await expect.poll(() => traceDs(page)).toBe(original);
+  await expect(page.locator('[data-testid="sim-figure"] .sim-altered')).toHaveCount(0);
+});
+
+test("slider no celular: bottom sheet, toque abre, sem overflow horizontal", async ({
+  browser,
+}, info) => {
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  const page = await ctx.newPage();
+  await openWith(page, RC2, "light");
+  await page.getByRole("tab", { name: /Simulate|SIM/ }).click();
+  await page.getByTestId("sim-run").click();
+  await expect(page.getByTestId("sim-status")).toHaveAttribute("data-state", "done", {
+    timeout: 20_000,
+  });
+  const r2 = await elementPoint(page, "R2");
+  await page.touchscreen.tap(r2.x, r2.y);
+  const sheet = page.getByTestId("sim-slider");
+  await expect(sheet).toHaveAttribute("data-refdes", "R2");
+  const b = (await sheet.boundingBox())!;
+  expect(Math.round(b.x)).toBe(0);
+  expect(Math.round(b.width)).toBe(390);
+  expect(Math.round(b.y + b.height)).toBe(844);
+  const before = await traceDs(page);
+  await page.getByTestId("sim-slider-range").fill("700");
+  await expect.poll(() => traceDs(page)).not.toBe(before);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  await page.screenshot({ path: info.outputPath("simulate-slider-mobile.png") });
+  await ctx.close();
+});

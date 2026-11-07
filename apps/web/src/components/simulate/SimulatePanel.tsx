@@ -1,9 +1,18 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Loader2, Play, Square, Zap } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { Loader2, Play, SlidersHorizontal, Square, X, Zap } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import type { OverlayMap, Plot, SimDiagnostic } from "@/lib/dune";
 import { detectSpice } from "@/lib/detect";
 import {
+  elementShapes,
   netlistLineShapes,
   netShapes,
   netTraceName,
@@ -13,12 +22,15 @@ import {
   type Probes,
 } from "@/lib/simFigure";
 import { finiteRange, formatSI, hasScale, plotSeries } from "@/lib/waveform";
+import { withAlter, type SimControl } from "@/lib/simValues";
 import { useSimulation } from "@/lib/useSimulation";
 import type { WorkerFactory } from "@/lib/simClient";
 import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
-import { SimFigure, type ProbeNet } from "./SimFigure";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/Popover";
+import { SimFigure, type ProbeNet, type SliderElement } from "./SimFigure";
+import { ElementSlider } from "./ElementSlider";
 import { TimeScrubber } from "./TimeScrubber";
 import { groupByUnit, MAX_TRACES, traceStyle, WaveformChart } from "./WaveformChart";
 import { NetlistBlock, ScalarTable, SimDiagnostics } from "./SimResultParts";
@@ -66,6 +78,12 @@ export function SimulatePanel({
   const [probes, setProbes] = useState<Probes>(null);
   /** Instante do scrubber de .tran (s); `null` = sem cursor. */
   const [cursor, setCursor] = useState<number | null>(null);
+  /** Elemento com o slider aberto (refdes); `null` = fechado. */
+  const [selectedEl, setSelectedEl] = useState<string | null>(null);
+  const [hoverEl, setHoverEl] = useState<string | null>(null);
+  const [anchor, setAnchor] = useState<{ left: number; top: number } | null>(null);
+  const figWrapRef = useRef<HTMLDivElement>(null);
+  const statusRef = useRef<HTMLSpanElement>(null);
   const toast = useToast();
 
   const running = sim.status === "running";
@@ -119,25 +137,100 @@ export function SimulatePanel({
     return [...(pic?.diagnostics ?? []), ...(sim.run?.diagnostics ?? [])];
   }, [failure, pic, sim.run]);
 
+  // execução NOVA zera a vista; re-run de slider mantém plot/probes/cursor
   useEffect(() => {
     setPlotIdx(0);
     setProbes(null);
     setHoverNet(null);
-  }, [sim.run]);
+  }, [sim.epoch]);
   // scrubber só no transiente (escala em segundos)
   const timeRange = useMemo(
     () => (series && series.scale.unit === "s" ? finiteRange(series.scale.values) : null),
     [series],
   );
-  useEffect(() => setCursor(null), [series]);
+  useEffect(() => setCursor(null), [sim.epoch, plotIdx]);
+
+  // ---- sliders: elementos ajustáveis da sessão ----
+  const controls = sim.controls;
+  const control: SimControl | null = controls.find((c) => c.refdes === selectedEl) ?? null;
+  useEffect(() => {
+    // sessão nova (outros elementos): fecha o slider se o elemento sumiu
+    setSelectedEl((cur) => (cur && controls.some((c) => c.refdes === cur) ? cur : null));
+  }, [controls]);
+  const sliderElements: SliderElement[] = useMemo(() => {
+    if (!map) return [];
+    return controls.map((c) => {
+      const v = sim.alters[c.refdes];
+      return {
+        refdes: c.refdes,
+        shapes: elementShapes(map, c.refdes),
+        label: t("sim.adjust", { refdes: c.refdes }),
+        altered: v === undefined ? null : { original: c.value, value: v },
+      };
+    });
+  }, [map, controls, sim.alters, t]);
+  const alteredList = controls.filter((c) => sim.alters[c.refdes] !== undefined);
+
+  // âncora do slider (desktop): sob a caixa do elemento, dentro do contêiner
+  const placeSlider = useCallback(() => {
+    const wrap = figWrapRef.current;
+    if (!wrap || selectedEl === null) return setAnchor(null);
+    const pad = [...wrap.querySelectorAll(".sim-hit-el")].find(
+      (el) => el.getAttribute("data-el") === selectedEl,
+    );
+    if (!pad) return setAnchor(null);
+    const r = pad.getBoundingClientRect();
+    const w = wrap.getBoundingClientRect();
+    if (w.width === 0) return setAnchor(null); // sem layout (jsdom)
+    const width = 320; // sm:w-80
+    const left = Math.min(
+      Math.max(4, r.left - w.left + r.width / 2 - width / 2),
+      w.width - width - 4,
+    );
+    setAnchor({ left: Math.max(4, left), top: r.bottom - w.top + 6 });
+  }, [selectedEl]);
+  useLayoutEffect(() => {
+    placeSlider();
+  }, [placeSlider, sim.figure]);
+  useEffect(() => {
+    if (selectedEl === null) return;
+    window.addEventListener("resize", placeSlider);
+    return () => window.removeEventListener("resize", placeSlider);
+  }, [selectedEl, placeSlider]);
+
+  const setValue = (c: SimControl, value: number | null, commit: boolean) =>
+    sim.setAlters(withAlter(sim.alters, c, value), commit);
+  const closeSlider = () => {
+    const refdes = selectedEl;
+    setSelectedEl(null);
+    // devolve o foco ao alvo do elemento na figura
+    const pad = [...(figWrapRef.current?.querySelectorAll<SVGElement>(".sim-hit-el") ?? [])].find(
+      (el) => el.getAttribute("data-el") === refdes,
+    );
+    pad?.focus({ preventScroll: true });
+  };
+
+  // latência do slider: do envio do pedido ao quadro seguinte ao commit do
+  // resultado (alter + re-run no worker + transferência + render) — exposta
+  // em `data-*` p/ medição (e2e), sem re-render
+  useEffect(() => {
+    const el = statusRef.current;
+    if (!el || sim.sentAt === null) return;
+    const sentAt = sim.sentAt;
+    const id = requestAnimationFrame(() => {
+      el.dataset.paintMs = (performance.now() - sentAt).toFixed(2);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [sim.run, sim.sentAt]);
 
   const highlight = useMemo(() => {
     if (!map) return [];
     if (hoverLine !== null) return netlistLineShapes(map, hoverLine);
     if (hoverNet !== null) return netShapes(map, hoverNet);
+    if (hoverEl !== null) return elementShapes(map, hoverEl);
     if (focus !== null) return traceShapes(map, focus);
     return [];
-  }, [map, focus, hoverLine, hoverNet]);
+  }, [map, focus, hoverLine, hoverNet, hoverEl]);
   // hover numa rede da figura também destaca o traço dela no gráfico
   const chartFocus = focus ?? (hoverNet !== null ? netTraceName(traceNames, hoverNet) : null);
 
@@ -161,13 +254,17 @@ export function SimulatePanel({
             className="font-mono text-[11px] text-(--color-text-muted) tabular-nums max-sm:hidden"
             data-testid="sim-status"
             data-state={sim.status}
+            data-rerun={sim.rerun ? "1" : "0"}
+            data-roundtrip-ms={sim.roundTrip?.toFixed(2)}
+            data-worker-ms={sim.timing ? (sim.timing.alter + sim.timing.run).toFixed(3) : undefined}
+            ref={statusRef}
           >
             {running
               ? t("sim.running", { s: `${(elapsed / 1000).toFixed(1)} s` })
               : sim.status === "cancelled"
                 ? t("sim.cancelled")
                 : sim.ms !== null && (sim.status === "done" || sim.status === "error")
-                  ? t("sim.ranIn", { ms: formatSI(sim.ms / 1000, "s") })
+                  ? t(sim.rerun ? "sim.reranIn" : "sim.ranIn", { ms: formatSI(sim.ms / 1000, "s") })
                   : ""}
           </span>
           {running ? (
@@ -194,21 +291,53 @@ export function SimulatePanel({
       {/* A figura fica FORA da rolagem: o realce de legenda/netlist/tabela
           continua à vista enquanto se rola até eles. */}
       {active && sim.figure && pic && (
-        <div className="shrink-0 border-b border-(--color-border) bg-(--color-paper) px-4 py-3">
+        <div
+          ref={figWrapRef}
+          className="relative z-10 shrink-0 border-b border-(--color-border) bg-(--color-paper) px-4 py-3"
+        >
           <SimFigure
             figure={sim.figure}
             highlight={highlight}
             nets={probeNets}
             onToggleNet={toggleNet}
             onHoverNet={setHoverNet}
+            elements={sliderElements}
+            selected={selectedEl}
+            onSelectElement={(refdes) => setSelectedEl((cur) => (cur === refdes ? null : refdes))}
+            onHoverElement={setHoverEl}
           />
-          {probeNets.length > 0 && (
-            <p
-              className="mt-1.5 text-center font-mono text-[10.5px] text-(--color-text-muted)"
-              data-testid="sim-probe-hint"
-            >
-              {t("sim.probeHint")}
-            </p>
+          {(probeNets.length > 0 || controls.length > 0 || alteredList.length > 0) && (
+            <div className="mt-1.5 flex min-w-0 flex-wrap items-center justify-center gap-x-3 gap-y-1">
+              {(probeNets.length > 0 || controls.length > 0) && (
+                <p
+                  className="min-w-0 text-center font-mono text-[10.5px] text-(--color-text-muted)"
+                  data-testid="sim-probe-hint"
+                >
+                  {probeNets.length > 0 && t("sim.probeHint")}
+                  {probeNets.length > 0 && controls.length > 0 && " · "}
+                  {controls.length > 0 && t("sim.sliderHint")}
+                </p>
+              )}
+              {alteredList.length > 0 && (
+                <AlteredChip
+                  altered={alteredList.map((c) => ({ control: c, value: sim.alters[c.refdes] }))}
+                  onOpen={setSelectedEl}
+                  onReset={(c) => setValue(c, null, true)}
+                  onResetAll={() => sim.setAlters({}, true)}
+                />
+              )}
+            </div>
+          )}
+          {control && (
+            <ElementSlider
+              key={control.refdes}
+              control={control}
+              value={sim.alters[control.refdes] ?? control.value}
+              onChange={(v, commit) => setValue(control, v, commit)}
+              onReset={() => setValue(control, null, true)}
+              onClose={closeSlider}
+              anchor={anchor}
+            />
           )}
         </div>
       )}
@@ -320,6 +449,83 @@ export function SimulatePanel({
         {pic?.netlist && <NetlistBlock netlist={pic.netlist} onHoverLine={setHoverLine} />}
       </div>
     </div>
+  );
+}
+
+/** Chip "N alterados": lista as alterações (abrir o slider, desfazer uma,
+ *  desfazer tudo). */
+function AlteredChip({
+  altered,
+  onOpen,
+  onReset,
+  onResetAll,
+}: {
+  altered: { control: SimControl; value: number }[];
+  onOpen: (refdes: string) => void;
+  onReset: (c: SimControl) => void;
+  onResetAll: () => void;
+}) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border border-(--color-success) bg-(--color-accent-soft) px-2 py-0.5 font-mono text-[10.5px] text-(--color-success) hover:bg-(--color-surface-muted) focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-accent)"
+          data-testid="sim-altered-chip"
+        >
+          <SlidersHorizontal size={11} />
+          {t("sim.altered", { n: String(altered.length) })}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-64 max-w-[calc(100vw-1.5rem)] p-2"
+        data-testid="sim-altered-list"
+      >
+        <p className="px-1 pb-1 font-mono text-[10.5px] tracking-widest text-(--color-text-muted) uppercase">
+          {t("sim.alteredTitle")}
+        </p>
+        <ul className="space-y-0.5">
+          {altered.map(({ control: c, value }) => (
+            <li key={c.refdes} className="flex items-center gap-1">
+              <button
+                type="button"
+                className="min-w-0 flex-1 cursor-pointer truncate rounded-(--radius-sm) px-1 py-0.5 text-left font-mono text-[11.5px] text-(--color-text-body) hover:bg-(--color-surface-muted)"
+                onClick={() => {
+                  setOpen(false);
+                  onOpen(c.refdes);
+                }}
+              >
+                <span className="font-semibold text-(--color-text)">{c.refdes}</span>{" "}
+                {formatSI(c.value, c.unit)} →{" "}
+                <span className="text-(--color-success) italic">{formatSI(value, c.unit)}</span>
+              </button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("sim.resetOne", { refdes: c.refdes })}
+                onClick={() => onReset(c)}
+              >
+                <X size={12} />
+              </Button>
+            </li>
+          ))}
+        </ul>
+        <Button
+          variant="outline"
+          size="sm"
+          className="mt-1.5 w-full"
+          onClick={() => {
+            setOpen(false);
+            onResetAll();
+          }}
+          data-testid="sim-reset-all"
+        >
+          {t("sim.resetAll")}
+        </Button>
+      </PopoverContent>
+    </Popover>
   );
 }
 
