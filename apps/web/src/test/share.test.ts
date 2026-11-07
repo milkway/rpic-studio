@@ -1,4 +1,6 @@
 import { decodeShareHash, encodeShareHash } from "@/lib/share";
+import { detectGeo } from "@/lib/detect";
+import { examples } from "@/lib/examples";
 
 describe("share por URL (lz-string no fragment)", () => {
   it("faz roundtrip do código", () => {
@@ -33,5 +35,13 @@ describe("share por URL (lz-string no fragment)", () => {
     expect(decodeShareHash("")).toBeNull();
     expect(decodeShareHash("#outra=coisa")).toBeNull();
     expect(decodeShareHash("#pic=")).toBeNull();
+  });
+
+  it("fonte geo sobrevive ao link e continua detectada (a aba Mapa abre sozinha)", () => {
+    for (const ex of examples.filter((e) => e.tags.includes("maps"))) {
+      const decoded = decodeShareHash(encodeShareHash({ source: ex.source, circuits: false }));
+      expect(decoded?.source).toBe(ex.source);
+      expect(detectGeo(decoded!.source), ex.id).toBe(true);
+    }
   });
 });

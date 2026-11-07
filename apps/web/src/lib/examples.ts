@@ -16,7 +16,8 @@ export type ExampleTag =
   | "circuits"
   | "flow"
   | "blocks"
-  | "graph";
+  | "graph"
+  | "maps";
 
 export const TAG_META: Record<ExampleTag, { label: Localized; dot: string }> = {
   basics: { label: { en: "Basics", pt: "Básico" }, dot: "#64748b" },
@@ -27,6 +28,7 @@ export const TAG_META: Record<ExampleTag, { label: Localized; dot: string }> = {
   flow: { label: { en: "Flowchart", pt: "Fluxograma" }, dot: "#c2410c" },
   blocks: { label: { en: "Block diagram", pt: "Diagrama de blocos" }, dot: "#1d4ed8" },
   graph: { label: { en: "Graph", pt: "Grafo" }, dot: "#be185d" },
+  maps: { label: { en: "Maps", pt: "Mapas" }, dot: "#0369a1" },
 };
 
 export interface Example {
@@ -574,6 +576,123 @@ clabel((-0.5,0.7),"9V")
 clabel((0.65,1.66),"F1")
 clabel((3.7,0.7),"L1")
 .PE`,
+  },
+  {
+    id: "geo-callout",
+    title: { en: "Map: callout", pt: "Mapa: chamada" },
+    description: {
+      en: "A declared anchor (geo_lon/geo_lat) and geo_scale pin the drawing to Recife's Marco Zero — open the Map tab.",
+      pt: "Uma âncora declarada (geo_lon/geo_lat) e geo_scale prendem o desenho ao Marco Zero do Recife — abra a aba Mapa.",
+    },
+    tags: ["maps"],
+    circuits: false,
+    // rpic-lang examples/geo/callout.pic
+    source: `# A callout pinned to one place.
+#
+# geo_lon/geo_lat place the pic origin (0,0) on the Earth — here Recife's
+# Marco Zero — and geo_scale says how many metres one inch of the drawing is.
+# Everything else is ordinary pic; \`rpic --geojson callout.pic\` turns it into
+# a FeatureCollection whose dot sits at the anchor and whose box and arrow
+# are polygons/lines a few hundred metres north-east of it. The box carries
+# class "screen": a map consumer may keep it screen-anchored.
+geo_lon = -34.8711
+geo_lat = -8.0631
+geo_scale = 400          # metres per inch
+
+dot at (0, 0) rad 0.04
+B: box "Marco Zero" "Recife" wid 1.3 ht 0.5 at (1.4, 0.9) fill 0.95 class "screen"
+arrow from B.sw to (0.06, 0.06) thick 1.2`,
+  },
+  {
+    id: "geo-arrow",
+    title: { en: "Map: arrow between features", pt: "Mapa: seta entre lugares" },
+    description: {
+      en: "Two control points (Recife_lon/_lat, Olinda_lon/_lat) fix scale and bearing on their own.",
+      pt: "Dois pontos de controle (Recife_lon/_lat, Olinda_lon/_lat) fixam escala e rumo sozinhos.",
+    },
+    tags: ["maps"],
+    circuits: false,
+    // rpic-lang examples/geo/arrow-between-features.pic
+    source: `# An arrow between two named features.
+#
+# Each feature is a pic place with its coordinates as <Label>_lon/_lat.
+# Two such control points fix the whole registration — scale and bearing are
+# derived from where Recife and Olinda sit on the canvas versus on the Earth —
+# so nothing else about the map needs declaring. Draw in any convenient units:
+# the geodesic distance between the two (≈ 6.3 km) is what the GeoJSON gets.
+Recife: (0, 0)
+Recife_lon = -34.8711
+Recife_lat = -8.0631
+Olinda: (0.6, 1.6)
+Olinda_lon = -34.8553
+Olinda_lat = -8.0089
+
+dot at Recife rad 0.04
+dot at Olinda rad 0.04
+arrow from Recife to Olinda thick 1.5 color "firebrick"
+"Recife" below at Recife + (0, -0.05)
+"Olinda" above at Olinda + (0, 0.05)
+"6.3 km" ljust at 0.5 <Recife, Olinda> + (0.1, 0)`,
+  },
+  {
+    id: "geo-radius",
+    title: { en: "Map: geodesic radius", pt: "Mapa: raio geodésico" },
+    description: {
+      en: "geo_scale = 1000 makes a circle of radius 2 a true 2 km circle on the ellipsoid.",
+      pt: "geo_scale = 1000 faz do círculo de raio 2 um círculo de 2 km de verdade no elipsoide.",
+    },
+    tags: ["maps"],
+    circuits: false,
+    // rpic-lang examples/geo/radius.pic
+    source: `# A geodesic radius.
+#
+# With geo_scale = 1000 (one inch = one kilometre) the circle of radius 2 is a
+# 2 km circle around the anchor. Because the plane is densified before the
+# points go to longitude/latitude, every vertex of the polygon is 2 000 m from
+# the centre along the ellipsoid — not a circle in degree space.
+geo_lon = -34.8711
+geo_lat = -8.0631
+geo_scale = 1000         # metres per inch
+
+C: circle rad 2 at (0, 0) dashed fill 0.97
+dot at C.c rad 0.04
+line from C.c to C.e thin
+"2 km" above at 0.5 <C.c, C.e>`,
+  },
+  {
+    id: "geo-site-plan",
+    title: { en: "Map: site plan by two corners", pt: "Mapa: planta por dois cantos" },
+    description: {
+      en: "A sketch in metres registered by two surveyed corners — rotated to true north by the fit.",
+      pt: "Um croqui em metros registrado por dois cantos medidos — girado ao norte verdadeiro pelo ajuste.",
+    },
+    tags: ["maps"],
+    circuits: false,
+    // rpic-lang examples/geo/two-control-points.pic
+    source: `# Registering a sketch by two surveyed corners.
+#
+# A site plan drawn in metres (scale = 10 puts ten pic units in one inch),
+# oriented however was convenient on paper. Two corners whose coordinates were
+# surveyed, A and B, register the drawing: scale and bearing come out of the
+# fit, so the plan lands on the map rotated to true north on its own.
+scale = 10
+margin = 2.5             # canvas margin so the corner labels are not clipped
+
+A: (0, 0)
+A_lon = -34.8716
+A_lat = -8.0608
+B: (40, 25)
+B_lon = -34.87155
+B_lat = -8.06030
+
+Yard: box wid 40 ht 25 with .sw at A
+Shed: box "shed" wid 12 ht 8 with .sw at A + (3, 3) fill 0.85
+Tank: circle "tank" rad 4 at A + (30, 17) fill 0.9
+line from Shed.e to Tank.w dashed
+dot at A rad 0.4
+dot at B rad 0.4
+"A" at A + (-1.5, -1.5)
+"B" at B + (1.5, 1.5)`,
   },
 ];
 

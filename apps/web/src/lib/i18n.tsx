@@ -340,6 +340,21 @@ const en = {
   "features.off": "off",
   "features.texReload": "Reload the page to typeset the formulas.",
 
+  // painel de mapa (geopic)
+  "map.tab": "Map",
+  "map.tabShort": "MAP",
+  "map.frame": "frame",
+  "map.frameSource": "as in source",
+  "map.download": "GeoJSON",
+  "map.downloadTip": "Download the drawing as GeoJSON (drawing.geojson)",
+  "map.loading": "loading the map engine…",
+  "map.loadFailed": "Could not load the map: {msg}",
+  "map.features": "{n} features",
+  "map.stale": "showing the last valid drawing",
+  "map.method.anchor": "anchor",
+  "map.method.two_points": "two control points",
+  "map.method.helmert": "Helmert fit",
+
   // idioma
   "locale.label": "Language",
   "locale.en": "English",
@@ -663,6 +678,20 @@ const pt: Record<MessageKey, string> = {
   "features.on": "ativo",
   "features.off": "inativo",
   "features.texReload": "Recarregue a página para tipografar as fórmulas.",
+
+  "map.tab": "Mapa",
+  "map.tabShort": "MAPA",
+  "map.frame": "frame",
+  "map.frameSource": "como na fonte",
+  "map.download": "GeoJSON",
+  "map.downloadTip": "Baixar o desenho como GeoJSON (drawing.geojson)",
+  "map.loading": "carregando o motor do mapa…",
+  "map.loadFailed": "Não foi possível carregar o mapa: {msg}",
+  "map.features": "{n} feições",
+  "map.stale": "mostrando o último desenho válido",
+  "map.method.anchor": "âncora",
+  "map.method.two_points": "dois pontos de controle",
+  "map.method.helmert": "ajuste de Helmert",
 
   "locale.label": "Idioma",
   "locale.en": "English",

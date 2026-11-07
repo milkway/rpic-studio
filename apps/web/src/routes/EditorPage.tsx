@@ -73,6 +73,9 @@ export function EditorPage() {
 
   const [initial] = useState(() => initialDoc(locale));
   const [doc, setDoc] = useState<DocState>({ source: initial.source });
+  // Incrementa a cada TROCA de documento (exemplo, link, diagrama salvo) — não a
+  // cada tecla: a aba Mapa abre sozinha p/ fonte geo e o mapa reenquadra.
+  const [docEpoch, setDocEpoch] = useState(0);
   const [layout, setLayout] = useState(() => loadSettings().layout);
   const [split, setSplit] = useState(0.42);
   const [saveOpen, setSaveOpen] = useState(false);
@@ -170,6 +173,7 @@ export function EditorPage() {
     if (savedMode && diagram.data && loadedIdRef.current !== diagram.data.id) {
       loadedIdRef.current = diagram.data.id;
       setDoc({ source: diagram.data.source });
+      setDocEpoch((n) => n + 1);
     }
     if (!savedMode) loadedIdRef.current = null;
   }, [savedMode, diagram.data]);
@@ -198,6 +202,7 @@ export function EditorPage() {
       const shared = decodeShareHash(window.location.hash);
       if (shared) {
         setDoc({ source: shared.source });
+        setDocEpoch((n) => n + 1);
         history.replaceState(null, "", window.location.pathname + window.location.search);
         if (savedMode) navigate("/", { replace: true });
       }
@@ -354,7 +359,10 @@ export function EditorPage() {
               <DropdownContent align="start">
                 <DropdownLabel>{t("editor.loadExample")}</DropdownLabel>
                 {examples.map((ex) => (
-                  <DropdownItem key={ex.id} onSelect={() => setDoc({ source: ex.source })}>
+                  <DropdownItem key={ex.id} onSelect={() => {
+                      setDoc({ source: ex.source });
+                      setDocEpoch((n) => n + 1);
+                    }}>
                     {ex.title[locale]}
                   </DropdownItem>
                 ))}
@@ -453,6 +461,8 @@ export function EditorPage() {
             svg={bakedSvg}
             source={doc.source}
             circuits={circuits}
+            texlabels={texlabels}
+            docEpoch={docEpoch}
             animations={rpic.animations}
             version={rpic.version}
             error={rpic.error}
