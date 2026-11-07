@@ -102,11 +102,21 @@ export function spiceLiteral(value: number): string {
 }
 
 /** Troca um token numérico SPICE pelo valor novo, guardando a cauda de
- *  unidade que não é sufixo de escala (`1kohm` → `2.2kohm`, `5V` → `4.7V`). */
-function rewriteNumber(token: string, value: number): string {
+ *  unidade que não é sufixo de escala (`1kohm` → `2.2kohm`, `5V` → `4.7V`).
+ *
+ *  Regra (a cauda colada é lida pelo SPICE como SUFIXO se puder): a cauda só
+ *  fica se o número escrito já leva sufixo próprio (`10mF` → `2.2mF`: o `F`
+ *  vem depois do `m`, ignorado) OU se ela não começa por um sufixo (`5V`,
+ *  `1ohm`, `1Ω`). Número escrito SEM sufixo + cauda que começa por sufixo
+ *  (`F` = femto, `T`, `G`, `M` = mili, `H`…) a cauda CAI: `10mF` → `1`, nunca
+ *  `1F` (= 1 femto). O ngspice ignora a unidade de qualquer forma. */
+export function rewriteNumber(token: string, value: number): string {
   const m = new RegExp(`^(${SPICE_NUMBER})(\\p{L}*)$`, "iu").exec(token);
   const letters = m?.[2] ?? "";
-  return spiceLiteral(value) + letters.slice(suffixOf(letters)?.len ?? 0);
+  const tail = letters.slice(suffixOf(letters)?.len ?? 0);
+  const written = spiceLiteral(value);
+  const hasSuffix = suffixOf(/\p{L}*$/u.exec(written)![0]) !== null;
+  return hasSuffix || suffixOf(tail) === null ? written + tail : written;
 }
 
 /** Onde, DENTRO do texto do argumento, está o número a trocar

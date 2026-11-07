@@ -9,6 +9,7 @@ import { compileWithPrelude } from "@/lib/dunePrelude";
 import {
   applySourceEdit,
   hasAcAnalysis,
+  rewriteNumber,
   spiceLiteral,
   VALUE_ARG,
   valueEdit,
@@ -177,6 +178,26 @@ V1: vsource(A, (0,0), DC 1); R1: resistor(A, B, 1k); R2: resistor(B, (1.5,0), 1k
     expect(first.calls.find((c) => c.label === "R2")).toEqual(
       callsOf(s1).find((c) => c.label === "R2"),
     );
+  });
+});
+
+describe("rewriteNumber: a cauda de unidade nunca vira sufixo", () => {
+  it("número sem sufixo + cauda que começa por sufixo: a cauda cai (F = femto)", () => {
+    expect(rewriteNumber("10mF", 1)).toBe("1");
+    expect(rewriteNumber("100nF", 470)).toBe("470");
+    expect(rewriteNumber("2kF", 5)).toBe("5");
+    expect(rewriteNumber("1TOhm", 5)).toBe("5Ohm"); // O não é sufixo
+  });
+  it("com sufixo no número escrito, ou cauda que não é sufixo, a cauda fica", () => {
+    expect(rewriteNumber("10mF", 0.0022)).toBe("2.2mF");
+    expect(rewriteNumber("100nF", 4.7e-7)).toBe("470nF");
+    expect(rewriteNumber("5V", 4.7)).toBe("4.7V");
+    expect(rewriteNumber("1ohm", 2)).toBe("2ohm");
+    expect(rewriteNumber("1kΩ", 2200)).toBe("2.2kΩ");
+  });
+  it("sem cauda: só o sufixo muda", () => {
+    expect(rewriteNumber("4.7k", 2200)).toBe("2.2k");
+    expect(rewriteNumber("1meg", 5e5)).toBe("500k");
   });
 });
 
