@@ -188,6 +188,25 @@ describe("MapPane — tamanho dos rótulos", () => {
     expect(textSize(map.calls.layers)).toBe(at1);
   });
 
+  it("troca de documento PENDENTE + troca de tamanho: enquadra quando o novo documento chega", async () => {
+    const { map, rerender } = setup(CALLOUT, { fitKey: 0 });
+    await waitFor(() => expect(map.calls.fit).toBe(1));
+    const RADIUS = examples.find((e) => e.id === "geo-radius")!.source;
+    rerender(RADIUS, 1); // arma o reenquadramento p/ o pedido do novo documento
+    expect(map.calls.fit).toBe(1); // ainda não há resultado dele
+    fireEvent.change(screen.getByTestId("map-text-scale"), { target: { value: "2" } });
+    expect(map.calls.fit).toBe(1); // redesenhar o desenho VELHO não consome o pedido armado
+    await waitFor(() => expect(screen.getByTestId("map-status").textContent).toContain("1000 m/in"));
+    expect(map.calls.fit).toBe(2);
+    const scaled = compileGeo(RADIUS, { layers: { textScale: 2 } }).layers!;
+    expect(textSize(map.calls.layers)).toBe(textSize(scaled));
+    // depois disso, edição comum e nova troca de tamanho não reenquadram
+    rerender(RADIUS.replace("geo_scale = 1000  ", "geo_scale = 900   "), 1);
+    await waitFor(() => expect(screen.getByTestId("map-status").textContent).toContain("900 m/in"));
+    fireEvent.change(screen.getByTestId("map-text-scale"), { target: { value: "1.25" } });
+    expect(map.calls.fit).toBe(2);
+  });
+
   it("abre com o fator salvo; valor salvo inválido cai em 1×", async () => {
     window.localStorage.setItem("rpic:settings.v1", JSON.stringify({ mapTextScale: 2 }));
     const a = setup(CALLOUT);
