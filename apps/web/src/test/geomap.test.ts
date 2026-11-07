@@ -162,7 +162,12 @@ describe("geomap (MapLibre falso)", () => {
     expect(click.layers).toEqual(["pic-fill", "pic-stroke", "pic-stroke-dashed", "pic-dot"]);
     click.fn({
       lngLat: { lng: -34.87, lat: -8.06 },
-      features: [{ properties: { title: '<img src=x onerror="1">', "geopic:kind": "box", "geopic:id": "s1" } }],
+      features: [
+        {
+          layer: { id: "pic-fill" },
+          properties: { fill: "#808080", title: '<img src=x onerror="1">', "geopic:kind": "box", "geopic:id": "s1" },
+        },
+      ],
     });
     expect(state.popups).toHaveLength(1);
     const p = state.popups[0]!;
@@ -171,20 +176,43 @@ describe("geomap (MapLibre falso)", () => {
       "<b>&#60;img src=x onerror=&#34;1&#34;&#62;</b><br><code>box</code> · <code>s1</code>",
     );
     // sem title: só kind · id
-    click.fn({ lngLat: { lng: 0, lat: 0 }, features: [{ properties: { "geopic:kind": "line", "geopic:id": "s2" } }] });
+    click.fn({
+      lngLat: { lng: 0, lat: 0 },
+      features: [{ layer: { id: "pic-stroke" }, properties: { "geopic:kind": "line", "geopic:id": "s2" } }],
+    });
     expect(state.popups[1]!.html).toBe("<code>line</code> · <code>s2</code>");
 
-    const enter = map.delegated.filter((d) => d.type === "mouseenter");
+    const enter = map.delegated.filter((d) => d.type === "mousemove");
     const leave = map.delegated.filter((d) => d.type === "mouseleave");
     // um ouvinte só, no array de camadas (não um por camada)
     expect(enter).toHaveLength(1);
     expect(leave).toHaveLength(1);
     expect(enter[0]!.layers).toEqual(["pic-fill", "pic-stroke", "pic-stroke-dashed", "pic-dot"]);
     expect(leave[0]!.layers).toEqual(enter[0]!.layers);
-    enter[0]!.fn();
+    enter[0]!.fn({ features: [{ layer: { id: "pic-dot" }, properties: {} }] });
     expect(map.canvas.style.cursor).toBe("pointer");
     map.delegated.find((d) => d.type === "mouseleave")!.fn();
     expect(map.canvas.style.cursor).toBe("");
+  });
+
+  it("miolo de caixa SEM preenchimento não abre popup nem dá ponteiro; o traço por baixo responde", async () => {
+    const { map } = await drawn();
+    const click = map.delegated.find((d) => d.type === "click")!;
+    const move = map.delegated.find((d) => d.type === "mousemove")!;
+    const hollow = { layer: { id: "pic-fill" }, properties: { "geopic:kind": "box", "geopic:id": "s0" } };
+    click.fn({ lngLat: { lng: 0, lat: 0 }, features: [hollow] });
+    expect(state.popups).toHaveLength(0);
+    move.fn({ features: [hollow] });
+    expect(map.canvas.style.cursor).toBe("");
+    // uma linha sob a moldura (a moldura vem antes na lista: está por cima)
+    const line = { layer: { id: "pic-stroke" }, properties: { "geopic:kind": "line", "geopic:id": "s3" } };
+    click.fn({ lngLat: { lng: 0, lat: 0 }, features: [hollow, line] });
+    expect(state.popups[0]!.html).toBe("<code>line</code> · <code>s3</code>");
+    move.fn({ features: [hollow, line] });
+    expect(map.canvas.style.cursor).toBe("pointer");
+    // com o mesmo critério da camada: ['has', 'fill'] no fill-opacity do pic-fill
+    const fillLayer = compileGeo(CALLOUT, { layers: true }).layers!.find((l) => l.id === "pic-fill")!;
+    expect(JSON.stringify(fillLayer.paint!["fill-opacity"])).toContain('["has","fill"]');
   });
 
   it("redesenhar com textScale atualiza o text-size das camadas existentes", async () => {

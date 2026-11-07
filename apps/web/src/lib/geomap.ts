@@ -31,6 +31,19 @@ export interface GeoMapHandle {
 /** Camadas cujas formas respondem ao clique com um popup (as de texto, não). */
 export const CLICKABLE_LAYERS = ["pic-fill", "pic-stroke", "pic-stroke-dashed", "pic-dot"] as const;
 
+/** Feição que o clique/hover pode pegar: o `pic-fill` só conta com o polígono
+ *  VISIVELMENTE preenchido — a camada pinta `fill-opacity 0` sem `fill` (caixa
+ *  sem preenchimento), e o miolo invisível de uma moldura não pode abrir popup
+ *  nem mostrar o ponteiro. Mesmo critério da camada: `['has', 'fill']`. */
+export function isInteractive(f: { layer?: { id?: string }; properties?: Record<string, unknown> | null }): boolean {
+  return f.layer?.id !== "pic-fill" || (f.properties != null && "fill" in f.properties);
+}
+
+/** A feição mais ao topo que responde à interação, se houver. */
+export function pickFeature<F extends Parameters<typeof isInteractive>[0]>(features?: F[]): F | undefined {
+  return features?.find(isInteractive);
+}
+
 /** As propriedades vêm de fonte digitada pelo usuário: escapar antes do `setHTML`. */
 export const escapeHtml = (v: unknown): string =>
   String(v ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -54,7 +67,7 @@ export function createGeoMap(container: HTMLElement): GeoMapHandle {
   // registrado DEPOIS do `load` do próprio pacote: as camadas já existem
   map.once("load", () => {
     map.on("click", [...CLICKABLE_LAYERS], (ev: MapLayerMouseEvent) => {
-      const f = ev.features?.[0];
+      const f = pickFeature(ev.features);
       if (!f) return;
       new Popup({ closeButton: false })
         .setLngLat(ev.lngLat)
@@ -64,8 +77,12 @@ export function createGeoMap(container: HTMLElement): GeoMapHandle {
     // UM par de ouvintes no ARRAY (como o `click`): com um por camada, passar
     // do traço ao preenchimento disparava o `mouseleave` do traço DEPOIS do
     // `mouseenter` do preenchimento e apagava o ponteiro — e eram 8 consultas
-    // por movimento do mouse
-    map.on("mouseenter", [...CLICKABLE_LAYERS], () => (map.getCanvas().style.cursor = "pointer"));
+    // por movimento do mouse. `mousemove` (não `mouseenter`, que o MapLibre
+    // também resolve com uma consulta por movimento): só ele reavalia ao passar
+    // do miolo INVISÍVEL de uma caixa sem preenchimento para o seu traço.
+    map.on("mousemove", [...CLICKABLE_LAYERS], (ev: MapLayerMouseEvent) => {
+      map.getCanvas().style.cursor = pickFeature(ev.features) ? "pointer" : "";
+    });
     map.on("mouseleave", [...CLICKABLE_LAYERS], () => (map.getCanvas().style.cursor = ""));
   });
 
