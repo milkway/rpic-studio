@@ -33,6 +33,9 @@ export interface GeoOk {
   geojson: GeoJSONFeatureCollection;
   layers: MapLibreLayer[];
   warnings: (GeoWarning | Diagnostic)[];
+  /** `print` + avisos do engine (ex.: "texlabels: no math renderer in this
+   *  build … kept literal" — o build geo não tem RaTeX) */
+  diagnostics: string[];
   registration: GeoRegistration;
   ms: number;
 }
@@ -87,6 +90,7 @@ export async function handleGeoRequest(req: GeoRequest, api: GeoApi): Promise<Ge
       geojson: out.geojson,
       layers: out.layers ?? [],
       warnings: out.warnings ?? [],
+      diagnostics: out.diagnostics ?? [],
       registration: out.registration,
       ms: performance.now() - t0,
     };

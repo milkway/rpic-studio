@@ -115,6 +115,27 @@ describe("MapPane", () => {
     expect(screen.getByTestId("map-download")).toBeEnabled();
   });
 
+  it("mostra os diagnostics do engine (texlabels sem math no build geo)", async () => {
+    const map = fakeMap();
+    render(
+      wrap(
+        <MapPane
+          source={'geo_lon = -34.87\ngeo_lat = -8.06\nbox "$x^2$"\n'}
+          circuits={false}
+          texlabels
+          active
+          workerFactory={() => new InlineWorker()}
+          mapLoader={async () => ({ createGeoMap: () => map.handle })}
+        />,
+      ),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("diagnostics-panel").textContent).toMatch(
+        /texlabels: no math renderer in this build/,
+      ),
+    );
+  });
+
   it("aba oculta não compila (nem cria o worker/mapa)", async () => {
     const { worker, map } = setup(CALLOUT, { active: false });
     await new Promise((r) => setTimeout(r, 300));

@@ -81,4 +81,12 @@ describe("geopic (WASM geo real)", () => {
     );
     expect(info.line).toBeNull();
   });
+
+  it("print e o aviso de texlabels sem RaTeX vêm em diagnostics", async () => {
+    const src = 'geo_lon = -34.87\ngeo_lat = -8.06\nbox "$x^2$"\nprint 42\n';
+    const res = (await handleGeoRequest(req(src, { texlabels: true }), api)) as GeoOk;
+    expect(res.type).toBe("ok");
+    expect(res.diagnostics).toContain("42");
+    expect(res.diagnostics.some((d) => /texlabels: no math renderer/.test(d))).toBe(true);
+  });
 });

@@ -242,7 +242,7 @@ export function MapPane({
       <DiagnosticsPanel
         error={errorInfo}
         warnings={warningInfos}
-        prints={[]}
+        prints={geo.result && !geo.failure ? geo.result.diagnostics : []}
         onJump={(line, col) => onJumpToLine?.(line, col)}
       />
 
