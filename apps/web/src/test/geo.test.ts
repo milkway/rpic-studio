@@ -6,6 +6,8 @@ import { compileGeo, ensureGeo } from "@/lib/geo";
 import { handleGeoRequest, type GeoErr, type GeoOk, type GeoRequest } from "@/lib/geoProtocol";
 import { explainGeoFailure } from "@/components/map/MapPane";
 import { examples } from "@/lib/examples";
+import { layers as picLayers } from "@strategicprojects/rpic/maplibre";
+import type { MapLibreLayer } from "@strategicprojects/rpic";
 
 const require = createRequire(import.meta.url);
 const api = { ensure: () => ensureGeo(), compileGeo };
@@ -50,6 +52,29 @@ describe("geopic (WASM geo real)", () => {
     const merc = (await handleGeoRequest(req(src, { frame: "mercator" }), api)) as GeoOk;
     expect(enu.registration.frame).toBe("enu");
     expect(merc.registration.frame).toBe("mercator");
+  });
+
+  it("layers: { textScale: 1.5 } multiplica o text-size; o port do painel dá o mesmo", async () => {
+    const src = examples.find((e) => e.id === "geo-callout")!.source;
+    const base = compileGeo(src, { layers: true });
+    const big = compileGeo(src, { layers: { textScale: 1.5 } });
+    const size = (ls: MapLibreLayer[] | undefined) => ls!.find((l) => l.id === "pic-text")!.layout!["text-size"];
+    expect(size(big.layers)).not.toEqual(size(base.layers));
+    expect(big.layers!.map((l) => l.id)).toEqual(base.layers!.map((l) => l.id));
+    // algum número da expressão (zoom stops/fatores) escala exatamente por 1.5
+    const nums = (v: unknown): number[] =>
+      Array.isArray(v) ? v.flatMap(nums) : typeof v === "number" ? [v] : [];
+    const a = nums(size(base.layers));
+    const b = nums(size(big.layers));
+    expect(a.length).toBe(b.length);
+    expect(a.some((x, i) => x !== 0 && Math.abs(b[i]! / x - 1.5) < 1e-9)).toBe(true);
+    // o MapPane calcula as camadas com o port puro do pacote: igual ao engine
+    for (const textScale of [1, 1.25, 1.5, 2]) {
+      const eng = compileGeo(src, { layers: { textScale } });
+      expect(picLayers(eng.geojson, { textScale }), String(textScale)).toEqual(eng.layers);
+    }
+    // fora de (0, 16] o engine recusa
+    expect(() => compileGeo(src, { layers: { textScale: 17 } })).toThrow();
   });
 
   it("geo_scale escala o desenho", async () => {

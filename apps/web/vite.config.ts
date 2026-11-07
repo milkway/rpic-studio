@@ -51,9 +51,11 @@ export default defineConfig({
           if (id.includes("@codemirror") || id.includes("@lezer")) return "editor";
           // O MapLibre (JS + CSS) só baixa quando a aba Mapa abre (import
           // dinâmico em lib/geomap.ts) — fora do "vendor", que é carga inicial.
-          if (id.includes("/maplibre-gl/") || id.includes("@strategicprojects/rpic/maplibre")) {
-            return "maplibre";
-          }
+          if (id.includes("/maplibre-gl/")) return "maplibre";
+          // o port puro das camadas (~15 KB, zero imports) é importado ESTÁTICO
+          // pelo MapPane (tamanho dos rótulos sem recompilar): chunk próprio, senão
+          // ele puxava o chunk "maplibre" (1 MB + CSS) para a carga inicial
+          if (id.includes("@strategicprojects/rpic/maplibre")) return "geolayers";
           if (id.includes("node_modules")) return "vendor";
         },
       },

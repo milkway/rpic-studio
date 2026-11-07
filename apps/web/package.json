@@ -37,7 +37,7 @@
     "@radix-ui/react-tooltip": "^1.2.10",
     "@rpic/design-system": "*",
     "@strategicprojects/dune-sim": "^0.3.0",
-    "@strategicprojects/rpic": "^0.15.0",
+    "@strategicprojects/rpic": "^0.16.0",
     "@tanstack/react-query": "^5.101.2",
     "clsx": "^2.1.1",
     "dompurify": "^3.4.11",

@@ -2,7 +2,12 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import type { Diagnostic, GeoWarning } from "@strategicprojects/rpic";
+// port PURO das camadas (zero imports, sem wasm, ~15 KB): o tamanho dos rótulos
+// é só estilo — recalcular aqui evita recompilar no worker
+import { layers as picLayers } from "@strategicprojects/rpic/maplibre";
 import { downloadBlob } from "@/lib/exports";
+import { PREFS_EVENT, pushPrefsSoon } from "@/lib/prefs";
+import { loadMapTextScale, MAP_TEXT_SCALES, saveSettings } from "@/lib/storage";
 import { explainDiagnostic, explainRawError, type ErrorInfo } from "@/lib/errorInfo";
 import type { GeoFailure, GeoFrame } from "@/lib/geoProtocol";
 import type { GeoWorkerFactory } from "@/lib/geoClient";
@@ -95,6 +100,22 @@ export function MapPane({
 }: MapPaneProps) {
   const { t, locale } = useI18n();
   const [frame, setFrame] = useState<GeoFrame | "">("");
+  // tamanho dos rótulos: persistido com as outras preferências (rpic:settings.v1).
+  // É SÓ ESTILO: fica fora do pedido ao worker e da chave de compilação/enquadramento
+  // — trocar recalcula as camadas aqui (port puro do pacote) e redesenha, sem
+  // recompilar, sem "carregando" e sem reenquadrar.
+  const [textScale, setTextScale] = useState(loadMapTextScale);
+  const changeTextScale = (next: number) => {
+    setTextScale(next);
+    saveSettings({ mapTextScale: next });
+    pushPrefsSoon();
+  };
+  // prefs da conta aplicadas DEPOIS da montagem (login): relê, como os outros providers
+  useEffect(() => {
+    const onPrefs = () => setTextScale(loadMapTextScale());
+    window.addEventListener(PREFS_EVENT, onPrefs);
+    return () => window.removeEventListener(PREFS_EVENT, onPrefs);
+  }, []);
   const geo = useGeo(source, { frame, circuits, texlabels, enabled: active, workerFactory });
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -152,13 +173,17 @@ export function MapPane({
 
   useEffect(() => {
     if (!map || !geo.result) return;
-    map.setGeoJSON(geo.result.geojson, geo.result.layers);
+    // 1× = as camadas do próprio engine; outro fator = o port do pacote (o
+    // mesmo resultado que `compileGeoJSON(src, { layers: { textScale } })`)
+    const specs =
+      textScale === 1 ? geo.result.layers : picLayers(geo.result.geojson, { textScale });
+    map.setGeoJSON(geo.result.geojson, specs);
     if (fittedMapRef.current !== map || armRef.current === geo.resultKey) {
       map.fitTo(geo.result.geojson);
       fittedMapRef.current = map;
       armRef.current = null;
     }
-  }, [geo.result, geo.resultKey, map]);
+  }, [geo.result, geo.resultKey, map, textScale]);
 
   useEffect(() => {
     if (geo.failureKey !== null && armRef.current === geo.failureKey) armRef.current = null;
@@ -219,6 +244,24 @@ export function MapPane({
               <option value="mercator">mercator</option>
             </select>
           </label>
+          <Tip label={t("map.labelsTip")}>
+            <label className="flex items-center gap-1.5 font-mono text-[11px] text-(--color-text-muted)">
+              <span className="max-sm:hidden">{t("map.labels")}</span>
+              <select
+                value={String(textScale)}
+                onChange={(e) => changeTextScale(Number(e.target.value))}
+                data-testid="map-text-scale"
+                aria-label={t("map.labelsTip")}
+                className="h-7 rounded-(--radius-sm) border border-(--color-border) bg-(--color-surface-muted) px-1 text-xs text-(--color-text)"
+              >
+                {MAP_TEXT_SCALES.map((s) => (
+                  <option key={s} value={String(s)}>
+                    {s.toLocaleString(locale === "pt" ? "pt-BR" : "en")}×
+                  </option>
+                ))}
+              </select>
+            </label>
+          </Tip>
           <Tip label={t("map.downloadTip")}>
             <Button
               variant="outline"

@@ -3,12 +3,13 @@
 // (jsdom não tem WebGL).
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { compileGeo, ensureGeo } from "@/lib/geo";
 import { handleGeoRequest, type GeoRequest, type GeoResponse } from "@/lib/geoProtocol";
 import type { GeoWorkerLike } from "@/lib/geoClient";
 import type { GeoMapHandle } from "@/lib/geomap";
+import type { MapLibreLayer } from "@strategicprojects/rpic";
 import { MapPane, type MapModuleLoader } from "@/components/map/MapPane";
 import { TooltipProvider } from "@/components/ui/Tooltip";
 import { examples } from "@/lib/examples";
@@ -32,8 +33,10 @@ class InlineWorker implements GeoWorkerLike {
   onmessage: ((e: MessageEvent<GeoResponse>) => void) | null = null;
   onerror: ((e: ErrorEvent) => void) | null = null;
   posted = 0;
+  last: GeoRequest | null = null;
   postMessage(msg: GeoRequest) {
     this.posted++;
+    this.last = msg;
     void handleGeoRequest(msg, { ensure: () => ensureGeo(), compileGeo }).then((res) =>
       this.onmessage?.({ data: structuredClone(res) } as MessageEvent<GeoResponse>),
     );
@@ -42,9 +45,12 @@ class InlineWorker implements GeoWorkerLike {
 }
 
 function fakeMap() {
-  const calls = { set: 0, fit: 0, resize: 0, destroyed: false };
+  const calls = { set: 0, fit: 0, resize: 0, destroyed: false, layers: [] as unknown[] };
   const handle: GeoMapHandle = {
-    setGeoJSON: () => void calls.set++,
+    setGeoJSON: (_fc, layers) => {
+      calls.set++;
+      calls.layers = layers ?? [];
+    },
     fitTo: () => void calls.fit++,
     resize: () => void calls.resize++,
     destroy: () => void (calls.destroyed = true),
@@ -96,7 +102,8 @@ describe("MapPane", () => {
     await waitFor(() => expect(map.calls.set).toBe(1));
     rerender(CALLOUT.replace("geo_scale = 400", "geo_scale = 800"), 0);
     await waitFor(() => expect(screen.getByTestId("map-status").textContent).toContain("800 m/in"));
-    expect(map.calls.set).toBe(2);
+    // o status vem do render; o setGeoJSON, do efeito passivo logo depois
+    await waitFor(() => expect(map.calls.set).toBe(2));
     expect(map.calls.fit).toBe(1);
 
     fireEvent.change(screen.getByTestId("map-frame"), { target: { value: "mercator" } });
@@ -144,6 +151,112 @@ describe("MapPane", () => {
     await new Promise((r) => setTimeout(r, 300));
     expect(worker.posted).toBe(0);
     expect(map.calls.set).toBe(0);
+  });
+});
+
+describe("MapPane — tamanho dos rótulos", () => {
+  afterEach(() => window.localStorage.clear());
+
+  const textSize = (layers: unknown[]) =>
+    JSON.stringify((layers as MapLibreLayer[]).find((l) => l.id === "pic-text")?.layout?.["text-size"]);
+
+  it("trocar o tamanho redesenha com as camadas novas SEM pedido ao worker e SEM reenquadrar", async () => {
+    const { map, worker } = setup(CALLOUT);
+    await waitFor(() => expect(map.calls.set).toBe(1));
+    expect(map.calls.fit).toBe(1);
+    expect(worker.posted).toBe(1);
+    expect(worker.last?.opts).not.toHaveProperty("textScale");
+    const at1 = textSize(map.calls.layers);
+    const select = screen.getByTestId("map-text-scale");
+    expect(select).toHaveValue("1");
+    expect([...select.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
+      "1×",
+      "1.25×",
+      "1.5×",
+      "2×",
+    ]);
+
+    fireEvent.change(select, { target: { value: "1.5" } });
+    expect(map.calls.set).toBe(2); // síncrono: nada de worker no meio
+    expect(textSize(map.calls.layers)).not.toBe(at1);
+    expect(map.calls.fit).toBe(1);
+    expect(screen.getByTestId("map-status")).toHaveAttribute("data-state", "ok");
+    expect(JSON.parse(window.localStorage.getItem("rpic:settings.v1")!).mapTextScale).toBe(1.5);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(worker.posted).toBe(1);
+
+    fireEvent.change(select, { target: { value: "1" } }); // de volta: as camadas do engine
+    expect(textSize(map.calls.layers)).toBe(at1);
+  });
+
+  it("troca de documento PENDENTE + troca de tamanho: enquadra quando o novo documento chega", async () => {
+    const { map, rerender } = setup(CALLOUT, { fitKey: 0 });
+    await waitFor(() => expect(map.calls.fit).toBe(1));
+    const RADIUS = examples.find((e) => e.id === "geo-radius")!.source;
+    rerender(RADIUS, 1); // arma o reenquadramento p/ o pedido do novo documento
+    expect(map.calls.fit).toBe(1); // ainda não há resultado dele
+    fireEvent.change(screen.getByTestId("map-text-scale"), { target: { value: "2" } });
+    expect(map.calls.fit).toBe(1); // redesenhar o desenho VELHO não consome o pedido armado
+    await waitFor(() => expect(screen.getByTestId("map-status").textContent).toContain("1000 m/in"));
+    expect(map.calls.fit).toBe(2);
+    const scaled = compileGeo(RADIUS, { layers: { textScale: 2 } }).layers!;
+    expect(textSize(map.calls.layers)).toBe(textSize(scaled));
+    // depois disso, edição comum e nova troca de tamanho não reenquadram
+    rerender(RADIUS.replace("geo_scale = 1000  ", "geo_scale = 900   "), 1);
+    await waitFor(() => expect(screen.getByTestId("map-status").textContent).toContain("900 m/in"));
+    fireEvent.change(screen.getByTestId("map-text-scale"), { target: { value: "1.25" } });
+    expect(map.calls.fit).toBe(2);
+  });
+
+  it("prefs da conta aplicadas depois da montagem atualizam o seletor e as camadas", async () => {
+    const { map, worker } = setup(CALLOUT);
+    await waitFor(() => expect(map.calls.set).toBe(1));
+    const { applyPrefs } = await import("@/lib/prefs");
+    act(() => applyPrefs({ settings: { layout: "horizontal", mapTextScale: 1.25 } }));
+    expect(screen.getByTestId("map-text-scale")).toHaveValue("1.25");
+    expect(map.calls.set).toBe(2);
+    const scaled = compileGeo(CALLOUT, { layers: { textScale: 1.25 } }).layers!;
+    expect(textSize(map.calls.layers)).toBe(textSize(scaled));
+    expect(worker.posted).toBe(1);
+  });
+
+  it("rótulos das opções pelo idioma (pt: vírgula decimal)", async () => {
+    window.localStorage.setItem("rpic:locale.v1", "pt");
+    const { I18nProvider } = await import("@/lib/i18n");
+    render(
+      <I18nProvider>
+        {wrap(
+          <MapPane
+            source={CALLOUT}
+            circuits={false}
+            texlabels={false}
+            active={false}
+            workerFactory={() => new InlineWorker()}
+            mapLoader={async () => ({ createGeoMap: () => fakeMap().handle })}
+          />,
+        )}
+      </I18nProvider>,
+    );
+    const select = screen.getByTestId("map-text-scale");
+    expect([...select.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
+      "1×",
+      "1,25×",
+      "1,5×",
+      "2×",
+    ]);
+    expect(select).toHaveAccessibleName(/rótulos/i);
+  });
+
+  it("abre com o fator salvo; valor salvo inválido cai em 1×", async () => {
+    window.localStorage.setItem("rpic:settings.v1", JSON.stringify({ mapTextScale: 2 }));
+    const a = setup(CALLOUT);
+    expect(screen.getByTestId("map-text-scale")).toHaveValue("2");
+    await waitFor(() => expect(a.map.calls.set).toBe(1));
+    const scaled = compileGeo(CALLOUT, { layers: { textScale: 2 } }).layers!;
+    expect(textSize(a.map.calls.layers)).toBe(textSize(scaled));
+    window.localStorage.setItem("rpic:settings.v1", JSON.stringify({ mapTextScale: 99 }));
+    const { loadMapTextScale } = await import("@/lib/storage");
+    expect(loadMapTextScale()).toBe(1);
   });
 });
 
