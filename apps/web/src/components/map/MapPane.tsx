@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import type { Diagnostic, GeoWarning } from "@strategicprojects/rpic";
+import { downloadBlob } from "@/lib/exports";
 import { explainDiagnostic, explainRawError, type ErrorInfo } from "@/lib/errorInfo";
 import type { GeoFailure, GeoFrame } from "@/lib/geoProtocol";
 import type { GeoWorkerFactory } from "@/lib/geoClient";
@@ -162,17 +163,10 @@ export function MapPane({
 
   const download = () => {
     if (!geo.result) return;
-    const blob = new Blob([JSON.stringify(geo.result.geojson, null, 2)], {
-      type: "application/geo+json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "drawing.geojson";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    downloadBlob(
+      new Blob([JSON.stringify(geo.result.geojson, null, 2)], { type: "application/geo+json" }),
+      "drawing.geojson",
+    );
   };
 
   const r = geo.result?.registration;

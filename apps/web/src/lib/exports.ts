@@ -3,7 +3,7 @@
 // CLI); PNG cai para a rasterização no cliente se a API não responder.
 import { apiUrl } from "./api";
 
-function downloadBlob(blob: Blob, filename: string): void {
+export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
