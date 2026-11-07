@@ -359,7 +359,8 @@ export function SimulatePanel({
   // medidas `.measure` do run na tela (re-run de slider que falha mantém o
   // último run bom — e as medidas dele)
   const measurements = sim.run?.measurements;
-  const showFigure = active && sim.figure !== null && pic !== null;
+  // a figura mostrada (ou null): UMA condição, já estreitada para o JSX
+  const shownFigure = active && pic !== null ? sim.figure : null;
   const netlist = pic?.netlist ?? "";
   // UMA vez por run (e netlist), não por render nem por instância do painel
   const measures = useMemo(
@@ -434,13 +435,13 @@ export function SimulatePanel({
 
       {/* A figura fica FORA da rolagem: o realce de legenda/netlist/tabela
           continua à vista enquanto se rola até eles. */}
-      {showFigure && sim.figure && (
+      {shownFigure && (
         <div
           ref={figWrapRef}
           className="relative z-10 shrink-0 border-b border-(--color-border) bg-(--color-paper) px-4 py-3"
         >
           <SimFigure
-            figure={sim.figure}
+            figure={shownFigure}
             highlight={highlight}
             nets={probeNets}
             terminals={terminals}
@@ -516,7 +517,7 @@ export function SimulatePanel({
         )}
         {marked && sim.status === "idle" && <EmptyState>{t("sim.idle")}</EmptyState>}
 
-        {!showFigure && measurePanel}
+        {!shownFigure && measurePanel}
 
         {stale && (
           <p className="font-mono text-[11px] text-(--color-warning)" data-testid="sim-stale">
