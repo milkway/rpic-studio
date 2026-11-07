@@ -13,6 +13,11 @@
 // (contextualizada como arquivo incluído, nunca marcada no editor).
 import { compile, type Bundle, type CompileError, type CompileOptions, type ObjectGeometry } from "./rpic";
 import type { Scene } from "@strategicprojects/rpic";
+import type { ElementCall } from "./simSource";
+
+/** O bundle do preview: o do rpic + as chamadas rotuladas do fonte do usuário
+ *  (só com o prelude — de onde o painel Simular escreve valores de volta). */
+export type FigureBundle = Bundle & { calls?: ElementCall[] };
 
 /** Nome de "arquivo" dos diagnósticos/objetos que caem dentro do prelude. */
 export const DUNE_PRELUDE_FILE = "dune prelude";
@@ -91,16 +96,49 @@ function attributeToCallSite(
   });
 }
 
+/** Chamadas ROTULADAS de macro escritas no fonte do usuário (`R1:
+ *  resistor(A, B, 1k)` = bloco com `label` + `call`), com os argumentos como
+ *  escritos (`raw_args`) re-baseados. Chamada cujo span ou algum argumento cai
+ *  fora do fonte do usuário (prelude, circuits, `copy`) fica de fora. */
+function userCalls(scene: Scene | undefined, offset: number): ElementCall[] {
+  if (!scene) return [];
+  const out: ElementCall[] = [];
+  for (const it of scene.items) {
+    const { call, span, label } = it;
+    if (!call || !label || !span || span.file != null || span.line <= offset) continue;
+    const raw = call.raw_args ?? [];
+    if (raw.some((a) => a.file != null || a.line <= offset)) continue;
+    out.push({
+      label,
+      macro: call.name,
+      args: raw.map((a) => ({
+        text: a.text,
+        line: a.line - offset,
+        col: a.col,
+        end_line: a.end_line - offset,
+        end_col: a.end_col,
+      })),
+    });
+  }
+  return out;
+}
+
 /** Compila `source` com o prelude do dune à frente e devolve o bundle com as
  *  posições no referencial do usuário. Força `circuits` (o prelude se apoia na
  *  biblioteca de circuitos, como no `renderPic` do dune) e pede a `scene` só
  *  para ler os blocos com a posição da chamada — ela NÃO sai no bundle (as
- *  posições dela estão no referencial combinado).
+ *  posições dela estão no referencial combinado); dela saem, re-baseadas, a
+ *  atribuição dos objetos e as `calls` (argumentos como escritos, p/ a escrita
+ *  de volta dos sliders — lib/simSource.ts).
  *  Em erro, lança um `CompileError` com mensagem e `errorInfo` re-baseados.
  *
  *  Todo o re-baseamento mora AQUI: quando o `compile()` do rpic ganhar
  *  preludes nomeados (unidades como o `-c`), este módulo encolhe a um repasse. */
-export function compileWithPrelude(source: string, preludeText: string, opts?: CompileOptions): Bundle {
+export function compileWithPrelude(
+  source: string,
+  preludeText: string,
+  opts?: CompileOptions,
+): FigureBundle {
   const offset = preludeOffset(preludeText);
   let bundle: Bundle;
   try {
@@ -115,8 +153,9 @@ export function compileWithPrelude(source: string, preludeText: string, opts?: C
     throw err;
   }
   const { scene, ...rest } = bundle;
-  const out: Bundle = {
+  const out: FigureBundle = {
     ...rest,
+    calls: userCalls(scene, offset),
     warnings: (bundle.warnings ?? []).map((w) => rebaseSpan(w, offset)),
     objects: attributeToCallSite(
       (bundle.objects ?? []).map((o) => rebaseSpan(o, offset)),
@@ -136,6 +175,10 @@ export function compileWithPrelude(source: string, preludeText: string, opts?: C
 
 /** Compila como o preview deve: com o prelude quando ele é dado, senão o
  *  `compile` puro (caminho não-spice inalterado). */
-export function compileFigure(source: string, opts: CompileOptions, preludeText: string | null): Bundle {
+export function compileFigure(
+  source: string,
+  opts: CompileOptions,
+  preludeText: string | null,
+): FigureBundle {
   return preludeText === null ? compile(source, opts) : compileWithPrelude(source, preludeText, opts);
 }
