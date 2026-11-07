@@ -1,0 +1,40 @@
+{
+  "title": "rpic studio: a web editor and simulator for pic diagrams and SPICE circuits",
+  "description": "<p>rpic studio is a browser-based editor for the rpic language (Brian W. Kernighan's pic, reimplemented in Rust and compiled to WebAssembly): live preview with structured diagnostics, GSAP animations, the circuit-element library, geographic drawings on MapLibre maps, and SPICE circuit simulation in the browser through dune-sim (live sliders that write values back into the source, .measure panels, probes on element terminals). Everything renders client-side; sharing links carry the compressed source. Production instance: <a href=\"https://studio.rpic.dev\">studio.rpic.dev</a>. Engine: <a href=\"https://doi.org/10.5281/zenodo.21209915\">rpic</a>.</p>",
+  "upload_type": "software",
+  "license": "BSD-2-Clause",
+  "creators": [
+    {
+      "name": "Leite, André",
+      "affiliation": "Universidade Federal de Pernambuco",
+      "orcid": "0000-0002-4718-9766"
+    }
+  ],
+  "keywords": [
+    "pic",
+    "diagrams",
+    "web editor",
+    "WebAssembly",
+    "circuit simulation",
+    "SPICE",
+    "MapLibre",
+    "React"
+  ],
+  "related_identifiers": [
+    {
+      "relation": "isSupplementTo",
+      "identifier": "https://github.com/milkway/rpic-studio",
+      "resource_type": "software"
+    },
+    {
+      "relation": "requires",
+      "identifier": "10.5281/zenodo.21209915",
+      "resource_type": "software"
+    },
+    {
+      "relation": "isDocumentedBy",
+      "identifier": "https://studio.rpic.dev",
+      "resource_type": "publication-softwaredocumentation"
+    }
+  ]
+}
