@@ -9,6 +9,7 @@ import { compileGeo, ensureGeo } from "@/lib/geo";
 import { handleGeoRequest, type GeoRequest, type GeoResponse } from "@/lib/geoProtocol";
 import type { GeoWorkerLike } from "@/lib/geoClient";
 import type { GeoMapHandle } from "@/lib/geomap";
+import type { MapLibreLayer } from "@strategicprojects/rpic";
 import { MapPane, type MapModuleLoader } from "@/components/map/MapPane";
 import { TooltipProvider } from "@/components/ui/Tooltip";
 import { examples } from "@/lib/examples";
@@ -44,9 +45,12 @@ class InlineWorker implements GeoWorkerLike {
 }
 
 function fakeMap() {
-  const calls = { set: 0, fit: 0, resize: 0, destroyed: false };
+  const calls = { set: 0, fit: 0, resize: 0, destroyed: false, layers: [] as unknown[] };
   const handle: GeoMapHandle = {
-    setGeoJSON: () => void calls.set++,
+    setGeoJSON: (_fc, layers) => {
+      calls.set++;
+      calls.layers = layers ?? [];
+    },
     fitTo: () => void calls.fit++,
     resize: () => void calls.resize++,
     destroy: () => void (calls.destroyed = true),
@@ -152,11 +156,16 @@ describe("MapPane", () => {
 describe("MapPane — tamanho dos rótulos", () => {
   afterEach(() => window.localStorage.clear());
 
-  it("o pedido leva o textScale; trocar redesenha SEM reenquadrar e persiste", async () => {
+  const textSize = (layers: unknown[]) =>
+    JSON.stringify((layers as MapLibreLayer[]).find((l) => l.id === "pic-text")?.layout?.["text-size"]);
+
+  it("trocar o tamanho redesenha com as camadas novas SEM pedido ao worker e SEM reenquadrar", async () => {
     const { map, worker } = setup(CALLOUT);
     await waitFor(() => expect(map.calls.set).toBe(1));
     expect(map.calls.fit).toBe(1);
-    expect(worker.last?.opts.textScale).toBe(1);
+    expect(worker.posted).toBe(1);
+    expect(worker.last?.opts).not.toHaveProperty("textScale");
+    const at1 = textSize(map.calls.layers);
     const select = screen.getByTestId("map-text-scale");
     expect(select).toHaveValue("1");
     expect([...select.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
@@ -167,17 +176,25 @@ describe("MapPane — tamanho dos rótulos", () => {
     ]);
 
     fireEvent.change(select, { target: { value: "1.5" } });
-    await waitFor(() => expect(map.calls.set).toBe(2));
-    expect(worker.last?.opts.textScale).toBe(1.5);
+    expect(map.calls.set).toBe(2); // síncrono: nada de worker no meio
+    expect(textSize(map.calls.layers)).not.toBe(at1);
     expect(map.calls.fit).toBe(1);
+    expect(screen.getByTestId("map-status")).toHaveAttribute("data-state", "ok");
     expect(JSON.parse(window.localStorage.getItem("rpic:settings.v1")!).mapTextScale).toBe(1.5);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(worker.posted).toBe(1);
+
+    fireEvent.change(select, { target: { value: "1" } }); // de volta: as camadas do engine
+    expect(textSize(map.calls.layers)).toBe(at1);
   });
 
   it("abre com o fator salvo; valor salvo inválido cai em 1×", async () => {
     window.localStorage.setItem("rpic:settings.v1", JSON.stringify({ mapTextScale: 2 }));
     const a = setup(CALLOUT);
     expect(screen.getByTestId("map-text-scale")).toHaveValue("2");
-    await waitFor(() => expect(a.worker.last?.opts.textScale).toBe(2));
+    await waitFor(() => expect(a.map.calls.set).toBe(1));
+    const scaled = compileGeo(CALLOUT, { layers: { textScale: 2 } }).layers!;
+    expect(textSize(a.map.calls.layers)).toBe(textSize(scaled));
     window.localStorage.setItem("rpic:settings.v1", JSON.stringify({ mapTextScale: 99 }));
     const { loadMapTextScale } = await import("@/lib/storage");
     expect(loadMapTextScale()).toBe(1);

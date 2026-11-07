@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import type { Diagnostic, GeoWarning } from "@strategicprojects/rpic";
+// port PURO das camadas (zero imports, sem wasm, ~15 KB): o tamanho dos rótulos
+// é só estilo — recalcular aqui evita recompilar no worker
+import { layers as picLayers } from "@strategicprojects/rpic/maplibre";
 import { downloadBlob } from "@/lib/exports";
 import { pushPrefsSoon } from "@/lib/prefs";
 import { loadMapTextScale, MAP_TEXT_SCALES, saveSettings } from "@/lib/storage";
@@ -97,15 +100,17 @@ export function MapPane({
 }: MapPaneProps) {
   const { t, locale } = useI18n();
   const [frame, setFrame] = useState<GeoFrame | "">("");
-  // tamanho dos rótulos: persistido com as outras preferências (rpic:settings.v1);
-  // trocar recompila e redesenha, mas NÃO reenquadra (não é troca de documento)
+  // tamanho dos rótulos: persistido com as outras preferências (rpic:settings.v1).
+  // É SÓ ESTILO: fica fora do pedido ao worker e da chave de compilação/enquadramento
+  // — trocar recalcula as camadas aqui (port puro do pacote) e redesenha, sem
+  // recompilar, sem "carregando" e sem reenquadrar.
   const [textScale, setTextScale] = useState(loadMapTextScale);
   const changeTextScale = (next: number) => {
     setTextScale(next);
     saveSettings({ mapTextScale: next });
     pushPrefsSoon();
   };
-  const geo = useGeo(source, { frame, circuits, texlabels, textScale, enabled: active, workerFactory });
+  const geo = useGeo(source, { frame, circuits, texlabels, enabled: active, workerFactory });
 
   const containerRef = useRef<HTMLDivElement>(null);
   // A instância do mapa é ESTADO (não ref): o efeito de dados roda de novo
@@ -143,7 +148,7 @@ export function MapPane({
   // troca "arma" o pedido (fonte+frame+opções) que ela exige: se já há
   // resultado dele (mesma fonte recarregada), enquadra já; senão, enquadra
   // quando ESSE pedido responder; se ele falhar, desarma.
-  const currentKey = geoKey(source, frame, circuits, texlabels, textScale);
+  const currentKey = geoKey(source, frame, circuits, texlabels);
   const armRef = useRef<string | null>(null);
   const fittedMapRef = useRef<GeoMapHandle | null>(null);
   const prevTrigger = useRef({ fitKey, frame });
@@ -162,13 +167,17 @@ export function MapPane({
 
   useEffect(() => {
     if (!map || !geo.result) return;
-    map.setGeoJSON(geo.result.geojson, geo.result.layers);
+    // 1× = as camadas do próprio engine; outro fator = o port do pacote (o
+    // mesmo resultado que `compileGeoJSON(src, { layers: { textScale } })`)
+    const specs =
+      textScale === 1 ? geo.result.layers : picLayers(geo.result.geojson, { textScale });
+    map.setGeoJSON(geo.result.geojson, specs);
     if (fittedMapRef.current !== map || armRef.current === geo.resultKey) {
       map.fitTo(geo.result.geojson);
       fittedMapRef.current = map;
       armRef.current = null;
     }
-  }, [geo.result, geo.resultKey, map]);
+  }, [geo.result, geo.resultKey, map, textScale]);
 
   useEffect(() => {
     if (geo.failureKey !== null && armRef.current === geo.failureKey) armRef.current = null;

@@ -16,13 +16,7 @@ export interface GeoRequest {
   type: "geo";
   id: number;
   source: string;
-  opts: {
-    frame?: GeoFrame;
-    circuits?: boolean;
-    texlabels?: boolean;
-    /** multiplica as fontes dos rótulos nas camadas MapLibre (engine: (0, 16], padrão 1) */
-    textScale?: number;
-  };
+  opts: { frame?: GeoFrame; circuits?: boolean; texlabels?: boolean };
 }
 
 export type GeoFailure =
@@ -83,9 +77,9 @@ export async function handleGeoRequest(req: GeoRequest, api: GeoApi): Promise<Ge
   try {
     await api.ensure();
     const t0 = performance.now();
-    const { frame, circuits, texlabels, textScale } = req.opts;
+    const { frame, circuits, texlabels } = req.opts;
     const out = api.compileGeo(req.source, {
-      layers: textScale !== undefined ? { textScale } : true,
+      layers: true,
       ...(frame ? { frame } : {}),
       ...(circuits ? { circuits } : {}),
       ...(texlabels ? { texlabels } : {}),

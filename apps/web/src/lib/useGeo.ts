@@ -21,8 +21,6 @@ export interface GeoHookOptions {
   frame: GeoFrame | "";
   circuits: boolean;
   texlabels: boolean;
-  /** tamanho dos rótulos no mapa (`layers: { textScale }`); padrão 1 */
-  textScale?: number;
   /** só compila com a aba visível (e cria o worker só então) */
   enabled: boolean;
   /** testes: worker falso */
@@ -30,14 +28,8 @@ export interface GeoHookOptions {
 }
 
 /** Identidade de um pedido: fonte + frame + opções. */
-export function geoKey(
-  source: string,
-  frame: GeoFrame | "",
-  circuits: boolean,
-  texlabels: boolean,
-  textScale = 1,
-): string {
-  return JSON.stringify([source, frame, circuits, texlabels, textScale]);
+export function geoKey(source: string, frame: GeoFrame | "", circuits: boolean, texlabels: boolean): string {
+  return JSON.stringify([source, frame, circuits, texlabels]);
 }
 
 /** Mesmo debounce do `useRpic`. */
@@ -45,7 +37,7 @@ const DEBOUNCE_MS = 200;
 
 /** Georreferencia `source` ao vivo num worker com o build geo do rpic. */
 export function useGeo(source: string, opts: GeoHookOptions): GeoState {
-  const { frame, circuits, texlabels, textScale = 1, enabled, workerFactory } = opts;
+  const { frame, circuits, texlabels, enabled, workerFactory } = opts;
   const debounced = useDebouncedValue(source, DEBOUNCE_MS);
   const clientRef = useRef<GeoClient | null>(null);
   /** chave da última resposta recebida — esconder/mostrar a aba não recompila */
@@ -69,12 +61,12 @@ export function useGeo(source: string, opts: GeoHookOptions): GeoState {
 
   useEffect(() => {
     if (!enabled) return;
-    const key = geoKey(debounced, frame, circuits, texlabels, textScale);
+    const key = geoKey(debounced, frame, circuits, texlabels);
     if (answeredRef.current === key) return; // nada mudou desde a última resposta
     clientRef.current ??= new GeoClient(workerFactory ?? defaultGeoWorkerFactory);
     let live = true;
     void clientRef.current
-      .run(debounced, { ...(frame ? { frame } : {}), circuits, texlabels, textScale })
+      .run(debounced, { ...(frame ? { frame } : {}), circuits, texlabels })
       .then((res) => {
         if (!live || !res) return; // um pedido mais novo assumiu
         // falha fora do protocolo (worker não carregou): deixa re-tentar
@@ -95,7 +87,7 @@ export function useGeo(source: string, opts: GeoHookOptions): GeoState {
     return () => {
       live = false;
     };
-  }, [debounced, frame, circuits, texlabels, textScale, enabled, workerFactory]);
+  }, [debounced, frame, circuits, texlabels, enabled, workerFactory]);
 
   return state;
 }
