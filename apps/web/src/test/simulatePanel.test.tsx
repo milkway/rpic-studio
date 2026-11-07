@@ -3,13 +3,8 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { ensureDune, renderPic, simulatePic } from "@/lib/dune";
-import {
-  handleSimRequest,
-  transferablesOf,
-  type SimRequest,
-  type SimResponse,
-} from "@/lib/simProtocol";
+import { ensureDune, openSession, renderPic } from "@/lib/dune";
+import { SimHost, transferablesOf, type SimRequest, type SimResponse } from "@/lib/simProtocol";
 import type { WorkerLike } from "@/lib/simClient";
 import { SimulatePanel } from "@/components/simulate/SimulatePanel";
 import { RC_FIGURE } from "./fixtures-sim";
@@ -27,9 +22,13 @@ class InlineWorker implements WorkerLike {
   onerror: ((e: ErrorEvent) => void) | null = null;
   terminated = false;
   hold = false;
+  sent: SimRequest[] = [];
+  // a sessão vive no "worker", como no real
+  host = new SimHost({ ensure: () => ensureDune(), openSession, renderPic });
   postMessage(msg: SimRequest) {
+    this.sent.push(msg);
     if (this.hold) return; // "simulação infinita": nunca responde
-    void handleSimRequest(msg, { ensure: () => ensureDune(), simulatePic, renderPic }).then((res) =>
+    void this.host.handle(msg).then((res) =>
       // como o worker real: os buffers das colunas são TRANSFERIDOS
       this.onmessage?.({
         data: structuredClone(res, { transfer: transferablesOf(res) }),

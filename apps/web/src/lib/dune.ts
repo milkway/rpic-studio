@@ -15,6 +15,7 @@ import type {
   SimError,
   TypedPicRun,
   TypedPlot,
+  TypedRawfile,
 } from "@strategicprojects/dune-sim";
 import wasmUrl from "@strategicprojects/dune-sim/pkg/dune_wasm_bg.wasm?url";
 
@@ -37,6 +38,24 @@ export function ensureDune(input: string | URL | BufferSource = wasmUrl): Promis
  *  worker os TRANSFERE no `postMessage`, sem cópia. Requer `ensureDune()`. */
 export function simulatePic(source: string, opts?: PicSimOptions): PicRun {
   return dune.simulatePicTyped(source, opts);
+}
+
+/** O que o worker usa da `Session` do dune-sim (os testes injetam uma falsa). */
+export interface SimSession {
+  alter(refdes: string, value: number): unknown;
+  param(refdes: string, param?: string): number | Float64Array | null;
+  alterable(refdes: string): string[];
+  runTyped(): TypedRawfile;
+  readonly pic: PicExtraction | undefined;
+  free(): void;
+}
+
+/** Abre uma sessão interativa da figura: extrai e elabora UMA vez; depois
+ *  `alter` + `runTyped` re-resolvem (~0,3 ms numa figura RC contra ~12 ms de
+ *  `simulatePicTyped` fresco). Lança `SimError` (kind `pic` com a extração,
+ *  ou `parse`/`elaborate`…). Requer `ensureDune()`. Libere com `free()`. */
+export function openSession(source: string, opts?: PicSimOptions): SimSession {
+  return dune.Session.fromPic(source, opts);
 }
 
 /** SVG da figura compilada pelo rpic INTERNO do dune com o prelude — a MESMA

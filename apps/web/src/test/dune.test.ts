@@ -2,8 +2,8 @@
 // com o rpic. Arquivo próprio: o init do wasm-bindgen é por módulo/arquivo.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { ensureDune, renderPic, simulatePic } from "@/lib/dune";
-import { handleSimRequest, transferablesOf } from "@/lib/simProtocol";
+import { ensureDune, openSession, renderPic, simulatePic } from "@/lib/dune";
+import { SimHost, transferablesOf, type SimApi, type SimRequest } from "@/lib/simProtocol";
 import { elementShapes, netlistLineShapes, traceShapes } from "@/lib/simFigure";
 import { hasScale, plotSeries } from "@/lib/waveform";
 import { DIVIDER_FIGURE, RC_FIGURE } from "./fixtures-sim";
@@ -68,14 +68,17 @@ describe("simulatePic", () => {
 });
 
 describe("protocolo do worker com o dune real", () => {
-  const api = { ensure: () => ensureDune(), simulatePic, renderPic };
+  const api: SimApi = { ensure: () => ensureDune(), openSession, renderPic };
+  // um host novo por pedido = worker novo (sessão sempre fresca)
+  const handleSimRequest = (req: SimRequest, a: SimApi = api) => new SimHost(a).handle(req);
 
   it("ok traz run + figura + tempo", async () => {
     const res = await handleSimRequest({ type: "run", id: 7, source: RC_FIGURE }, api);
     expect(res.type).toBe("ok");
     expect(res.id).toBe(7);
     if (res.type !== "ok") return;
-    expect(res.figure.svg).toMatch(/^<svg/);
+    expect(res.figure?.svg).toMatch(/^<svg/);
+    expect(res.fresh).toBe(true);
     expect(res.ms).toBeGreaterThanOrEqual(0);
     // colunas tipadas, uma por variável, cada uma com o próprio buffer
     const plot = res.run.plots[0];
@@ -128,6 +131,62 @@ describe("protocolo do worker com o dune real", () => {
       { ...api, ensure: () => Promise.reject(new Error("fetch failed")) },
     );
     expect(res.type === "error" && res.error.kind).toBe("load");
+  });
+});
+
+describe("SimHost: a Session viva no worker (sliders)", () => {
+  const api: SimApi = { ensure: () => ensureDune(), openSession, renderPic };
+  const vout = (res: Awaited<ReturnType<SimHost["handle"]>>, at: number) => {
+    if (res.type !== "ok") throw new Error(`esperava ok: ${res.error.message}`);
+    const s = plotSeries(res.run.plots[0]);
+    const tr = s.traces.find((t) => t.name.toLowerCase() === "v(vout)")!;
+    const i = s.scale.values.findIndex((x) => x >= at);
+    return tr.values[i]!;
+  };
+
+  it("1º pedido abre a sessão (figura + controles); os seguintes só re-rodam", async () => {
+    const host = new SimHost(api);
+    const a = await host.handle({ type: "run", id: 1, source: RC_FIGURE });
+    expect(a.fresh).toBe(true);
+    expect(a.figure?.svg).toMatch(/^<svg/);
+    // R1 e C1 ajustáveis; V1 só tem PULSE (sem DC) → fora
+    expect(a.controls?.map((c) => [c.refdes, c.param, c.value, c.unit])).toEqual([
+      ["R1", "resistance", 1000, "Ω"],
+      ["C1", "capacitance", 1e-6, "F"],
+    ]);
+    const base = vout(a, 1e-3); // τ = 1 ms: 5·(1−e⁻¹) ≈ 3.16 V
+    expect(base).toBeCloseTo(3.16, 1);
+
+    // R1 ×10 → τ = 10 ms: em 1 ms só ~0.48 V
+    const b = await host.handle({ type: "run", id: 2, source: RC_FIGURE, alters: { R1: 10e3 } });
+    expect(b.fresh).toBe(false);
+    expect(b.figure).toBeUndefined();
+    expect(b.controls).toBeUndefined();
+    expect(b.type === "ok" && b.run.pic.netlist).toMatch(/^R1 Vin Vout 1k$/m);
+    expect(vout(b, 1e-3)).toBeCloseTo(5 * (1 - Math.exp(-0.1)), 1);
+    expect(b.timing.open).toBe(0);
+    expect(b.timing.run).toBeGreaterThan(0);
+
+    // tirar a alteração volta ao valor do fonte — bate com a execução fresca
+    const c = await host.handle({ type: "run", id: 3, source: RC_FIGURE, alters: {} });
+    expect(vout(c, 1e-3)).toBe(base);
+    host.dispose();
+  });
+
+  it("fonte novo reabre a sessão; alteração inválida vira erro kind 'alter'", async () => {
+    const host = new SimHost(api);
+    await host.handle({ type: "run", id: 1, source: RC_FIGURE });
+    const bad = await host.handle({ type: "run", id: 2, source: RC_FIGURE, alters: { R1: 0 } });
+    expect(bad.type === "error" && bad.error.kind).toBe("alter");
+    expect(bad.type === "error" && bad.error.pic?.netlist).toMatch(/R1 /);
+    // a sessão segue viva: a próxima alteração válida roda
+    const ok = await host.handle({ type: "run", id: 3, source: RC_FIGURE, alters: { R1: 2e3 } });
+    expect(ok.type).toBe("ok");
+    const other = await host.handle({ type: "run", id: 4, source: DIVIDER_FIGURE });
+    expect(other.fresh).toBe(true);
+    // fonte DC: o V1 do divisor (DC 10) é ajustável, em volts
+    expect(other.controls?.find((c) => c.refdes === "V1")).toMatchObject({ value: 10, unit: "V" });
+    host.dispose();
   });
 });
 
