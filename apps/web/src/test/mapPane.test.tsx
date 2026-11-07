@@ -3,7 +3,7 @@
 // (jsdom não tem WebGL).
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { compileGeo, ensureGeo } from "@/lib/geo";
 import { handleGeoRequest, type GeoRequest, type GeoResponse } from "@/lib/geoProtocol";
@@ -19,6 +19,9 @@ vi.mock("@/lib/geoClient", async (orig) => {
   return { ...mod, defaultGeoWorkerFactory: () => new InlineWorker() };
 });
 vi.mock("@/lib/geomap", () => ({ createGeoMap: () => fakeMap().handle }));
+
+// a 1ª compilação a frio (transform + wasm) pode passar do 1 s padrão
+configure({ asyncUtilTimeout: 3000 });
 
 const require = createRequire(import.meta.url);
 beforeAll(async () => {
@@ -141,6 +144,44 @@ describe("MapPane", () => {
     await new Promise((r) => setTimeout(r, 300));
     expect(worker.posted).toBe(0);
     expect(map.calls.set).toBe(0);
+  });
+});
+
+describe("MapPane — quando reenquadrar", () => {
+  it("mesma fonte recarregada enquadra JÁ; a próxima tecla não enquadra", async () => {
+    const { map, rerender } = setup(CALLOUT, { fitKey: 0 });
+    await waitFor(() => expect(map.calls.fit).toBe(1));
+    rerender(CALLOUT, 1); // exemplo/link com a MESMA fonte: nenhum resultado novo
+    expect(map.calls.fit).toBe(2);
+    rerender(CALLOUT.replace("geo_scale = 400", "geo_scale = 500"), 1);
+    await waitFor(() => expect(screen.getByTestId("map-status").textContent).toContain("500 m/in"));
+    expect(map.calls.fit).toBe(2);
+  });
+
+  it("troca de frame que falha desarma: consertar a fonte depois não enquadra", async () => {
+    const { map, rerender } = setup(CALLOUT, { fitKey: 0 });
+    await waitFor(() => expect(map.calls.fit).toBe(1));
+    rerender(CALLOUT + "\nbxo\n", 0);
+    await waitFor(() => expect(screen.getByTestId("map-status")).toHaveAttribute("data-state", "error"));
+    fireEvent.change(screen.getByTestId("map-frame"), { target: { value: "mercator" } });
+    await new Promise((r) => setTimeout(r, 300)); // o pedido mercator responde (erro)
+    rerender(CALLOUT, 0); // edição comum
+    await waitFor(() => expect(screen.getByTestId("map-status").textContent).toContain("(mercator)"));
+    expect(map.calls.fit).toBe(1);
+  });
+
+  it("mapa recriado (efeito re-executado) recebe o desenho e enquadra", async () => {
+    const first = fakeMap();
+    const second = fakeMap();
+    const worker = new InlineWorker();
+    const props = { source: CALLOUT, circuits: false, texlabels: false, active: true, workerFactory: () => worker };
+    const view = render(wrap(<MapPane {...props} mapLoader={async () => ({ createGeoMap: () => first.handle })} />));
+    await waitFor(() => expect(first.calls.set).toBe(1));
+    view.rerender(wrap(<MapPane {...props} mapLoader={async () => ({ createGeoMap: () => second.handle })} />));
+    await waitFor(() => expect(second.calls.set).toBe(1));
+    expect(first.calls.destroyed).toBe(true);
+    expect(second.calls.fit).toBe(1);
+    expect(worker.posted).toBe(1); // o desenho é reaproveitado, sem recompilar
   });
 });
 

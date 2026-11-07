@@ -7,7 +7,7 @@ import { explainDiagnostic, explainRawError, type ErrorInfo } from "@/lib/errorI
 import type { GeoFailure, GeoFrame } from "@/lib/geoProtocol";
 import type { GeoWorkerFactory } from "@/lib/geoClient";
 import type { GeoMapHandle } from "@/lib/geomap";
-import { useGeo } from "@/lib/useGeo";
+import { geoKey, useGeo } from "@/lib/useGeo";
 import { useI18n, type Locale, type MessageKey } from "@/lib/i18n";
 import { DiagnosticsPanel } from "@/components/preview/DiagnosticsPanel";
 import { Button } from "@/components/ui/Button";
@@ -98,8 +98,9 @@ export function MapPane({
   const geo = useGeo(source, { frame, circuits, texlabels, enabled: active, workerFactory });
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<GeoMapHandle | null>(null);
-  const [mapState, setMapState] = useState<"loading" | "ready" | "failed">("loading");
+  // A instância do mapa é ESTADO (não ref): o efeito de dados roda de novo
+  // para um mapa recriado, e a limpeza zera tudo — nunca "ready" sem mapa.
+  const [map, setMap] = useState<GeoMapHandle | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [wanted, setWanted] = useState(active);
   if (active && !wanted) setWanted(true);
@@ -108,49 +109,65 @@ export function MapPane({
   useEffect(() => {
     if (!wanted) return;
     let cancelled = false;
+    let made: GeoMapHandle | null = null;
     mapLoader()
       .then((mod) => {
         if (cancelled || !containerRef.current) return;
-        mapRef.current = mod.createGeoMap(containerRef.current);
-        setMapState("ready");
+        made = mod.createGeoMap(containerRef.current);
+        setMap(made);
       })
       .catch((e) => {
         if (cancelled) return;
         setMapError(e instanceof Error ? e.message : String(e));
-        setMapState("failed");
       });
     return () => {
       cancelled = true;
-      mapRef.current?.destroy();
-      mapRef.current = null;
+      made?.destroy();
+      setMap(null);
+      setMapError(null);
     };
   }, [wanted, mapLoader]);
 
-  // Reenquadra no 1º desenho, ao trocar de documento e ao trocar de frame —
-  // nunca a cada tecla (o usuário pode ter dado zoom/pan).
-  const needFitRef = useRef(true);
-  const lastFitKey = useRef(fitKey);
-  const lastFrame = useRef(frame);
-  if (lastFitKey.current !== fitKey || lastFrame.current !== frame) {
-    lastFitKey.current = fitKey;
-    lastFrame.current = frame;
-    needFitRef.current = true;
-  }
+  // Reenquadra no 1º desenho de cada mapa, ao trocar de documento e ao trocar
+  // de frame — NUNCA por edição comum (o usuário pode ter dado zoom/pan). A
+  // troca "arma" o pedido (fonte+frame+opções) que ela exige: se já há
+  // resultado dele (mesma fonte recarregada), enquadra já; senão, enquadra
+  // quando ESSE pedido responder; se ele falhar, desarma.
+  const currentKey = geoKey(source, frame, circuits, texlabels);
+  const armRef = useRef<string | null>(null);
+  const fittedMapRef = useRef<GeoMapHandle | null>(null);
+  const prevTrigger = useRef({ fitKey, frame });
+  useEffect(() => {
+    const prev = prevTrigger.current;
+    if (prev.fitKey === fitKey && prev.frame === frame) return;
+    prevTrigger.current = { fitKey, frame };
+    if (map && geo.result && geo.resultKey === currentKey) {
+      map.fitTo(geo.result.geojson);
+      armRef.current = null;
+    } else {
+      armRef.current = currentKey;
+    }
+    // só a troca de documento/frame dispara; o resto é lido no momento
+  }, [fitKey, frame]);
 
   useEffect(() => {
-    const map = mapRef.current;
-    if (mapState !== "ready" || !map || !geo.result) return;
+    if (!map || !geo.result) return;
     map.setGeoJSON(geo.result.geojson, geo.result.layers);
-    if (needFitRef.current) {
+    if (fittedMapRef.current !== map || armRef.current === geo.resultKey) {
       map.fitTo(geo.result.geojson);
-      needFitRef.current = false;
+      fittedMapRef.current = map;
+      armRef.current = null;
     }
-  }, [geo.result, mapState]);
+  }, [geo.result, geo.resultKey, map]);
+
+  useEffect(() => {
+    if (geo.failureKey !== null && armRef.current === geo.failureKey) armRef.current = null;
+  }, [geo.failure, geo.failureKey]);
 
   // Voltou a ficar visível (estava `display: none`): o canvas precisa medir de novo.
   useEffect(() => {
-    if (active && mapState === "ready") mapRef.current?.resize();
-  }, [active, mapState]);
+    if (active) map?.resize();
+  }, [active, map]);
 
   const errorInfo = useMemo(
     () => (geo.failure ? explainGeoFailure(geo.failure, source, locale) : null),
@@ -180,7 +197,8 @@ export function MapPane({
         t("map.features", { n: String(geo.result!.geojson.features.length) }),
       ].join(" · ")
     : "";
-  const busy = mapState === "loading" || (geo.loading && !failed);
+  const mapFailed = mapError !== null;
+  const busy = (!map && !mapFailed) || (geo.loading && !failed);
 
   return (
     <div className="flex h-full min-h-0 flex-col" data-testid="map-pane">
@@ -223,9 +241,9 @@ export function MapPane({
           data-testid="map-canvas"
           className={cn("h-full w-full transition-opacity", failed && geo.result && "opacity-40")}
         />
-        {(busy || mapState === "failed") && (
+        {(busy || mapFailed) && (
           <div className="pointer-events-none absolute inset-0 grid place-items-center font-mono text-[12px] text-(--color-text-muted)">
-            {mapState === "failed" ? (
+            {mapFailed ? (
               <span className="text-(--color-danger)" data-testid="map-load-error">
                 {t("map.loadFailed", { msg: mapError ?? "" })}
               </span>
