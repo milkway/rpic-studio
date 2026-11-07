@@ -1,5 +1,7 @@
 # rpic studio
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24045409.svg)](https://doi.org/10.5281/zenodo.24045409)
+
 Editor web de diagramas na linguagem **rpic** (o [pic](https://rpic.dev) de Brian Kernighan,
 modernizado): você escreve o desenho em texto e o vê nascer ao vivo — com animação, biblioteca
 de circuitos e compartilhamento por link. Renderização 100% no browser via WebAssembly
@@ -32,6 +34,27 @@ template [peabiru](../peabiru).
   próprio desenho por cima; clicar numa forma (o miolo de uma caixa sem
   preenchimento não conta) abre um popup com o `title` e `tipo · id`. O build geo do wasm (~690 KB) roda num Web Worker e o MapLibre é import
   dinâmico — quem não abre fonte geo não baixa nenhum dos dois. Exemplos no grupo "Mapas".
+
+## Como citar
+
+O rpic studio está arquivado no Zenodo. O DOI de conceito
+[10.5281/zenodo.24045409](https://doi.org/10.5281/zenodo.24045409) resolve sempre para a
+versão mais recente; cada release ganha o seu próprio DOI de versão (0.12.0:
+[10.5281/zenodo.24045410](https://doi.org/10.5281/zenodo.24045410)). Os metadados estão em
+`CITATION.cff` (o GitHub mostra o botão "Cite this repository").
+
+```bibtex
+@software{leite_rpic_studio,
+  author  = {Leite, André},
+  title   = {rpic studio: a web editor and simulator for pic diagrams and SPICE circuits},
+  year    = {2026},
+  doi     = {10.5281/zenodo.24045409},
+  url     = {https://studio.rpic.dev}
+}
+```
+
+O engine é citado à parte: rpic, DOI de conceito
+[10.5281/zenodo.21209915](https://doi.org/10.5281/zenodo.21209915).
 
 ## Desenvolvimento
 
