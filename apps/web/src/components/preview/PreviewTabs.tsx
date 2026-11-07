@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { Copy } from "lucide-react";
 import { cn } from "@rpic/design-system";
@@ -11,13 +11,15 @@ import { useI18n } from "@/lib/i18n";
 import { useTheme } from "@/lib/theme";
 import { PreviewPane } from "./PreviewPane";
 import { SimulatePanel } from "@/components/simulate/SimulatePanel";
+import { MapPane } from "@/components/map/MapPane";
+import { detectGeo } from "@/lib/detect";
 import { ReadOnlyCode, type CodeLanguage } from "./ReadOnlyCode";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 
-type TabValue = "imagem" | "svg" | "markdown" | "python" | "r" | "simulate";
+type TabValue = "imagem" | "svg" | "markdown" | "python" | "r" | "simulate" | "map";
 
-const TAB_LANGUAGE: Record<Exclude<TabValue, "imagem" | "simulate">, CodeLanguage> = {
+const TAB_LANGUAGE: Record<Exclude<TabValue, "imagem" | "simulate" | "map">, CodeLanguage> = {
   svg: "xml",
   markdown: "markdown",
   python: "python",
@@ -31,6 +33,11 @@ interface PreviewTabsProps {
   source: string;
   /** Biblioteca de circuitos ligada — reflete nos snippets dos bindings. */
   circuits: boolean;
+  /** Rótulos `$…$` (texlabels) — repassado ao georreferenciamento. */
+  texlabels?: boolean;
+  /** Incrementa quando o documento é TROCADO (exemplo, link, diagrama salvo):
+   *  a aba Mapa abre sozinha p/ fonte geo e o mapa reenquadra. */
+  docEpoch?: number;
   animations: Anim[];
   version: number;
   error: string | null;
@@ -89,8 +96,30 @@ function TabButton({ value, short, children }: { value: TabValue; short?: string
 }
 
 /** Painel direito: imagem ao vivo ou código pronto (SVG, Markdown, Python, R). */
-export function PreviewTabs({ source, circuits, canvas, onCanvasChange, ...props }: PreviewTabsProps) {
-  const [tab, setTab] = useState<TabValue>("imagem");
+export function PreviewTabs({
+  source,
+  circuits,
+  texlabels = false,
+  docEpoch = 0,
+  canvas,
+  onCanvasChange,
+  ...props
+}: PreviewTabsProps) {
+  // Fonte georreferenciada (geopic)? Só então existe a aba Mapa — e ela abre
+  // SOZINHA quando o documento chega (1º render, exemplo, link `#pic=`).
+  const geo = useMemo(() => detectGeo(source), [source]);
+  const [selected, setTab] = useState<TabValue>(() => (detectGeo(source) ? "map" : "imagem"));
+  const epochRef = useRef(docEpoch);
+  useEffect(() => {
+    if (epochRef.current === docEpoch) return;
+    epochRef.current = docEpoch;
+    if (geo) setTab("map");
+    // `geo` é lido no momento da troca de documento, não a cada tecla
+  }, [docEpoch]);
+  // a fonte deixou de ser geo com a aba Mapa aberta → volta à imagem
+  const tab: TabValue = selected === "map" && !geo ? "imagem" : selected;
+  const [mapVisited, setMapVisited] = useState(false);
+  if (tab === "map" && !mapVisited) setMapVisited(true);
   // O painel Simular fica MONTADO depois da 1ª visita (resultado e worker
   // sobrevivem à troca de aba); só a figura dele desmonta quando oculto.
   const [simVisited, setSimVisited] = useState(false);
@@ -107,6 +136,9 @@ export function PreviewTabs({ source, circuits, canvas, onCanvasChange, ...props
       <TabButton value="python" short="PY">Python</TabButton>
       <TabButton value="r">R</TabButton>
       <TabButton value="simulate" short={t("sim.tabShort")}>{t("sim.tab")}</TabButton>
+      {geo && (
+        <TabButton value="map" short={t("map.tabShort")}>{t("map.tab")}</TabButton>
+      )}
     </Tabs.List>
   );
 
@@ -142,7 +174,7 @@ export function PreviewTabs({ source, circuits, canvas, onCanvasChange, ...props
             onCanvasChange={onCanvasChange}
             tabs={tabsList}
           />
-        ) : tab === "simulate" ? null : (
+        ) : tab === "simulate" || tab === "map" ? null : (
           <div className="flex h-full min-h-0 flex-col">
             <div className="flex h-10 min-w-0 shrink-0 items-center gap-1.5 overflow-x-auto border-b border-(--color-border) bg-(--color-surface) px-3">
               {tabsList}
@@ -165,6 +197,19 @@ export function PreviewTabs({ source, circuits, canvas, onCanvasChange, ...props
               language={TAB_LANGUAGE[tab]}
               dark={dark}
               testid={`code-view-${tab}`}
+            />
+          </div>
+        )}
+        {geo && mapVisited && (
+          <div className={cn("h-full min-h-0", tab !== "map" && "hidden")}>
+            <MapPane
+              source={source}
+              circuits={circuits}
+              texlabels={texlabels}
+              active={tab === "map"}
+              fitKey={docEpoch}
+              tabs={tab === "map" ? tabsList : null}
+              onJumpToLine={props.onJumpToLine}
             />
           </div>
         )}

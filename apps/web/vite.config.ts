@@ -49,6 +49,11 @@ export default defineConfig({
         // Separa o editor (CodeMirror) e o vendor para melhor cache.
         manualChunks(id: string) {
           if (id.includes("@codemirror") || id.includes("@lezer")) return "editor";
+          // O MapLibre (JS + CSS) só baixa quando a aba Mapa abre (import
+          // dinâmico em lib/geomap.ts) — fora do "vendor", que é carga inicial.
+          if (id.includes("/maplibre-gl/") || id.includes("@strategicprojects/rpic/maplibre")) {
+            return "maplibre";
+          }
           if (id.includes("node_modules")) return "vendor";
         },
       },
