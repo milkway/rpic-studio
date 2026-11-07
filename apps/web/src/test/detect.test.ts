@@ -1,4 +1,5 @@
-import { detectCircuits, detectSpice, detectTexLabels } from "@/lib/detect";
+import { detectCircuits, detectGeo, detectSpice, detectTexLabels } from "@/lib/detect";
+import { examples } from "@/lib/examples";
 
 describe("detectCircuits", () => {
   it("detecta chamadas a macros da biblioteca", () => {
@@ -50,5 +51,45 @@ describe("detectSpice", () => {
     expect(detectSpice("spice = 10")).toBe(false);
     expect(detectSpice("spice = 1.5")).toBe(false);
     expect(detectSpice("myspice = 1")).toBe(false);
+  });
+});
+
+describe("detectGeo", () => {
+  it("detecta a âncora geo_lon/geo_lat", () => {
+    expect(detectGeo("geo_lon = -34.8711\ngeo_lat = -8.0631\ndot")).toBe(true);
+    expect(detectGeo("  geo_lat=-8")).toBe(true);
+    expect(detectGeo('box "a"; geo_lon = -34.9')).toBe(true);
+  });
+
+  it("detecta pontos de controle <Label>_lon/_lat", () => {
+    expect(detectGeo("Recife: (0, 0)\nRecife_lon = -34.8711")).toBe(true);
+    expect(detectGeo("A: (0,0)\nA_lat = -8.06")).toBe(true);
+    expect(detectGeo("Site_2_lon = 1")).toBe(true);
+  });
+
+  it("todos os exemplos geo do rpic-lang disparam", () => {
+    for (const ex of examples.filter((e) => e.tags.includes("maps"))) {
+      expect(detectGeo(ex.source), ex.id).toBe(true);
+    }
+  });
+
+  it("não dispara sem registro geográfico", () => {
+    expect(detectGeo('box "a"; arrow; circle')).toBe(false);
+    expect(detectGeo("geo_scale = 400")).toBe(false);
+    expect(detectGeo("x = geo_lon")).toBe(false);
+    expect(detectGeo("lon = 3\nlat = 4")).toBe(false);
+    expect(detectGeo("a_lon = 3")).toBe(false); // rótulo pic começa com maiúscula
+    expect(detectGeo("if geo_lon == 1 then { box }")).toBe(false);
+  });
+
+  it("ignora strings e comentários", () => {
+    expect(detectGeo("# geo_lon = -34.87")).toBe(false);
+    expect(detectGeo('box "Recife_lon = -34"')).toBe(false);
+  });
+
+  it("nenhum exemplo não-geo dispara", () => {
+    for (const ex of examples.filter((e) => !e.tags.includes("maps"))) {
+      expect(detectGeo(ex.source), ex.id).toBe(false);
+    }
   });
 });
