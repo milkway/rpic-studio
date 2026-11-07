@@ -14,6 +14,7 @@ import { detectSpice } from "@/lib/detect";
 import {
   elementShapes,
   netlistLineShapes,
+  netPins,
   netShapes,
   netTraceName,
   probeSlots,
@@ -148,23 +149,33 @@ export function SimulatePanel({
     [visible, series],
   );
   const more = series ? series.traces.length - visible.length : 0;
-  // redes clicáveis: as que têm `v(rede)` no plot; cor = a do traço, se ligado
+  // redes clicáveis: as que têm `v(rede)` no plot; cor = a do traço, se ligado.
+  // Alvos = as formas da rede (fios/pontos) E os terminais dos elementos nela
+  // (`pins`): rede ligada pino a pino, sem forma própria, também se sonda.
   const probeNets: ProbeNet[] = useMemo(() => {
     if (!map) return [];
     return map.nets.flatMap((net) => {
       const trace = netTraceName(traceNames, net.name);
-      if (!trace || net.shapes.length === 0) return [];
+      if (!trace) return [];
+      const pins = netPins(map, net.name);
+      if (net.shapes.length === 0 && pins.length === 0) return [];
       const on = visible.find((v) => v.trace.name === trace);
       return [
         {
           name: net.name,
           trace,
           shapes: net.shapes,
+          pins,
           color: on ? traceStyle(on.index).color : null,
         },
       ];
     });
   }, [map, traceNames, visible]);
+  // todos os terminais (terra inclusa): registram o frame pic → SVG dos alvos
+  const terminals = useMemo(
+    () => map?.elements.flatMap((el) => (el.pins ?? []).map((p) => ({ x: p.x, y: p.y }))) ?? [],
+    [map],
+  );
   const diagnostics: SimDiagnostic[] = useMemo(() => {
     if (failure) {
       // `pic` com erro: os diagnósticos do lançamento JÁ são os da extração
@@ -425,6 +436,7 @@ export function SimulatePanel({
             figure={sim.figure}
             highlight={highlight}
             nets={probeNets}
+            terminals={terminals}
             onToggleNet={toggleNet}
             onHoverNet={setHoverNet}
             elements={sliderElements}

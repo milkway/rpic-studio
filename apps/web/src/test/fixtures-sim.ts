@@ -55,3 +55,15 @@ export const MEASURE_FIGURE = RC_FIGURE.replace(
     ".measure tran trise TRIG v(Vout) VAL=0.5 RISE=1 TARG v(Vout) VAL=4.5 RISE=1\n" +
     ".meas tran never WHEN v(Vout)=100\n",
 );
+
+/** Divisor ligado PINO A PINO (issue #21): sem `line` entre os elementos, as
+ *  redes n1/n2 não têm forma própria no mapa — só os terminais (`pins`). */
+export const PIN_FIGURE = `.PS
+spice = 1
+V1: vsource((0,1),(0,0), DC 5)
+R1: resistor(V1.P, (1.5,1), 1k)
+R2: resistor(R1.N, (1.5,0), 2k)
+ground((0,0)); line from V1.N to R2.N
+.tran 1u 1m
+.PE
+`;

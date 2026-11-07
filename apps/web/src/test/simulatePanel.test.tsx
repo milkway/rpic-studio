@@ -15,7 +15,7 @@ import { SimHost, transferablesOf, type SimRequest, type SimResponse } from "@/l
 import type { WorkerLike } from "@/lib/simClient";
 import { SimulatePanel } from "@/components/simulate/SimulatePanel";
 import { TooltipProvider } from "@/components/ui/Tooltip";
-import { DIVIDER_FIGURE, MEASURE_FIGURE, RC_FIGURE } from "./fixtures-sim";
+import { DIVIDER_FIGURE, MEASURE_FIGURE, PIN_FIGURE, RC_FIGURE } from "./fixtures-sim";
 
 const require = createRequire(import.meta.url);
 // o cabeçalho do painel tem `Tip` (Radix exige o provider, como no App); o
@@ -774,5 +774,68 @@ describe("painel de medidas .measure (issue #20)", () => {
     );
     rows = rowsOf(screen.getAllByTestId("sim-measures")[0]);
     expect(rows[1]).toMatchObject({ name: "never", error: "1" });
+  });
+});
+
+describe("probe nos terminais (issue #21)", () => {
+  it("figura pino a pino: alvo em cada terminal; clicar liga/desliga v(rede); corpo = slider", async () => {
+    render(<SimulatePanel source={PIN_FIGURE} active workerFactory={() => new InlineWorker()} />);
+    fireEvent.click(screen.getByTestId("sim-run"));
+    await waitFor(() =>
+      expect(screen.getByTestId("sim-status")).toHaveAttribute("data-state", "done"),
+    );
+    const fig = await screen.findByTestId("sim-figure");
+    const legendText = () =>
+      screen
+        .getAllByTestId("sim-legend")
+        .map((l) => l.textContent ?? "")
+        .join(" ")
+        .toLowerCase();
+    expect(legendText()).toContain("v(n2)");
+    // n1/n2 não têm forma no mapa: os alvos são os terminais
+    const pin = await waitFor(() => {
+      const p = fig.querySelector<SVGGElement>('.sim-hit-pin[data-net="n2"]');
+      expect(p).not.toBeNull();
+      return p!;
+    });
+    expect(fig.querySelectorAll('.sim-hit-pin[data-net="n2"]')).toHaveLength(1); // R1.N = R2.P
+    expect(fig.querySelectorAll('.sim-hit-pin[data-net="n1"]')).toHaveLength(1); // V1.P = R1.P
+    expect(fig.querySelector('.sim-hit-pin[data-net="0"]')).toBeNull(); // terra não sonda
+    expect(fig.querySelector('.sim-hit:not(.sim-hit-pin)[data-net="n2"]')).toBeNull();
+    // na ponta do resistor R1 (o fim do zigue-zague desenhado), por cima da caixa do elemento
+    const circle = pin.querySelector("circle")!;
+    const r1 = fig.querySelector('[id="s10"] polyline, [id="s9"] polyline, [id="s11"] polyline');
+    const last = r1?.getAttribute("points")?.trim().split(/\s+/).at(-1)?.split(",").map(Number);
+    expect(last).toBeDefined();
+    expect(Number(circle.getAttribute("cx"))).toBeCloseTo(last![0], 3);
+    expect(Number(circle.getAttribute("cy"))).toBeCloseTo(last![1], 3);
+    expect(pin.parentNode?.lastChild).toBe(fig.querySelector(".sim-hit-pin:last-of-type"));
+    // teclado: a rede sem forma tem o alvo no 1º terminal
+    expect(pin.getAttribute("role")).toBe("button");
+    expect(pin.getAttribute("aria-pressed")).toBe("true");
+    expect(pin.classList.contains("sim-pin-on")).toBe(true);
+
+    fireEvent.click(circle);
+    expect(legendText()).not.toContain("v(n2)");
+    expect(legendText()).toContain("v(n1)");
+    expect(pin.getAttribute("aria-pressed")).toBe("false");
+    expect(pin.classList.contains("sim-pin-on")).toBe(false);
+    fireEvent.keyDown(pin, { key: "Enter" });
+    expect(legendText()).toContain("v(n2)");
+    expect(pin.style.getPropertyValue("--probe-color")).toMatch(/var\(--color-trace-\d\)/);
+    // o corpo do elemento continua abrindo o slider
+    fireEvent.click(fig.querySelector('.sim-hit-el[data-el="R1"]')!);
+    expect(screen.getByTestId("sim-slider")).toHaveAttribute("data-refdes", "R1");
+  });
+
+  it("figura com fios: os terminais somam alvos à rede, o fio segue sendo o alvo de teclado", async () => {
+    render(<SimulatePanel source={RC_FIGURE} active workerFactory={() => new InlineWorker()} />);
+    fireEvent.click(screen.getByTestId("sim-run"));
+    const fig = await screen.findByTestId("sim-figure");
+    await waitFor(() =>
+      expect(fig.querySelectorAll('.sim-hit-pin[data-net="Vout"]').length).toBeGreaterThan(0),
+    );
+    expect(fig.querySelectorAll('.sim-hit[data-net="Vout"][role="button"]')).toHaveLength(1);
+    expect(fig.querySelector('.sim-hit-pin[data-net="Vout"]')?.hasAttribute("role")).toBe(false);
   });
 });

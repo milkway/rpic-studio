@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { RLC_FIGURE } from "../src/test/fixtures-sim";
+import { MEASURE_FIGURE, PIN_FIGURE, RLC_FIGURE } from "../src/test/fixtures-sim";
 
 // Figura RC do corpus do dune (corpus/pic/rc.pic).
 const RC = `.PS
@@ -566,4 +566,110 @@ test("sem `spice = 1` a mesma figura continua dando o erro do rpic (sem prelude)
   await openWith(page, RLC_FIGURE.replace("spice = 1\n", ""), "light", "vsource");
   await expect(page.getByTestId("compile-error")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId("compile-status")).toHaveAttribute("data-state", "error");
+});
+
+// ---- issues #19/#20/#21 ----
+
+test("passos finos: alternar re-roda a sessão com mais pontos e persiste (#19)", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWith(page, RC, "light");
+  await runRC(page);
+  const before = await traceDs(page);
+  const fine = page.getByTestId("sim-fine");
+  await expect(fine).toHaveAttribute("aria-pressed", "false");
+  await fine.click();
+  await expect(fine).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("sim-status")).toHaveAttribute("data-rerun", "1");
+  await expect.poll(() => traceDs(page)).not.toBe(before);
+  expect(
+    await page.evaluate(() => JSON.parse(localStorage.getItem("rpic:settings.v1")!).simFineSteps),
+  ).toBe(true);
+  // tooltip: modo de visualização, o deck não muda (o Radix não reabre logo
+  // após o clique no gatilho: sai e volta)
+  await page.mouse.move(5, 5);
+  await fine.hover();
+  await expect(page.getByRole("tooltip")).toContainText("does not change the deck");
+  await page.reload();
+  await page.getByRole("tab", { name: /Simulate|SIM/ }).click();
+  await expect(page.getByTestId("sim-fine")).toHaveAttribute("aria-pressed", "true");
+});
+
+test("medidas .measure: valor, detalhe e falha; no celular ficam acima do sheet (#20)", async ({
+  browser,
+}, info) => {
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  const page = await ctx.newPage();
+  await openWith(page, MEASURE_FIGURE, "light");
+  await runRC(page);
+  const panel = page.getByTestId("sim-measures").first();
+  await expect(panel).toBeVisible();
+  const rows = panel.getByTestId("sim-measure");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toContainText("2.2 ms");
+  await expect(rows.nth(0)).toContainText("trig");
+  await expect(rows.nth(1)).toHaveAttribute("data-error", "1");
+  await expect(rows.nth(1)).toContainText("out of interval (WHEN)");
+
+  // abre o slider de R1 (bottom sheet): as medidas sobem para o topo do sheet
+  await page.locator('.sim-hit-el[data-el="R1"]').dispatchEvent("click");
+  const sheet = page.getByTestId("sim-slider");
+  await expect(sheet).toBeVisible();
+  const top = sheet.getByTestId("sim-measures");
+  await expect(top).toBeVisible();
+  const tb = (await top.boundingBox())!;
+  const rb = (await page.getByTestId("sim-slider-range").boundingBox())!;
+  expect(tb.y + tb.height).toBeLessThanOrEqual(rb.y);
+  expect(tb.y).toBeGreaterThanOrEqual(0);
+  // o valor acompanha o slider
+  const input = page.getByTestId("sim-slider-input");
+  await input.fill("2k");
+  await input.press("Enter");
+  await expect(top.getByTestId("sim-measure").first()).toContainText("4.39 ms");
+  await expect(top.getByTestId("sim-measure").nth(1)).toHaveAttribute("data-error", "1");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  await page.screenshot({ path: info.outputPath("simulate-measures-mobile.png") });
+  await ctx.close();
+});
+
+test("terminais: figura pino a pino sonda a rede no pino; corpo abre o slider (#21)", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWith(page, PIN_FIGURE, "light");
+  await page.getByRole("tab", { name: /Simulate|SIM/ }).click();
+  await page.getByTestId("sim-run").click();
+  await expect(page.getByTestId("sim-status")).toHaveAttribute("data-state", "done", {
+    timeout: 20_000,
+  });
+  const legend = page.getByTestId("sim-legend");
+  await expect(legend.first()).toContainText("v(n2)");
+  const pin = page.locator('.sim-hit-pin[data-net="n2"]');
+  await expect(pin).toHaveCount(1);
+  const c = await pin.evaluate((el) => {
+    const r = el.querySelector("circle")!.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2, w: r.width };
+  });
+  expect(c.w).toBeGreaterThanOrEqual(10); // alvo de toque, não um ponto de 1px
+  // o pino ganha do corpo do elemento sob ele
+  expect(
+    await page.evaluate(
+      ({ x, y }) => document.elementFromPoint(x, y)?.closest(".sim-hit-pin")?.getAttribute("data-net"),
+      c,
+    ),
+  ).toBe("n2");
+  await page.mouse.click(c.x, c.y);
+  await expect(legend.filter({ hasText: "v(n2)" })).toHaveCount(0);
+  await page.mouse.click(c.x, c.y);
+  await expect(legend.first()).toContainText("v(n2)");
+  await page.screenshot({ path: info.outputPath("simulate-pins.png") });
+  // o meio do resistor continua sendo o slider
+  const r1 = await elementPoint(page, "R1");
+  await page.mouse.click(r1.x, r1.y);
+  await expect(page.getByTestId("sim-slider")).toHaveAttribute("data-refdes", "R1");
 });
