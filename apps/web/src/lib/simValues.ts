@@ -1,6 +1,7 @@
 // Valores dos sliders do painel Simular: notação SPICE (a do netlist e dos
 // rótulos da figura), escala log do slider e unidade por tipo de elemento.
 // Puro — sem DOM, sem wasm.
+import { formatSI } from "./waveform";
 
 /** Sufixos de escala do SPICE3 (INPevaluate): `M` é MILI, mega é `meg`. */
 const SUFFIXES: [string, number][] = [
@@ -34,28 +35,17 @@ export function parseSpiceNumber(text: string): number | null {
   return base; // unidade sem prefixo ("5V", "1ohm")
 }
 
-/** Escrita SPICE com 3 algarismos: `2.2k`, `470n`, `1meg`, `0.5`. */
+/** Prefixo SI (do `formatSI`) → sufixo SPICE: `M` do SPICE é MILI. */
+const SPICE_OF_SI: Readonly<Record<string, string>> = { T: "t", G: "g", M: "meg", µ: "u" };
+
+/** Escrita SPICE com 3 algarismos: `2.2k`, `470n`, `1meg`, `0.5`. Reusa o
+ *  `formatSI` (mesma escolha de prefixo), sem espaço e com `µ→u`, `M→meg`. */
 export function formatSpice(v: number, digits = 3): string {
   if (!Number.isFinite(v)) return String(v);
-  if (v === 0) return "0";
-  const a = Math.abs(v);
-  const table: [number, string][] = [
-    [1e12, "t"],
-    [1e9, "g"],
-    [1e6, "meg"],
-    [1e3, "k"],
-    [1, ""],
-    [1e-3, "m"],
-    [1e-6, "u"],
-    [1e-9, "n"],
-    [1e-12, "p"],
-    [1e-15, "f"],
-  ];
-  if (a >= 1e15 || a < 1e-15) return v.toExponential(digits - 1);
-  for (const [scale, sfx] of table) {
-    if (a >= scale * (1 - 5e-13)) return `${Number((v / scale).toPrecision(digits))}${sfx}`;
-  }
-  return v.toExponential(digits - 1);
+  return formatSI(v, "", digits)
+    .replace(" ", "")
+    .replace("−", "-")
+    .replace(/[TGMµ]$/, (p) => SPICE_OF_SI[p]);
 }
 
 /** Arredonda a `digits` algarismos significativos (valor "bonito"). */
@@ -93,7 +83,7 @@ export function posOf(value: number, original: number): number {
 }
 
 /** Unidade do valor principal pelo tipo do elemento (1ª letra do refdes). */
-export function unitOf(refdes: string): string {
+export function unitForRefdes(refdes: string): string {
   switch (refdes[0]?.toUpperCase()) {
     case "R":
     case "H": // transresistência

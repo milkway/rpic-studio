@@ -6,7 +6,7 @@ import {
   POS_MAX,
   posOf,
   relabel,
-  unitOf,
+  unitForRefdes,
   valueAt,
   withAlter,
 } from "@/lib/simValues";
@@ -63,12 +63,12 @@ describe("escala log do slider", () => {
   });
 
   it("unidade pelo tipo do elemento", () => {
-    expect(unitOf("R1")).toBe("Ω");
-    expect(unitOf("c2")).toBe("F");
-    expect(unitOf("L1")).toBe("H");
-    expect(unitOf("V1")).toBe("V");
-    expect(unitOf("I3")).toBe("A");
-    expect(unitOf("E1")).toBe("");
+    expect(unitForRefdes("R1")).toBe("Ω");
+    expect(unitForRefdes("c2")).toBe("F");
+    expect(unitForRefdes("L1")).toBe("H");
+    expect(unitForRefdes("V1")).toBe("V");
+    expect(unitForRefdes("I3")).toBe("A");
+    expect(unitForRefdes("E1")).toBe("");
   });
 
   it("withAlter: voltar ao original remove a entrada", () => {

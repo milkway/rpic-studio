@@ -8,7 +8,7 @@
 // (`runTyped`) — é o que torna o slider ao vivo possível. Fonte novo = sessão
 // nova. Cancelar mata o worker (e a sessão junto): o próximo pedido reabre.
 import type { PicExtraction, PicRun, PicSimOptions, SimDiagnostic, SimSession } from "./dune";
-import { unitOf, type Alters, type SimControl } from "./simValues";
+import { unitForRefdes, type Alters, type SimControl } from "./simValues";
 
 export interface SimRequest {
   type: "run";
@@ -142,7 +142,7 @@ export function sessionControls(session: SimSession, pic: PicExtraction): SimCon
       refdes: el.refdes,
       param: principalParam(session, el.refdes, names, value),
       value,
-      unit: unitOf(el.refdes),
+      unit: unitForRefdes(el.refdes),
     });
   }
   return out;
