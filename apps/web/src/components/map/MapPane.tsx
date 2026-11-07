@@ -6,7 +6,7 @@ import type { Diagnostic, GeoWarning } from "@strategicprojects/rpic";
 // é só estilo — recalcular aqui evita recompilar no worker
 import { layers as picLayers } from "@strategicprojects/rpic/maplibre";
 import { downloadBlob } from "@/lib/exports";
-import { pushPrefsSoon } from "@/lib/prefs";
+import { PREFS_EVENT, pushPrefsSoon } from "@/lib/prefs";
 import { loadMapTextScale, MAP_TEXT_SCALES, saveSettings } from "@/lib/storage";
 import { explainDiagnostic, explainRawError, type ErrorInfo } from "@/lib/errorInfo";
 import type { GeoFailure, GeoFrame } from "@/lib/geoProtocol";
@@ -110,6 +110,12 @@ export function MapPane({
     saveSettings({ mapTextScale: next });
     pushPrefsSoon();
   };
+  // prefs da conta aplicadas DEPOIS da montagem (login): relê, como os outros providers
+  useEffect(() => {
+    const onPrefs = () => setTextScale(loadMapTextScale());
+    window.addEventListener(PREFS_EVENT, onPrefs);
+    return () => window.removeEventListener(PREFS_EVENT, onPrefs);
+  }, []);
   const geo = useGeo(source, { frame, circuits, texlabels, enabled: active, workerFactory });
 
   const containerRef = useRef<HTMLDivElement>(null);

@@ -3,7 +3,7 @@
 // (jsdom não tem WebGL).
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, configure, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { compileGeo, ensureGeo } from "@/lib/geo";
 import { handleGeoRequest, type GeoRequest, type GeoResponse } from "@/lib/geoProtocol";
@@ -205,6 +205,18 @@ describe("MapPane — tamanho dos rótulos", () => {
     await waitFor(() => expect(screen.getByTestId("map-status").textContent).toContain("900 m/in"));
     fireEvent.change(screen.getByTestId("map-text-scale"), { target: { value: "1.25" } });
     expect(map.calls.fit).toBe(2);
+  });
+
+  it("prefs da conta aplicadas depois da montagem atualizam o seletor e as camadas", async () => {
+    const { map, worker } = setup(CALLOUT);
+    await waitFor(() => expect(map.calls.set).toBe(1));
+    const { applyPrefs } = await import("@/lib/prefs");
+    act(() => applyPrefs({ settings: { layout: "horizontal", mapTextScale: 1.25 } }));
+    expect(screen.getByTestId("map-text-scale")).toHaveValue("1.25");
+    expect(map.calls.set).toBe(2);
+    const scaled = compileGeo(CALLOUT, { layers: { textScale: 1.25 } }).layers!;
+    expect(textSize(map.calls.layers)).toBe(textSize(scaled));
+    expect(worker.posted).toBe(1);
   });
 
   it("abre com o fator salvo; valor salvo inválido cai em 1×", async () => {
