@@ -256,7 +256,7 @@ export function MapPane({
               >
                 {MAP_TEXT_SCALES.map((s) => (
                   <option key={s} value={String(s)}>
-                    {s}×
+                    {s.toLocaleString(locale === "pt" ? "pt-BR" : "en")}×
                   </option>
                 ))}
               </select>

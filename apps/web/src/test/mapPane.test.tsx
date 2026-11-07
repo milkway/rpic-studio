@@ -219,6 +219,33 @@ describe("MapPane — tamanho dos rótulos", () => {
     expect(worker.posted).toBe(1);
   });
 
+  it("rótulos das opções pelo idioma (pt: vírgula decimal)", async () => {
+    window.localStorage.setItem("rpic:locale.v1", "pt");
+    const { I18nProvider } = await import("@/lib/i18n");
+    render(
+      <I18nProvider>
+        {wrap(
+          <MapPane
+            source={CALLOUT}
+            circuits={false}
+            texlabels={false}
+            active={false}
+            workerFactory={() => new InlineWorker()}
+            mapLoader={async () => ({ createGeoMap: () => fakeMap().handle })}
+          />,
+        )}
+      </I18nProvider>,
+    );
+    const select = screen.getByTestId("map-text-scale");
+    expect([...select.querySelectorAll("option")].map((o) => o.textContent)).toEqual([
+      "1×",
+      "1,25×",
+      "1,5×",
+      "2×",
+    ]);
+    expect(select).toHaveAccessibleName(/rótulos/i);
+  });
+
   it("abre com o fator salvo; valor salvo inválido cai em 1×", async () => {
     window.localStorage.setItem("rpic:settings.v1", JSON.stringify({ mapTextScale: 2 }));
     const a = setup(CALLOUT);

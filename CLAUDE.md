@@ -293,13 +293,20 @@ peabiru (`../peabiru`): mesmas convenções, versões e organização.
   (`manualChunks` → `maplibre`; sem isso ele e o CSS iam p/ o `vendor` da carga inicial).
   `fitTo` no 1º desenho, na troca de documento e na troca de frame; ao reaparecer, `resize()`.
   Controle **rótulos** (`map-text-scale`, presets `MAP_TEXT_SCALES` 1/1.25/1.5/2 em `storage.ts`,
-  persistido em `rpic:settings.v1` → `mapTextScale`, sincronizado com a conta) vira
-  `compileGeoJSON(src, { layers: { textScale } })` no worker; entra no `geoKey` → recompila e
-  `setGeoJSON` (o pacote atualiza o `text-size` das camadas existentes), mas NÃO reenquadra.
+  persistido em `rpic:settings.v1` → `mapTextScale`, sincronizado com a conta e relido no
+  `rpic:prefs`; opções formatadas pelo idioma — pt `1,25×`) é SÓ ESTILO: fica FORA do pedido ao
+  worker e do `geoKey`. O `MapPane` recalcula as camadas na thread principal com o port puro do
+  pacote (`layers(fc, { textScale })` de `@strategicprojects/rpic/maplibre`, = ao do engine — o
+  `geo.test.ts` prova p/ cada preset; em 1× usa as camadas do próprio engine) e chama
+  `setGeoJSON` (o pacote atualiza o `text-size` das camadas existentes): sem recompilar, sem
+  "carregando", sem reenquadrar, sem mexer no reenquadramento armado.
   `geomap.ts` passa `before: 'labels'`: as camadas de GEOMETRIA (`pic-fill`/`pic-stroke`/
   `pic-stroke-dashed`/`pic-dot`) entram antes da 1ª camada `symbol` do basemap; `pic-text`/
   `pic-title` ficam no topo. Clique numa forma → `Popup` com `title` (ESCAPADO — fonte do usuário)
-  + `geopic:kind · geopic:id`, cursor pointer no hover (cola igual à do rpic.dev). Teste da ordem
+  + `geopic:kind · geopic:id`, cursor pointer no hover (cola do rpic.dev). Ouvintes no ARRAY de
+  camadas (`click`, `mousemove`, `mouseleave` — um por camada apagava o ponteiro na passagem
+  traço→preenchimento) e `pickFeature`: o `pic-fill` só conta com `fill` (o miolo de caixa sem
+  preenchimento tem `fill-opacity 0` e não abre popup). Teste da ordem
   das camadas e do popup: `geomap.test.ts` (maplibre-gl FALSO via `vi.mock`).
   Testes: `geo.test.ts` (wasm geo real, ARQUIVO separado) e `mapPane.test.tsx` (worker inline +
   mapa falso; jsdom não tem WebGL). Exemplos com tag `maps` (fontes de rpic-lang `examples/geo`).

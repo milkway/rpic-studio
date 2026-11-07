@@ -26,10 +26,11 @@ template [peabiru](../peabiru).
   fonte (exemplo, link `#pic=`, diagrama salvo): o desenho num MapLibre GL (basemap OpenFreeMap
   positron), re-georreferenciado a cada pausa de digitação, seletor de `frame` (como na fonte /
   `enu` / `mercator`), controle **rótulos** (tamanho dos rótulos do desenho: 1×, 1,25×, 1,5×, 2× —
-  `textScale` do engine; lembrado entre sessões, troca sem reenquadrar), linha de status (método,
+  `textScale` do engine; lembrado entre sessões, troca na hora sem recompilar nem reenquadrar), linha de status (método,
   escala m/in, rumo, rms) e botão **GeoJSON** que baixa `drawing.geojson`. As formas do desenho
   ficam SOB os rótulos do basemap (nomes de lugar legíveis sobre um preenchimento) e os rótulos do
-  próprio desenho por cima; clicar numa forma abre um popup com o `title` e `tipo · id`. O build geo do wasm (~690 KB) roda num Web Worker e o MapLibre é import
+  próprio desenho por cima; clicar numa forma (o miolo de uma caixa sem
+  preenchimento não conta) abre um popup com o `title` e `tipo · id`. O build geo do wasm (~690 KB) roda num Web Worker e o MapLibre é import
   dinâmico — quem não abre fonte geo não baixa nenhum dos dois. Exemplos no grupo "Mapas".
 
 ## Desenvolvimento
