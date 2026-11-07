@@ -19,6 +19,19 @@ interface RpicThumbProps {
   replayable?: boolean;
 }
 
+let warnedPrelude = false;
+/** Prelude do dune p/ a miniatura; se a carga falha, `null` (compile puro — o
+ *  tile mostra o que o rpic desenha, não fica em branco) com UM aviso no console. */
+function loadDunePreludeOrNull(): Promise<string | null> {
+  return loadDunePrelude().catch((e: unknown) => {
+    if (!warnedPrelude) {
+      warnedPrelude = true;
+      console.warn("rpic studio: prelude do dune indisponível nas miniaturas", e);
+    }
+    return null;
+  });
+}
+
 /** Miniatura de um diagrama rpic (compila ao montar; anima sob demanda). */
 export function RpicThumb({ source, circuits, className, replayable }: RpicThumbProps) {
   const [bundle, setBundle] = useState<{ svg: string; animations: Anim[] } | null>(null);
@@ -29,7 +42,7 @@ export function RpicThumb({ source, circuits, className, replayable }: RpicThumb
   useEffect(() => {
     let cancelled = false;
     // fonte `spice = 1`: com o prelude do dune, como o preview (issue #17)
-    Promise.all([ensureRpic(), detectSpice(source) ? loadDunePrelude() : null])
+    Promise.all([ensureRpic(), detectSpice(source) ? loadDunePreludeOrNull() : null])
       .then(([, prelude]) => {
         if (cancelled) return;
         try {
