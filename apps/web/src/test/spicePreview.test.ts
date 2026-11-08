@@ -1,27 +1,26 @@
 // Preview de fontes `spice = 1` (issue #17): o rpic do Studio (WASM real) com o
-// prelude do dune à frente — o texto vem do módulo virtual que o vite.config.ts
-// extrai do dune-sim instalado, o MESMO que o `renderPic` do dune usa.
+// prelude do dune como unidade nomeada (rpic ≥ 0.17.0) — o texto vem do módulo
+// virtual que o vite.config.ts extrai do dune-sim instalado, o MESMO que o
+// `renderPic` do dune usa.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { ready } from "@strategicprojects/rpic";
 import prelude from "virtual:dune-prelude";
 import { compile, type CompileError } from "@/lib/rpic";
-import {
-  compileFigure,
-  compileWithPrelude,
-  DUNE_PRELUDE_FILE,
-  loadDunePrelude,
-  preludeOffset,
-} from "@/lib/dunePrelude";
+import { compileFigure, compileWithPrelude, DUNE_PRELUDE_FILE, loadDunePrelude } from "@/lib/dunePrelude";
+import { ensureDune, simulatePic } from "@/lib/dune";
 import { explainDiagnostic } from "@/lib/errorInfo";
 import { solvePicMapping } from "@/lib/picCoords";
-import { RLC_FIGURE } from "./fixtures-sim";
+import { DIVIDER_FIGURE, MEASURE_FIGURE, PIN_FIGURE, RC_FIGURE, RLC_FIGURE } from "./fixtures-sim";
 
 const require = createRequire(import.meta.url);
 
 beforeAll(async () => {
   await ready(readFileSync(require.resolve("@strategicprojects/rpic/pkg/rpic_wasm_bg.wasm")));
+  await ensureDune(readFileSync(require.resolve("@strategicprojects/dune-sim/pkg/dune_wasm_bg.wasm")));
 });
+
+const FIGURES = { RC_FIGURE, DIVIDER_FIGURE, RLC_FIGURE, MEASURE_FIGURE, PIN_FIGURE };
 
 const opts = { circuits: true, texlabels: false };
 const unmarked = RLC_FIGURE.replace("spice = 1\n", "");
@@ -99,7 +98,7 @@ describe("prelude do dune no preview (issue #17)", () => {
     expect(solvePicMapping(only, { ...opts, prelude }, b.objects)).not.toBeNull();
   });
 
-  it("erro do usuário volta re-baseado (mensagem e errorInfo)", () => {
+  it("erro do usuário sai no referencial do usuário (mensagem e errorInfo)", () => {
     const broken = RLC_FIGURE.replace("C1: capacitor(A, Out, 1u)", "C1: capacitor(A, Out 1u)");
     const err = compileError(() => compileWithPrelude(broken, prelude, opts));
     expect(err.errorInfo).toMatchObject({ line: 7, file: null });
@@ -110,14 +109,14 @@ describe("prelude do dune no preview (issue #17)", () => {
     const err = compileError(() => compileWithPrelude(".PS\nV1: vsource()\n.PE\n", prelude, opts));
     const d = err.errorInfo!;
     expect(d.file).toBe(DUNE_PRELUDE_FILE);
-    expect(d.line!).toBeLessThanOrEqual(preludeOffset(prelude));
+    expect(d.line!).toBeLessThanOrEqual(prelude.split("\n").length);
     expect(err.message.startsWith(`${DUNE_PRELUDE_FILE}:${d.line}:`)).toBe(true);
     const info = explainDiagnostic(d, "", "pt");
     expect(info.line).toBeNull();
     expect(info.friendly).toContain("prelúdio do dune");
   });
 
-  it("erro semântico sem prefixo na mensagem também re-baseia o errorInfo", () => {
+  it("erro semântico sem prefixo na mensagem: errorInfo no referencial do usuário", () => {
     const err = compileError(() => compileWithPrelude(".PS\nR1: resistor(A,B)\n.PE\n", prelude, opts));
     expect(err.errorInfo).toMatchObject({ kind: "unknown_label", line: 2, col: 14, file: null });
   });
@@ -134,5 +133,55 @@ describe("prelude do dune no preview (issue #17)", () => {
     const b = compileWithPrelude(RLC_FIGURE, prelude, opts);
     expect(solvePicMapping(RLC_FIGURE, { ...opts, prelude }, b.objects)).not.toBeNull();
     expect(solvePicMapping(RLC_FIGURE, opts, b.objects)).toBeNull();
+  });
+
+  // rpic 0.17.0: o prelude virou unidade nomeada; antes o Studio compilava
+  // `prelude + "\n" + fonte` e re-baseava as posições. O desenho tem de sair
+  // byte a byte igual, e os ids `sN` têm de bater com o `map` do dune.
+  it.each(Object.entries(FIGURES))("%s: SVG idêntico ao da concatenação e ids do map do dune", (_name, fig) => {
+    const b = compileWithPrelude(fig, prelude, opts);
+    const legacy = compile(prelude + "\n" + fig, { circuits: true });
+    expect(b.svg).toBe(legacy.svg);
+    expect(b.objects.map((o) => [o.id, o.kind, o.bbox])).toEqual(
+      legacy.objects.map((o) => [o.id, o.kind, o.bbox]),
+    );
+    // posições: as do usuário são as da concatenação menos o prelude
+    const offset = prelude.split("\n").length;
+    const native = compile(fig, { circuits: true, preludes: [{ name: DUNE_PRELUDE_FILE, text: prelude }] });
+    legacy.objects.forEach((o, i) => {
+      if (o.file == null && o.line! > offset) expect(native.objects[i]).toMatchObject({ line: o.line! - offset, col: o.col });
+    });
+    const ids = new Set([...b.svg.matchAll(/<g id="(s\d+)"/g)].map((m) => m[1]));
+    const { map } = simulatePic(fig).pic;
+    const shapes = [
+      ...map.elements.flatMap((e) => Array.from({ length: e.shapes.end - e.shapes.start }, (_, k) => e.shapes.start + k)),
+      ...map.nets.flatMap((n) => n.shapes),
+    ];
+    expect(shapes.length).toBeGreaterThan(0);
+    for (const n of shapes) expect(ids.has(`s${n}`)).toBe(true);
+    // nenhum objeto aponta para uma linha que a fonte do usuário não tem
+    const lines = fig.split("\n").length;
+    for (const o of b.objects) if (o.file == null && o.line != null) expect(o.line).toBeLessThanOrEqual(lines);
+  });
+
+  it("fonte longa: o rótulo de valor (string `$1` do prelude) vai à chamada, não à linha 96 do usuário", () => {
+    // rpic 0.17.0: a string com `$n` substituído perde o `file` e guarda a linha
+    // DO PRELUDE — numa fonte com mais linhas que isso ela cairia no lugar errado
+    const long = RLC_FIGURE.replace(".PS\n", ".PS\n" + "# ---\n".repeat(150));
+    const b = compileWithPrelude(long, prelude, opts);
+    const vLine = long.split("\n").findIndex((l) => /^V1: vsource/.test(l)) + 1;
+    const v1 = b.objects.filter((o) => o.line === vLine);
+    expect(v1.some((o) => o.kind === "text")).toBe(true);
+    // as linhas 2..151 são só comentário: nenhum objeto pode apontar para elas
+    const stray = b.objects.filter((o) => o.file == null && o.line! > 1 && o.line! <= 151);
+    expect(stray).toEqual([]);
+  });
+
+  it("nome de prelude inválido vira `invalid_options` sem posição no editor", () => {
+    const err = compileError(() => compile("box", { preludes: [{ name: "circuits", text: "" }] }));
+    expect(err.errorInfo).toMatchObject({ kind: "invalid_options", line: null, file: null });
+    const info = explainDiagnostic(err.errorInfo!, "box", "pt");
+    expect(info.line).toBeNull();
+    expect(info.friendly).toMatch(/opções/);
   });
 });
