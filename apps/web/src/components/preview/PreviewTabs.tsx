@@ -13,7 +13,7 @@ import { useTheme } from "@/lib/theme";
 import { PreviewPane } from "./PreviewPane";
 import { SimulatePanel } from "@/components/simulate/SimulatePanel";
 import { MapPane } from "@/components/map/MapPane";
-import { detectGeo } from "@/lib/detect";
+import { detectGeo, detectSpice } from "@/lib/detect";
 import { ReadOnlyCode, type CodeLanguage } from "./ReadOnlyCode";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
@@ -110,17 +110,23 @@ export function PreviewTabs({
 }: PreviewTabsProps) {
   // Fonte georreferenciada (geopic)? Só então existe a aba Mapa — e ela abre
   // SOZINHA quando o documento chega (1º render, exemplo, link `#pic=`).
+  // Circuito `spice = 1`? Só então existe a aba Simular, pela mesma regra.
   const geo = useMemo(() => detectGeo(source), [source]);
-  const [selected, setTab] = useState<TabValue>(() => (detectGeo(source) ? "map" : "imagem"));
+  const spice = useMemo(() => detectSpice(source), [source]);
+  const autoTab = (src: string): TabValue =>
+    detectGeo(src) ? "map" : detectSpice(src) ? "simulate" : "imagem";
+  const [selected, setTab] = useState<TabValue>(() => autoTab(source));
   const epochRef = useRef(docEpoch);
   useEffect(() => {
     if (epochRef.current === docEpoch) return;
     epochRef.current = docEpoch;
-    if (geo) setTab("map");
-    // `geo` é lido no momento da troca de documento, não a cada tecla
+    setTab(autoTab(source));
+    // lido no momento da troca de documento, não a cada tecla
   }, [docEpoch]);
-  // a fonte deixou de ser geo com a aba Mapa aberta → volta à imagem
-  const tab: TabValue = selected === "map" && !geo ? "imagem" : selected;
+  // a fonte deixou de ser geo (ou circuito) com a aba aberta → volta à imagem;
+  // os painéis seguem montados (worker da simulação, mapa), só a aba selecionada muda
+  const tab: TabValue =
+    (selected === "map" && !geo) || (selected === "simulate" && !spice) ? "imagem" : selected;
   const [mapVisited, setMapVisited] = useState(false);
   if (tab === "map" && !mapVisited) setMapVisited(true);
   // O painel Simular fica MONTADO depois da 1ª visita (resultado e worker
@@ -138,7 +144,9 @@ export function PreviewTabs({
       <TabButton value="markdown" short="MD">Markdown</TabButton>
       <TabButton value="python" short="PY">Python</TabButton>
       <TabButton value="r">R</TabButton>
-      <TabButton value="simulate" short={t("sim.tabShort")}>{t("sim.tab")}</TabButton>
+      {spice && (
+        <TabButton value="simulate" short={t("sim.tabShort")}>{t("sim.tab")}</TabButton>
+      )}
       {geo && (
         <TabButton value="map" short={t("map.tabShort")}>{t("map.tab")}</TabButton>
       )}
