@@ -10,6 +10,7 @@ import * as dune from "@strategicprojects/dune-sim";
 import type {
   Diagnostic as SimDiagnostic,
   EngineOptions,
+  ExtractOptions,
   Measurement,
   OverlayCanvas,
   OverlayPin,
@@ -74,8 +75,8 @@ export function openDeck(deck: string, opts?: SimOptions): SimSession {
 }
 
 /** Só a extração (netlist + mapa), sem simular. Requer `ensureDune()`. */
-export function extractPic(source: string): PicExtraction {
-  return dune.extractPic(source);
+export function extractPic(source: string, opts?: ExtractOptions): PicExtraction {
+  return dune.extractPic(source, opts);
 }
 
 /** SVG da figura compilada pelo rpic INTERNO do dune com o prelude — a MESMA
@@ -93,6 +94,7 @@ export type Plot = TypedPlot;
 
 export type {
   EngineOptions,
+  ExtractOptions,
   Measurement,
   OverlayCanvas,
   OverlayMap,

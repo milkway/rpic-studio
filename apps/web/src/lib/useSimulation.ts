@@ -52,7 +52,7 @@ export interface SimulationState {
   fine: boolean;
   /** A grade do `run` na tela (`null` = sem run): o rótulo do gráfico diz
    *  isto, não o estado do botão — a resposta ao toggle pode estar a caminho. */
-  grid: { mode: SimDisplayGrid; deckPoints: number[] | null } | null;
+  grid: SimDisplayGrid | null;
 }
 
 const IDLE: SimulationState = {
@@ -127,7 +127,7 @@ export function useSimulation(factory?: WorkerFactory, initialFine = false) {
       run: res.type === "ok" ? res.run : rerun ? s.run : null,
       grid:
         res.type === "ok"
-          ? { mode: res.displayGrid ?? "deck", deckPoints: res.deckPoints ?? null }
+          ? (res.displayGrid ?? "deck")
           : rerun
             ? s.grid
             : null,

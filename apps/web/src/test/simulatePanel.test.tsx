@@ -13,7 +13,7 @@ import { SimHost, transferablesOf, type SimRequest, type SimResponse } from "@/l
 import type { WorkerLike } from "@/lib/simClient";
 import { SimulatePanel } from "@/components/simulate/SimulatePanel";
 import { TooltipProvider } from "@/components/ui/Tooltip";
-import { DIVIDER_FIGURE, MEASURE_FIGURE, PIN_FIGURE, RC_FIGURE } from "./fixtures-sim";
+import { DIVIDER_FIGURE, MEASURE_FIGURE, PIN_FIGURE, RC_FIGURE, RLC_FIGURE } from "./fixtures-sim";
 
 const require = createRequire(import.meta.url);
 
@@ -805,13 +805,12 @@ describe("grade fina (issue #33; o toggle dos passos finos, #19)", () => {
     expect(dense).toBeGreaterThanOrEqual(600);
     expect(dense).toBeGreaterThan(coarse);
     expect(workers).toHaveLength(1);
-    // o gráfico diz que é a grade de exibição, e quantos pontos o deck tem
+    // o gráfico diz que é a grade de exibição (.tran: contagem do deck é
+    // adaptativa — não é mostrada)
     await waitFor(() =>
       expect(screen.getByTestId("sim-grid")).toHaveAttribute("data-grid", "dense"),
     );
-    expect(screen.getByTestId("sim-grid").textContent).toBe(
-      `display grid · ${dense} points (deck: ${coarse})`,
-    );
+    expect(screen.getByTestId("sim-grid").textContent).toBe(`display grid · ${dense} points`);
     // e o netlist mostrado segue o deck FIEL
     expect(screen.getByTestId("sim-netlist-code").textContent).toContain(".tran 20u 5m");
     expect(screen.getByTestId("sim-netlist-code").textContent).not.toContain("8.333333e-6");
@@ -878,6 +877,31 @@ describe("grade fina (issue #33; o toggle dos passos finos, #19)", () => {
     expect(screen.getByTestId("sim-grid").textContent).toMatch(
       /^deck grid · \d+ points \(dense run failed\)$/,
     );
+  });
+
+  it(".ac denso: rótulo com a contagem EXATA do cartão fiel; medidas marcadas como da grade", async () => {
+    window.localStorage.setItem("rpic:settings.v1", JSON.stringify({ simFineSteps: true }));
+    // RLC: `.ac dec 50 10 100k` = 50·4 + 1 = 201 no deck; denso = 150/déc → 601
+    const a = render(
+      <SimulatePanel source={RLC_FIGURE} active workerFactory={() => new InlineWorker()} />,
+    );
+    fireEvent.click(screen.getByTestId("sim-run"));
+    await waitFor(() =>
+      expect(screen.getByTestId("sim-grid")).toHaveAttribute("data-grid", "dense"),
+    );
+    expect(screen.getByTestId("sim-grid").textContent).toBe(
+      "display grid · 601 points (deck: 201)",
+    );
+    a.unmount();
+    // `.measure` sob a grade densa: o cabeçalho do painel diz de onde vêm
+    render(
+      <SimulatePanel source={MEASURE_FIGURE} active workerFactory={() => new InlineWorker()} />,
+    );
+    fireEvent.click(screen.getByTestId("sim-run"));
+    await waitFor(() =>
+      expect(screen.getAllByTestId("sim-measures-grid").length).toBeGreaterThan(0),
+    );
+    expect(screen.getAllByTestId("sim-measures-grid")[0].textContent).toBe("(display grid)");
   });
 
   it("o modo salvo vale no 1º Simular; prefs da conta (rpic:prefs) são relidas", async () => {
