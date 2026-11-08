@@ -117,7 +117,14 @@ const M = {
     en: (w: string, ok: string) => `Unknown animation effect “${w}”. Available: ${ok}.`,
     pt: (w: string, ok: string) => `Efeito de animação desconhecido: “${w}”. Disponíveis: ${ok}.`,
   },
-  // "arquivo" sintético das posições dentro do prelude do dune (fonte `spice = 1`)
+  // opções de compilação recusadas (rpic 0.17.0: nome de prelude inválido) —
+  // o Studio monta as opções, então é falha interna, não da fonte do usuário
+  invalidOptions: {
+    en: (m: string) => `The Studio passed the compiler invalid options (${m}). This is a Studio bug, not an error in your source.`,
+    pt: (m: string) => `O Studio passou opções inválidas ao compilador (${m}). É um defeito do Studio, não um erro na sua fonte.`,
+  },
+  // unidade do prelude do dune (fonte `spice = 1`), como o rpic a nomeia
+
   dunePrelude: {
     en: () => "dune prelude",
     pt: () => "prelúdio do dune",
@@ -219,6 +226,8 @@ function classifyDiagnostic(
     }
     case "invalid_color":
       return { ...base, friendly: M.invalidColor[locale](word ?? "?") };
+    case "invalid_options":
+      return { ...base, friendly: M.invalidOptions[locale](d.message) };
     case "unknown_animation_effect":
       return { ...base, friendly: M.unknownEffect[locale](word ?? "?", d.expected ?? "…") };
     case "parse":
