@@ -43,45 +43,28 @@ export function dunePreludeLoaded(): string | null {
   return prelude;
 }
 
-/** Macros definidas na própria fonte do usuário. */
-function userMacros(source: string): Set<string> {
-  return new Set([...source.matchAll(/\bdefine\s+([A-Za-z_][A-Za-z0-9_]*)/g)].map((m) => m[1]));
-}
-
 /** Objetos desenhados DENTRO de macros (prelude do dune ou lib de circuitos)
  *  são atribuídos à CHAMADA do usuário que os gerou — o bloco mais interno com
  *  `span` no fonte do usuário (o `V1: vsource(...)`; o rpic ≥ 0.16 agrupa a
  *  chamada plana num bloco). Assim o inspetor os seleciona e o clique pula para
  *  a linha do elemento. Sem bloco do usuário em volta, ficam como estão.
  *
- *  Um objeto conta como "de macro" se (a) tem `file` (prelude, circuits,
- *  `copy`); (b) o bloco da chamada é de uma macro que o usuário NÃO definiu; ou
- *  (c) a linha passa do fim da fonte. (b) e (c) cobrem uma falha do rpic 0.17.0:
- *  a string com `$n` substituído (`"$1" at …`, o rótulo de valor do prelude)
- *  perde o `file` e fica com a linha DO PRELUDE como se fosse do usuário. */
-function attributeToCallSite(
-  objects: ObjectGeometry[],
-  scene: Scene | undefined,
-  source: string,
-): ObjectGeometry[] {
+ *  Um objeto é "de macro" quando tem `file` (prelude, circuits, `copy`): desde
+ *  o rpic 0.17.1 isso vale também para strings com `$n` substituído (o rótulo
+ *  de valor `"$1" at …` do prelude), que no 0.17.0 perdiam o `file`. */
+function attributeToCallSite(objects: ObjectGeometry[], scene: Scene | undefined): ObjectGeometry[] {
   if (!scene) return objects;
   const items = new Map(scene.items.map((it) => [it.id, it]));
-  const lines = source.split("\n").length;
-  const own = userMacros(source);
   return objects.map((o) => {
+    if (o.file == null) return o; // já no referencial do usuário
     const blocks = items.get(o.id)?.block ?? [];
     for (let i = blocks.length - 1; i >= 0; i--) {
-      const blk = items.get(blocks[i]);
-      const span = blk?.span;
-      if (!span || span.file != null) continue;
-      const foreign =
-        o.file != null ||
-        (blk.call != null && !own.has(blk.call.name)) ||
-        (o.line != null && o.line > lines);
-      if (!foreign) return o;
-      const moved: ObjectGeometry = { ...o, line: span.line, col: span.col, end_col: span.end_col };
-      delete moved.file;
-      return moved;
+      const span = items.get(blocks[i])?.span;
+      if (span && span.file == null) {
+        const moved: ObjectGeometry = { ...o, line: span.line, col: span.col, end_col: span.end_col };
+        delete moved.file;
+        return moved;
+      }
     }
     return o;
   });
@@ -104,7 +87,7 @@ export function compileWithPrelude(
     scene: true,
     preludes: [{ name: DUNE_PRELUDE_FILE, text: preludeText }],
   });
-  return { ...rest, objects: attributeToCallSite(rest.objects ?? [], scene, source) };
+  return { ...rest, objects: attributeToCallSite(rest.objects ?? [], scene) };
 }
 
 /** Compila como o preview deve: com o prelude quando ele é dado, senão o

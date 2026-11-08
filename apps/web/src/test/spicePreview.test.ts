@@ -164,10 +164,13 @@ describe("prelude do dune no preview (issue #17)", () => {
     for (const o of b.objects) if (o.file == null && o.line != null) expect(o.line).toBeLessThanOrEqual(lines);
   });
 
-  it("fonte longa: o rótulo de valor (string `$1` do prelude) vai à chamada, não à linha 96 do usuário", () => {
-    // rpic 0.17.0: a string com `$n` substituído perde o `file` e guarda a linha
-    // DO PRELUDE — numa fonte com mais linhas que isso ela cairia no lugar errado
+  it("fonte longa: o rótulo de valor (string `$1` do prelude) tem `file` e vai à chamada", () => {
+    // rpic 0.17.1: a string com `$n` substituído guarda o `file` do prelude —
+    // numa fonte mais longa que o prelude ela não cai numa linha do usuário
     const long = RLC_FIGURE.replace(".PS\n", ".PS\n" + "# ---\n".repeat(150));
+    const native = compile(long, { circuits: true, preludes: [{ name: DUNE_PRELUDE_FILE, text: prelude }] });
+    const labels = native.objects.filter((o) => o.kind === "text" && o.file === DUNE_PRELUDE_FILE);
+    expect(labels.length).toBeGreaterThan(0);
     const b = compileWithPrelude(long, prelude, opts);
     const vLine = long.split("\n").findIndex((l) => /^V1: vsource/.test(l)) + 1;
     const v1 = b.objects.filter((o) => o.line === vLine);
@@ -175,6 +178,24 @@ describe("prelude do dune no preview (issue #17)", () => {
     // as linhas 2..151 são só comentário: nenhum objeto pode apontar para elas
     const stray = b.objects.filter((o) => o.file == null && o.line! > 1 && o.line! <= 151);
     expect(stray).toEqual([]);
+  });
+
+  it("macro do usuário que embrulha `vsource`: o rótulo `$1` tem `file` e vai ao bloco `V1`", () => {
+    const src = ".PS\nspice = 1\nA: (0,1); B: (0,0)\ndefine myV { vsource($1, $2, 5V) }\nV1: myV(A,B)\n.PE\n";
+    const native = compile(src, {
+      circuits: true,
+      scene: true,
+      preludes: [{ name: DUNE_PRELUDE_FILE, text: prelude }],
+    });
+    const label = native.objects.find((o) => o.kind === "text");
+    expect(label).toMatchObject({ file: DUNE_PRELUDE_FILE });
+    const b = compileWithPrelude(src, prelude, opts);
+    const attributed = b.objects.find((o) => o.id === label!.id)!;
+    expect(attributed).toMatchObject({ line: 5, col: 5 });
+    expect(attributed.file).toBeUndefined();
+    // nada visível fica fora da fonte do usuário
+    const visible = b.objects.filter((o) => o.bbox && o.bbox.w + o.bbox.h > 0);
+    expect(visible.filter((o) => o.file)).toEqual([]);
   });
 
   it("nome de prelude inválido vira `invalid_options` sem posição no editor", () => {
