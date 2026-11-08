@@ -30,7 +30,7 @@ import {
   type SourceEdit,
   type WriteBackFailure,
 } from "@/lib/simSource";
-import { useSimulation } from "@/lib/useSimulation";
+import { pinCanvas, useSimulation } from "@/lib/useSimulation";
 import { measureRows } from "@/lib/simMeasure";
 import { PREFS_EVENT, pushPrefsSoon } from "@/lib/prefs";
 import { loadSimFineSteps, saveSettings } from "@/lib/storage";
@@ -118,8 +118,9 @@ export function SimulatePanel({
   /** Resultado da última escrita de volta (linha de status sob a figura). */
   const [writeNote, setWriteNote] = useState<{ ok: boolean; text: string } | null>(null);
   /** Mapa que ESTE painel acabou de ajustar ao reescrever o fonte (spans de
-   *  valor já deslocados): vale para `source` até a resposta da adoção trazer
-   *  o mapa fresco da execução. */
+   *  valor já deslocados): usado para `source` só enquanto a extração da
+   *  execução ainda é de outro texto — chegada a da adoção (`picSource`),
+   *  vale a do dune. */
   const ownMap = useRef<{ source: string; map: OverlayMap } | null>(null);
   const statusRef = useRef<HTMLSpanElement>(null);
   const toast = useToast();
@@ -275,13 +276,14 @@ export function SimulatePanel({
         ok: false,
         text: t("sim.notWritten", {
           refdes: c.refdes,
-          reason: t(WB_REASON[reason], { refdes: c.refdes, param: c.param }),
+          // `AC`/`DC` como no campo do slider; senão o nome do parâmetro
+          reason: t(WB_REASON[reason], { refdes: c.refdes, param: sourceKeyword(c) ?? c.param }),
         }),
       });
     // código mudou desde a execução: os spans do mapa são de outro texto
     if (sim.source !== source) return fail("stale");
     const own = ownMap.current;
-    const current = own && own.source === source ? own.map : map;
+    const current = sim.picSource !== source && own && own.source === source ? own.map : map;
     if (!current) return fail("unavailable");
     // (spans velhos para este texto — ex.: mapa anterior à adoção — dão `stale`
     // no `valueEdit`, que confere o texto em cada span)
@@ -433,7 +435,7 @@ export function SimulatePanel({
             figure={shownFigure}
             highlight={highlight}
             nets={probeNets}
-            canvas={map?.canvas ?? null}
+            canvas={pinCanvas(sim)}
             onToggleNet={toggleNet}
             onHoverNet={setHoverNet}
             elements={sliderElements}

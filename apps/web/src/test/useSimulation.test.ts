@@ -1,7 +1,7 @@
 // useSimulation com um worker FALSO (respostas à mão): o que acontece com o
 // estado quando um re-run de slider falha.
 import { act, renderHook } from "@testing-library/react";
-import { useSimulation } from "@/lib/useSimulation";
+import { pinCanvas, useSimulation } from "@/lib/useSimulation";
 import type { WorkerLike } from "@/lib/simClient";
 import type { SimRequest, SimResponse } from "@/lib/simProtocol";
 import type { PicRun } from "@/lib/dune";
@@ -196,4 +196,85 @@ it("passos finos numa execução que FALHOU sem resultado: não re-roda nem vira
   // o próximo Simular leva o modo
   act(() => hook.result.current.start("src"));
   expect(w.last()).toMatchObject({ fine: true });
+});
+
+describe("useSimulation: frame dos terminais = figura e extração do MESMO texto", () => {
+  const runOf = (ox: number): PicRun => ({
+    ...RUN,
+    pic: {
+      ...RUN.pic,
+      map: { ...RUN.pic.map, canvas: { w: 3, h: 2, origin: [ox, 0], rescale: 1 } },
+    },
+  });
+
+  it("resposta da adoção de B chega depois da escrita B→C: sem canvas até a de C", async () => {
+    const { hook, workers } = await setup();
+    const w = workers[0];
+    // a execução inicial (worker falso, sem picSource): figura e mapa de "src"
+    expect(pinCanvas(hook.result.current)).toEqual(RUN.pic.map.canvas);
+    act(() => hook.result.current.adopt("B", { R1: 2e3 }));
+    const toB = w.last();
+    expect(toB.source).toBe("B");
+    // a 2ª escrita (B→C) antes da resposta da 1ª
+    act(() => hook.result.current.adopt("C", { R1: 3e3 }));
+    await act(async () =>
+      w.reply({
+        type: "ok",
+        id: toB.id,
+        fresh: false,
+        ms: 1,
+        timing,
+        run: runOf(0.5),
+        figure: { svg: "<svg>B</svg>" },
+        liveSource: "B",
+        picSource: "B",
+      }),
+    );
+    let s = hook.result.current;
+    // a figura de B não pisa na corrente (o fonte já é C): fica a de "src";
+    // o run (e o mapa) é o de B → texto diferente, nada de canvas
+    expect(s.figure).toEqual({ svg: "<svg/>" });
+    expect(s.run?.pic.map.canvas.origin[0]).toBe(0.5);
+    expect(pinCanvas(s)).toBeNull();
+    // a resposta de C traz figura e mapa de C: o canvas volta, o de C
+    const toC = w.last();
+    expect(toC.source).toBe("C");
+    await act(async () =>
+      w.reply({
+        type: "ok",
+        id: toC.id,
+        fresh: false,
+        ms: 1,
+        timing,
+        run: runOf(0.75),
+        figure: { svg: "<svg>C</svg>" },
+        liveSource: "C",
+        picSource: "C",
+      }),
+    );
+    s = hook.result.current;
+    expect(s.figure).toEqual({ svg: "<svg>C</svg>" });
+    expect(pinCanvas(s)?.origin).toEqual([0.75, 0]);
+  });
+
+  it("extração que ficou para trás (adoção sem mapa novo): sem canvas", async () => {
+    const { hook, workers } = await setup();
+    const w = workers[0];
+    act(() => hook.result.current.adopt("B", { R1: 2e3 }));
+    await act(async () =>
+      w.reply({
+        type: "ok",
+        id: w.last().id,
+        fresh: false,
+        ms: 1,
+        timing,
+        run: RUN,
+        figure: { svg: "<svg>B</svg>" },
+        liveSource: "B",
+        picSource: "src",
+      }),
+    );
+    expect(hook.result.current.figure).toEqual({ svg: "<svg>B</svg>" });
+    expect(pinCanvas(hook.result.current)).toBeNull();
+  });
 });

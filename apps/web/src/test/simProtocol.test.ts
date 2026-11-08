@@ -1,7 +1,20 @@
 // sessionControls com uma Session FALSA: o nome mostrado no cabeçalho do
 // slider é o do parâmetro que `param(refdes)`/`alter(refdes, v)` movem.
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { sessionControls, SimHost, type SimAdopt } from "@/lib/simProtocol";
-import type { PicExtraction, SimSession } from "@/lib/dune";
+import {
+  ensureDune,
+  extractPic,
+  openSession,
+  renderPic,
+  type PicExtraction,
+  type SimSession,
+} from "@/lib/dune";
+import { applySourceEdit, valueEdit } from "@/lib/simSource";
+import { RC_FIGURE } from "./fixtures-sim";
+
+const require = createRequire(import.meta.url);
 
 type Params = Record<string, { names: string[]; principal: number; by: Record<string, number> }>;
 
@@ -275,5 +288,71 @@ describe("SimHost: modo passos finos (issue #19)", () => {
     await host.handle({ type: "run", id: 5, source: "B", fine: true });
     expect(log.slice(4)).toEqual(['options={"trtol":1}', "tmax=10"]);
     expect(opens).toBe(2);
+  });
+});
+
+describe("SimHost: a adoção traz a extração do texto NOVO (spans + canvas)", () => {
+  beforeAll(async () => {
+    await ensureDune(
+      readFileSync(require.resolve("@strategicprojects/dune-sim/pkg/dune_wasm_bg.wasm")),
+    );
+  });
+
+  it("depois de escrever de volta, run.pic.map = extractPic do texto novo (dune real)", async () => {
+    const host = new SimHost({ ensure: () => ensureDune(), openSession, renderPic, extractPic });
+    const open = await host.handle({ type: "run", id: 1, source: RC_FIGURE });
+    expect(open.type).toBe("ok");
+    expect(open.picSource).toBe(RC_FIGURE);
+    // `1k` → `12.345k`: rótulo mais largo, spans da linha deslocados
+    const r = valueEdit(RC_FIGURE, extractPic(RC_FIGURE).map, "R1", "resistance", 12345);
+    if (!r.ok) throw new Error(r.reason);
+    const next = applySourceEdit(RC_FIGURE, r.edit);
+    const res = await host.handle({
+      type: "run",
+      id: 2,
+      source: next,
+      adopt: [{ from: RC_FIGURE, to: next, originals: { R1: 12345 } }],
+    });
+    expect(res.type).toBe("ok");
+    if (res.type !== "ok") return;
+    expect(res.fresh).toBe(false);
+    expect(res.picSource).toBe(next);
+    expect(res.figure).toEqual({ svg: renderPic(next) });
+    const fresh = extractPic(next).map;
+    expect(res.run.pic.map.canvas).toEqual(fresh.canvas);
+    expect(res.run.pic.map.elements.map((e) => [e.value, e.params])).toEqual(
+      fresh.elements.map((e) => [e.value, e.params]),
+    );
+    // e NÃO os do texto velho
+    const r1 = res.run.pic.map.elements.find((e) => e.refdes === "R1")!;
+    expect(r1.value?.text).toBe("12.345k");
+  });
+
+  it("extração do texto adotado que falha: fica a figura VELHA junto do mapa velho", async () => {
+    const renders: string[] = [];
+    const base = openSession(RC_FIGURE);
+    const host = new SimHost({
+      ensure: () => ensureDune(),
+      openSession: () => base,
+      renderPic: (src) => {
+        renders.push(src);
+        return `<svg>${src.length}</svg>`;
+      },
+      extractPic: () => {
+        throw new Error("extract boom");
+      },
+    });
+    await host.handle({ type: "run", id: 1, source: "A" });
+    const res = await host.handle({
+      type: "run",
+      id: 2,
+      source: "B",
+      adopt: [{ from: "A", to: "B", originals: { R1: 2200 } }],
+    });
+    expect(res.type).toBe("ok");
+    expect(res.liveSource).toBe("B");
+    expect(res.picSource).toBe("A"); // o mapa segue sendo o de A…
+    expect(res.figure).toBeUndefined(); // …e a figura de B não é desenhada
+    expect(renders).toEqual(["A"]);
   });
 });

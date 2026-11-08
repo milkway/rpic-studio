@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SimCancelled, SimClient, SimSuperseded, type WorkerFactory } from "./simClient";
 import type { SimAdopt, SimFailure, SimFigureResult, SimResponse, SimTiming } from "./simProtocol";
 import type { Alters, SimControl } from "./simValues";
-import type { PicRun } from "./dune";
+import type { OverlayCanvas, PicRun } from "./dune";
 
 export type SimStatus = "idle" | "running" | "done" | "error" | "cancelled";
 
@@ -17,6 +17,12 @@ export interface SimulationState {
   failure: SimFailure | null;
   /** Figura da execução desenhada pelo rpic do dune (vem do worker). */
   figure: SimFigureResult | null;
+  /** O texto de onde a `figure` mostrada foi desenhada. */
+  figureSource: string | null;
+  /** O texto de onde saiu a extração mostrada (`run.pic`, senão
+   *  `failure.pic`). Só com `picSource === figureSource` o `map.canvas`
+   *  posiciona os terminais sobre a figura (ver `pinCanvas`). */
+  picSource: string | null;
   /** Elementos com valor ajustável por slider (da sessão aberta). */
   controls: SimControl[];
   /** Alterações pedidas (refdes → valor); a UI as mostra na hora, o
@@ -46,6 +52,8 @@ const IDLE: SimulationState = {
   run: null,
   failure: null,
   figure: null,
+  figureSource: null,
+  picSource: null,
   controls: [],
   alters: {},
   rerun: false,
@@ -93,6 +101,9 @@ export function useSimulation(factory?: WorkerFactory, initialFine = false) {
    *  nos do fonte corrente. */
   const apply = useCallback((res: SimResponse, rerun: boolean, sentAt: number, source: string) => {
     const roundTrip = performance.now() - sentAt;
+    const takeFigure = (s: SimulationState) => res.figure !== undefined && source === s.source;
+    // de onde veio a extração desta resposta (worker antigo/falso: o pedido)
+    const picOf = res.picSource ?? res.liveSource ?? source;
     setState((s) => ({
       ...s,
       status: res.type === "ok" ? "done" : "error",
@@ -105,7 +116,10 @@ export function useSimulation(factory?: WorkerFactory, initialFine = false) {
       failure: res.type === "ok" ? null : res.error,
       // num re-run a figura/controles da sessão seguem; se o worker reabriu
       // a sessão (ex.: depois de Cancelar) ou adotou um fonte reescrito, vêm
-      figure: res.figure !== undefined && source === s.source ? res.figure : s.figure,
+      figure: takeFigure(s) ? res.figure! : s.figure,
+      figureSource: takeFigure(s) ? source : s.figureSource,
+      // a extração mostrada: a do run (o run antigo fica num re-run que falha)
+      picSource: res.type === "ok" || !(rerun && s.run) ? picOf : s.picSource,
       controls: res.controls && source === s.source ? res.controls : s.controls,
       rerun,
       timing: res.timing,
@@ -279,4 +293,17 @@ export function useSimulation(factory?: WorkerFactory, initialFine = false) {
   }, []);
 
   return { ...state, start, cancel, setAlters, adopt, setFine };
+}
+
+/** O frame dos terminais (`map.canvas`) SÓ quando figura e extração mostradas
+ *  vêm do mesmo texto: uma resposta de re-run anterior à escrita de volta traz
+ *  o mapa de um texto e a figura fica a de outro — se o rótulo novo alargou a
+ *  página, a origem mudou e os alvos cairiam fora do lugar. `null` = sem alvos
+ *  de terminal até a resposta que os casa. */
+export function pinCanvas(
+  sim: Pick<SimulationState, "run" | "failure" | "figureSource" | "picSource">,
+): OverlayCanvas | null {
+  const pic = sim.run?.pic ?? sim.failure?.pic ?? null;
+  if (!pic || sim.picSource === null || sim.picSource !== sim.figureSource) return null;
+  return pic.map.canvas;
 }
