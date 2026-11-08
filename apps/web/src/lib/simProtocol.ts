@@ -15,6 +15,7 @@
 import type {
   PicExtraction,
   PicRun,
+  ExtractOptions,
   PicSimOptions,
   SimDiagnostic,
   SimOptions,
@@ -104,10 +105,6 @@ interface Common {
   picSource?: string;
   /** A grade do run desta resposta (ausente = sem sessão). */
   displayGrid?: SimDisplayGrid;
-  /** Em `dense`: os pontos de cada plot (na ordem de `run.plots`) do deck
-   *  FIEL, medidos UMA vez na abertura (com as alterações de então). Ausente
-   *  se o run fiel falhou (a grade densa pode sobreviver onde a do deck não). */
-  deckPoints?: number[];
 }
 
 export type SimResponse =
@@ -117,9 +114,10 @@ export interface SimApi {
   ensure: () => Promise<void>;
   openSession: (source: string, opts?: PicSimOptions) => SimSession;
   renderPic: (source: string) => string;
-  /** Re-extração ao adotar um fonte reescrito (netlist com o valor novo).
-   *  Ausente: o netlist mostrado fica o da abertura. */
-  extractPic?: (source: string) => PicExtraction;
+  /** Extração sem simular: a re-extração ao adotar um fonte reescrito
+   *  (netlist com o valor novo) e o netlist de onde sai o deck denso. Ausente:
+   *  o netlist mostrado fica o da abertura, e a grade fina fica a do deck. */
+  extractPic?: (source: string, opts?: ExtractOptions) => PicExtraction;
   /** Sessão de um deck SPICE (`Session.fromDeck`) — a grade de exibição.
    *  Ausente: o modo fica na grade do deck (`deck`). */
   openDeck?: (deck: string, opts?: SimOptions) => SimSession;
@@ -251,8 +249,6 @@ interface Live {
   grid: SimDisplayGrid;
   /** O deck denso da sessão (`displayDeck` do netlist de `pic`), em `dense`. */
   deck: string | null;
-  /** Pontos por plot do deck fiel (só em `dense`; `null` = não medidos). */
-  deckPoints: number[] | null;
 }
 
 const EMPTY_PIC: PicExtraction = {
@@ -362,67 +358,80 @@ export class SimHost {
       liveSource: live.source,
       picSource: live.picSource,
       displayGrid: live.grid,
-      ...(live.grid === "dense" && live.deckPoints ? { deckPoints: live.deckPoints } : {}),
     };
   }
 
   /** Abre a sessão do pedido. Modo normal: `fromPic` (a grade do deck). Grade
-   *  fina: abre a FIEL (extração, controles e — uma vez — os pontos do deck),
-   *  refina o netlist (`displayDeck`) e abre o deck denso (`fromDeck`); nada a
-   *  refinar = fica a fiel (`deck`); o denso que não abre = a fiel
-   *  (`fallback`). Lança o erro da abertura fiel. */
+   *  fina: extrai (`extractPic`), refina o netlist (`displayDeck`) e abre SÓ o
+   *  deck denso (`fromDeck`) — nenhum run extra do deck fiel na abertura;
+   *  nada a refinar = `fromPic` (`deck`); o denso que não abre = `fromPic`
+   *  (`fallback`). Sessão aberta que não chega a virar `Live` (os controles
+   *  lançaram) é liberada. Lança o erro da abertura. */
   private openLive(req: SimRequest): Live {
-    const faithful = this.api.openSession(req.source, req.opts);
-    // `fromPic` sempre traz a extração; o fallback só satisfaz o tipo
-    const pic = faithful.pic ?? EMPTY_PIC;
-    const controls = sessionControls(faithful, pic);
-    const live: Live = {
-      source: req.source,
-      opts: optsKey(req.opts),
-      session: faithful,
-      pic,
-      picSource: req.source,
-      controls,
-      originals: new Map(controls.map((c) => [c.refdes, c.value])),
-      applied: new Map(),
-      fine: req.fine === true,
-      grid: "deck",
-      deck: null,
-      deckPoints: null,
+    const make = (
+      session: SimSession,
+      pic: PicExtraction,
+      grid: SimDisplayGrid,
+      deck: string | null,
+    ): Live => {
+      try {
+        const controls = sessionControls(session, pic);
+        return {
+          source: req.source,
+          opts: optsKey(req.opts),
+          session,
+          pic,
+          picSource: req.source,
+          controls,
+          originals: new Map(controls.map((c) => [c.refdes, c.value])),
+          applied: new Map(),
+          fine: req.fine === true,
+          grid,
+          deck,
+        };
+      } catch (e) {
+        session.free();
+        throw e;
+      }
     };
-    if (!live.fine || !this.api.openDeck) return live;
+    const faithful = (grid: SimDisplayGrid): Live => {
+      const session = this.api.openSession(req.source, req.opts);
+      // `fromPic` sempre traz a extração; o fallback só satisfaz o tipo
+      return make(session, session.pic ?? EMPTY_PIC, grid, null);
+    };
+    const { extractPic, openDeck } = this.api;
+    if (req.fine !== true || !openDeck || !extractPic) return faithful("deck");
+    const snap = req.opts?.snap;
+    const pic = extractPic(req.source, snap === undefined ? undefined : { snap });
     const deck = displayDeck(pic.netlist);
-    if (deck === pic.netlist) return live; // já denso, ou cartões ilegíveis
-    let deckPoints: number[] | null = null;
-    try {
-      applyAlters(live, req.alters ?? {});
-      deckPoints = faithful.runTyped().plots.map((p) => p.npoints);
-    } catch {
-      // o deck fiel não roda (ou um alter falhou): sem contagem do deck; o
-      // caminho comum reaplica e diz o erro, se for o caso
-    }
+    if (deck === pic.netlist) return faithful("deck"); // já denso, ou cartões ilegíveis
     let session: SimSession;
     try {
-      session = this.api.openDeck(deck, simOptions(req.opts));
+      session = openDeck(deck, simOptions(req.opts));
     } catch {
-      return { ...live, grid: "fallback" };
+      return faithful("fallback");
     }
-    faithful.free();
-    return { ...live, session, applied: new Map(), grid: "dense", deck, deckPoints };
+    return make(session, pic, "dense", deck);
   }
 
   /** O deck denso falhou ao rodar: troca pela sessão FIEL do mesmo fonte
-   *  (`fallback` até a próxima reabertura), com o conjunto `alters` reaplicado. */
-  private fallBack(live: Live, req: SimRequest): void {
-    const session = this.api.openSession(live.source, req.opts);
+   *  (`fallback` até a próxima reabertura — toggle, cartão, Simular; nenhuma
+   *  nova tentativa a cada slider), com o conjunto `alters` reaplicado. Se
+   *  nem a fiel abre, lança o erro ORIGINAL do run denso (com o da fiel
+   *  anexado). */
+  private fallBack(live: Live, req: SimRequest, denseError: unknown): void {
+    let session: SimSession;
+    try {
+      session = this.api.openSession(live.source, req.opts);
+    } catch (e) {
+      const orig = toSimFailure(denseError);
+      throw Object.assign(new Error(`${orig.message} (deck grid: ${toSimFailure(e).message})`), {
+        kind: orig.kind,
+        diagnostics: orig.diagnostics,
+      });
+    }
     live.session.free();
-    Object.assign(live, {
-      session,
-      applied: new Map(),
-      grid: "fallback",
-      deck: null,
-      deckPoints: null,
-    });
+    Object.assign(live, { session, applied: new Map(), grid: "fallback", deck: null });
     applyAlters(live, req.alters ?? {});
   }
 
@@ -530,7 +539,7 @@ export class SimHost {
         // a grade densa não sobrevive (passo fino num caso de canto): o run
         // é o do deck FIEL, e a resposta diz `fallback` — o gráfico nunca
         // mostra a grade do deck calado com o modo ligado
-        this.fallBack(live, req);
+        this.fallBack(live, req, e);
         fresh = true;
         extra = { ...extra, controls: live.controls };
         raw = live.session.runTyped();

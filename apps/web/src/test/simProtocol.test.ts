@@ -309,8 +309,20 @@ describe("SimHost: grade de exibição (issue #33, dune real)", () => {
     );
   });
 
-  /** A sessão real com registro dos `alter` (e falha de run opcional). */
-  function logged(s: SimSession, log: unknown[][], tag: string, failRun = () => false): SimSession {
+  /** Sessões abertas/liberadas e runs, por tag (`pic` = fiel, `deck` = densa). */
+  const counts = { open: { pic: 0, deck: 0 }, free: { pic: 0, deck: 0 }, run: { pic: 0, deck: 0 } };
+  beforeEach(() => {
+    for (const k of ["open", "free", "run"] as const) counts[k] = { pic: 0, deck: 0 };
+  });
+
+  /** A sessão real com registro dos `alter`, runs e `free` (e falha de run opcional). */
+  function logged(
+    s: SimSession,
+    log: unknown[][],
+    tag: "pic" | "deck",
+    failRun = () => false,
+  ): SimSession {
+    counts.open[tag]++;
     return {
       alter: (...a: unknown[]) => {
         log.push([tag, ...a]);
@@ -319,13 +331,17 @@ describe("SimHost: grade de exibição (issue #33, dune real)", () => {
       alterable: (r) => s.alterable(r),
       param: (r, n) => s.param(r, n),
       runTyped: () => {
+        counts.run[tag]++;
         if (failRun()) throw Object.assign(new Error("timestep too small"), { kind: "analysis" });
         return s.runTyped();
       },
       get pic() {
         return s.pic;
       },
-      free: () => s.free(),
+      free: () => {
+        counts.free[tag]++;
+        s.free();
+      },
     };
   }
 
@@ -351,30 +367,28 @@ describe("SimHost: grade de exibição (issue #33, dune real)", () => {
   }
   const points = (res: SimResponse) => (res.type === "ok" ? res.run.plots.map((p) => p.npoints) : []);
 
-  it("modo denso: a sessão abre do deck refinado e diz as contagens", async () => {
-    const { host, decks } = hostWith();
+  it("modo denso: SÓ o deck refinado abre e roda (nenhum run do fiel na abertura)", async () => {
+    const { host, decks, opened } = hostWith();
     const deck = await host.handle({ type: "run", id: 1, source: RC_FIGURE });
     expect(deck.displayGrid).toBe("deck");
-    expect(deck.deckPoints).toBeUndefined();
     const M = points(deck)[0];
+    for (const k of ["open", "free", "run"] as const) counts[k] = { pic: 0, deck: 0 };
+    opened.length = 0;
 
-    const dense = await new SimHost({
-      ensure: () => ensureDune(),
-      renderPic,
-      extractPic,
-      openSession,
-      openDeck: (d, o) => {
-        decks.push(d);
-        return openDeck(d, o);
-      },
-    }).handle({ type: "run", id: 1, source: RC_FIGURE, fine: true });
+    const dense = await host.handle({ type: "run", id: 2, source: RC_FIGURE, fine: true });
     expect(dense.type).toBe("ok");
     expect(dense.displayGrid).toBe("dense");
     expect(decks).toHaveLength(1);
     expect(decks[0]).toContain("\n.tran 20u 5m 0 8.333333e-6\n");
     expect(decks[0]).toBe(displayDeck(extractPic(RC_FIGURE).netlist));
-    expect(dense.deckPoints).toEqual([M]);
     expect(points(dense)[0]).toBeGreaterThanOrEqual(600);
+    expect(points(dense)[0]).toBeGreaterThan(M);
+    // a sessão fiel anterior foi liberada; nenhuma fiel nova abriu nem rodou
+    expect(opened).toEqual([]);
+    expect(counts.free.pic).toBe(1);
+    expect(counts.run).toEqual({ pic: 0, deck: 1 });
+    host.dispose();
+    expect(counts.free.deck).toBe(1);
     // a extração (netlist mostrado) e a figura seguem as do fonte, FIÉIS
     if (dense.type === "ok") expect(dense.run.pic.netlist).toContain("\n.tran 20u 5m\n");
     expect(dense.figure).toEqual({ svg: renderPic(RC_FIGURE) });
@@ -390,8 +404,48 @@ describe("SimHost: grade de exibição (issue #33, dune real)", () => {
     const res = await host.handle({ type: "run", id: 1, source: RC_FIGURE, fine: true });
     expect(res.type).toBe("ok");
     expect(res.displayGrid).toBe("fallback");
-    expect(res.deckPoints).toBeUndefined();
     expect(points(res)[0]).toBeLessThan(600);
+    // a fiel abre e roda UMA vez
+    expect(counts.open.pic).toBe(1);
+    expect(counts.run.pic).toBe(1);
+  });
+
+  it("sessão aberta que não vira `Live` (controles lançam) é liberada", async () => {
+    const broken = {
+      ...extractPic(RC_FIGURE),
+      map: { elements: null } as unknown as PicExtraction["map"],
+    };
+    const { host } = hostWith({ extractPic: () => broken });
+    const res = await host.handle({ type: "run", id: 1, source: RC_FIGURE, fine: true });
+    expect(res.type).toBe("error");
+    expect(counts.open.deck).toBe(1);
+    expect(counts.free.deck).toBe(1);
+  });
+
+  it("run denso que falha e a fiel nem abre: o erro mostrado é o ORIGINAL do run denso", async () => {
+    let failDense = false;
+    let refuseFaithful = false;
+    const log: unknown[][] = [];
+    const host = new SimHost({
+      ensure: () => ensureDune(),
+      renderPic,
+      extractPic,
+      openSession: (src, o) => {
+        if (refuseFaithful) throw Object.assign(new Error("out of memory"), { kind: "internal" });
+        return logged(openSession(src, o), log, "pic");
+      },
+      openDeck: (d, o) => logged(openDeck(d, o), log, "deck", () => failDense),
+    });
+    await host.handle({ type: "run", id: 1, source: RC_FIGURE, fine: true });
+    failDense = true;
+    refuseFaithful = true;
+    const res = await host.handle({ type: "run", id: 2, source: RC_FIGURE, fine: true, alters: { R1: 2000 } });
+    expect(res.type).toBe("error");
+    if (res.type !== "error") return;
+    expect(res.error.kind).toBe("analysis");
+    expect(res.error.message).toBe("timestep too small (deck grid: out of memory)");
+    expect(res.displayGrid).toBe("dense"); // a sessão densa ficou (não liberada)
+    expect(counts.free.deck).toBe(0);
   });
 
   it("run denso que falha (já aberto, num re-run de slider): recua, reaplica os alters", async () => {
@@ -438,11 +492,8 @@ describe("SimHost: grade de exibição (issue #33, dune real)", () => {
     expect(on.fresh).toBe(true);
     expect(on.displayGrid).toBe("dense");
     expect(decks).toHaveLength(1);
-    // contagem do deck (sessão fiel, com o alter) e depois o denso, com o alter
-    expect(log).toEqual([
-      ["pic", "R1", "resistance", 2000],
-      ["deck", "R1", "resistance", 2000],
-    ]);
+    // só o denso recebe o alter (nenhum run fiel extra na abertura)
+    expect(log).toEqual([["deck", "R1", "resistance", 2000]]);
     // R1 = 2k no deck denso dá a MESMA curva que o deck com 2k escrito
     const direct = openDeck(displayDeck(extractPic(RC_FIGURE.replace(", 1k)", ", 2k)")).netlist));
     const want = direct.runTyped().plots[0];
@@ -477,7 +528,7 @@ describe("SimHost: grade de exibição (issue #33, dune real)", () => {
     expect(res.fresh).toBe(false);
     expect(res.displayGrid).toBe("dense");
     expect(res.liveSource).toBe(next);
-    expect(opened).toEqual([RC_FIGURE]);
+    expect(opened).toEqual([]); // nem a abertura nem a adoção abrem a fiel
     expect(decks).toHaveLength(1);
     expect(host.displayDeck).toBe(displayDeck(extractPic(next).netlist));
     expect(host.displayDeck).toContain("R1 Vin Vout 2.2k");

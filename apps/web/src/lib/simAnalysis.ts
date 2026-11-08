@@ -359,3 +359,57 @@ export function cardEdit(
   else args.splice(field.arg, 0, written);
   return { ok: true, edit, written, card: [card.text.split(/\s+/)[0], ...args].join(" ") };
 }
+
+// ---- contagem nominal do deck (o "deck: M" do rótulo da grade) ----
+
+/** Arredondamento para baixo tolerante a ruído de ponto flutuante (5/0.1). */
+const floorTol = (x: number) => Math.floor(x + 1e-9 * Math.max(1, Math.abs(x)));
+
+/** Pontos que o cartão FIEL produz, quando isso é exato e barato: `.ac`
+ *  dec/oct = ⌊n·décadas/oitavas⌋ + 1, lin = n; `.dc` = ⌊|Δ/passo|⌋ + 1
+ *  (vezes o mesmo da 2ª fonte — o plot traz as curvas em sequência). Conferido
+ *  contra o dune real (`.ac dec 10 10 100k` = 41, `.dc V1 0 5 0.3` = 17,
+ *  duas fontes 51 × 3 = 153). `.tran` é adaptativo → `null`. */
+export function nominalPoints(card: AnalysisCard): number | null {
+  const v = (k: CardFieldKey) => card.fields.find((f) => f.key === k)?.value;
+  if (card.type === "ac") {
+    const [n, a, b] = [v("points"), v("fstart"), v("fstop")];
+    if (n === undefined || a === undefined || b === undefined || !(a > 0) || !(b > a)) return null;
+    const kind = card.args[0].toLowerCase();
+    if (kind === "lin") return Math.floor(n);
+    const spans = kind === "dec" ? Math.log10(b / a) : Math.log2(b / a);
+    return floorTol(n * spans) + 1;
+  }
+  if (card.type === "dc") {
+    const sweep = (a?: number | null, b?: number | null, st?: number | null) =>
+      a == null || b == null || st == null || st === 0
+        ? null
+        : floorTol(Math.abs((b - a) / st)) + 1;
+    const first = sweep(v("start"), v("stop"), v("step"));
+    if (first === null || card.args.length === 4) return first;
+    const second = sweep(...card.args.slice(5, 8).map((t) => parseSpiceNumber(t)));
+    return second === null ? null : first * second;
+  }
+  return null;
+}
+
+/** Tipo de análise pelo nome do plot do dune (só os que têm contagem nominal). */
+const PLOT_TYPE: Readonly<Record<string, string>> = {
+  "AC Analysis": "ac",
+  "DC transfer characteristic": "dc",
+};
+
+/** O "deck: M" de um plot: o k-ésimo plot de um nome ↔ o k-ésimo cartão do
+ *  tipo no netlist FIEL (o `.noise` dá dois plots, então nada de casar por
+ *  índice global). Sem contagem exata → `null`. */
+export function deckPointsOf(
+  plots: readonly { plotname: string }[],
+  plot: { plotname: string },
+  cards: readonly AnalysisCard[],
+): number | null {
+  const type = PLOT_TYPE[plot.plotname];
+  if (!type) return null;
+  const k = plots.slice(0, plots.indexOf(plot)).filter((p) => p.plotname === plot.plotname).length;
+  const card = cards.filter((c) => c.type === type)[k];
+  return card ? nominalPoints(card) : null;
+}

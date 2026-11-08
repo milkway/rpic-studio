@@ -254,15 +254,13 @@ describe("useSimulation: cartão reescrito e grade (issue #33)", () => {
   it("grid: a da resposta na tela; re-run que falha mantém a do run mostrado", async () => {
     const { hook, workers } = await setup();
     const w = workers[0];
-    expect(hook.result.current.grid).toEqual({ mode: "deck", deckPoints: null });
+    expect(hook.result.current.grid).toBe("deck");
     act(() => hook.result.current.setFine(true));
     // a resposta ao toggle ainda não chegou: o run mostrado é o da grade do deck
     expect(hook.result.current.fine).toBe(true);
-    expect(hook.result.current.grid?.mode).toBe("deck");
-    await act(async () =>
-      w.reply({ ...ok(w.last().id, true), displayGrid: "dense", deckPoints: [51] }),
-    );
-    expect(hook.result.current.grid).toEqual({ mode: "dense", deckPoints: [51] });
+    expect(hook.result.current.grid).toBe("deck");
+    await act(async () => w.reply({ ...ok(w.last().id, true), displayGrid: "dense" }));
+    expect(hook.result.current.grid).toBe("dense");
     act(() => hook.result.current.setAlters({ R1: 0 }, true));
     await act(async () =>
       w.reply({
@@ -274,10 +272,10 @@ describe("useSimulation: cartão reescrito e grade (issue #33)", () => {
         error: { message: "bad", kind: "alter", diagnostics: [] },
       }),
     );
-    expect(hook.result.current.grid?.mode).toBe("dense");
+    expect(hook.result.current.grid).toBe("dense");
     act(() => hook.result.current.setAlters({ R1: 2e3 }, true));
     await act(async () => w.reply({ ...ok(w.last().id, true), displayGrid: "fallback" }));
-    expect(hook.result.current.grid).toEqual({ mode: "fallback", deckPoints: null });
+    expect(hook.result.current.grid).toBe("fallback");
   });
 });
 

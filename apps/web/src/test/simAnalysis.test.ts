@@ -8,8 +8,10 @@ import {
   analysisCards,
   cardEdit,
   cardReadOnly,
+  deckPointsOf,
   displayDeck,
   logicalLines,
+  nominalPoints,
   spiceNum,
   validField,
 } from "@/lib/simAnalysis";
@@ -279,5 +281,38 @@ R1: resistor((0,1),(1,1), 1k); ground((0,0)); line from (1,1) to (1,0) then to (
         analysisCards(extractPic(next).netlist)[0].fields.find((f) => f.key === "tstep")?.value,
       ).toBeCloseTo(10e-6);
     });
+  });
+});
+
+describe('contagem nominal do deck (o "deck: M" do rótulo)', () => {
+  // conferidas contra o dune real (simulateTyped, npoints de cada plot)
+  it.each([
+    [".ac dec 10 10 100k", 41],
+    [".ac dec 3 1 1.5", 1],
+    [".ac oct 5 100 1.6k", 21],
+    [".ac oct 3 100 1k", 10],
+    [".ac lin 50 1meg 5meg", 50],
+    [".dc V1 0 5 0.1", 51],
+    [".dc V1 0 5 0.3", 17],
+    [".dc V1 0 5 0.1 V2 0 1 0.5", 153],
+    [".dc V1 0 1 0.001", 1001],
+  ])("%s → %i", (line, n) => {
+    expect(nominalPoints(analysisCards(line)[0])).toBe(n);
+  });
+
+  it(".tran (adaptativo) e cartão ilegível: sem contagem", () => {
+    expect(nominalPoints(analysisCards(".tran 1u 1m")[0])).toBeNull();
+    expect(nominalPoints(analysisCards(".ac dec {n} 1 1k")[0])).toBeNull();
+  });
+
+  it("casa o k-ésimo plot de um nome com o k-ésimo cartão do tipo (.noise dá dois plots)", () => {
+    const cards = analysisCards(".noise v(b) V1 dec 10 1 1k\n.ac dec 10 1 1k\n.ac lin 7 1 2");
+    const plots = [
+      { plotname: "Noise Spectral Density Curves" },
+      { plotname: "Integrated Noise" },
+      { plotname: "AC Analysis" },
+      { plotname: "AC Analysis" },
+    ];
+    expect(plots.map((p) => deckPointsOf(plots, p, cards))).toEqual([null, null, 31, 7]);
   });
 });

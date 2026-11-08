@@ -35,6 +35,7 @@ import { measureRows } from "@/lib/simMeasure";
 import {
   analysisCards,
   cardEdit,
+  deckPointsOf,
   cardReadOnly,
   type AnalysisCard,
   type CardFieldKey,
@@ -347,7 +348,7 @@ export function SimulatePanel({
     "not-found": "sim.an.ro.notFound",
     mismatch: "sim.an.ro.mismatch",
     count: "sim.an.ro.count",
-    invalid: "sim.an.ro.form",
+    invalid: "sim.an.invalidValue",
     stale: "sim.an.ro.stale",
     noEditor: "sim.an.ro.noEditor",
   };
@@ -424,26 +425,30 @@ export function SimulatePanel({
     () => (measurements?.length ? measureRows(measurements, netlist) : []),
     [measurements, netlist],
   );
-  const measurePanel = measures.length > 0 && <MeasurePanel rows={measures} />;
+  // `.measure` no modo denso: os valores vêm do run DENSO (podem diferir do
+  // deck fiel) — o painel diz
+  const measurePanel = measures.length > 0 && (
+    <MeasurePanel rows={measures} displayGrid={sim.grid === "dense"} />
+  );
   // a grade do run NA TELA (não o estado do botão: a resposta ao toggle pode
   // estar a caminho) — com o modo ligado, ou enquanto o run mostrado é denso
   const gridNote = (() => {
     const g = sim.grid;
-    if (!g || !plot || (!sim.fine && g.mode === "deck")) return null;
+    if (!g || !plot || (!sim.fine && g === "deck")) return null;
     const n = String(plot.npoints);
-    if (g.mode === "dense") {
-      const m = g.deckPoints?.[plots.indexOf(plot)];
+    if (g === "dense") {
+      // "deck: M" só quando a contagem do cartão fiel é exata (.ac/.dc)
+      const m = deckPointsOf(plots, plot, runCards);
       return {
-        mode: g.mode,
-        text:
-          m === undefined ? t("sim.grid.dense", { n }) : t("sim.grid.denseOf", { n, m: String(m) }),
+        mode: g,
+        text: m === null ? t("sim.grid.dense", { n }) : t("sim.grid.denseOf", { n, m: String(m) }),
         tip: t("sim.grid.denseTip"),
       };
     }
-    if (g.mode === "fallback") {
-      return { mode: g.mode, text: t("sim.grid.fallback", { n }), tip: t("sim.grid.fallbackTip") };
+    if (g === "fallback") {
+      return { mode: g, text: t("sim.grid.fallback", { n }), tip: t("sim.grid.fallbackTip") };
     }
-    return { mode: g.mode, text: t("sim.grid.deck", { n }), tip: t("sim.fineTip") };
+    return { mode: g, text: t("sim.grid.deck", { n }), tip: t("sim.fineTip") };
   })();
   const run = () => {
     setWriteNote(null);
