@@ -12,14 +12,8 @@ import { sanitizeSvg } from "@/lib/sanitize";
 import type { SimFigureResult } from "@/lib/simProtocol";
 import { useI18n } from "@/lib/i18n";
 import { formatSpice, relabel } from "@/lib/simValues";
-import {
-  focusKeyOf,
-  pinFrame,
-  pinToSvg,
-  restoreFocus,
-  svgEndpoints,
-  type PicPoint,
-} from "@/lib/simFigure";
+import type { OverlayCanvas } from "@/lib/dune";
+import { focusKeyOf, pinToSvg, restoreFocus, type PicPoint } from "@/lib/simFigure";
 
 /** Rede sondável da figura: as formas dela e o traço `v(rede)` que liga. */
 export interface ProbeNet {
@@ -55,10 +49,9 @@ interface SimFigureProps {
   nets?: ProbeNet[];
   onToggleNet?: (net: string) => void;
   onHoverNet?: (net: string | null) => void;
-  /** TODOS os terminais do mapa (terra inclusa), em polegadas pic: registram
-   *  o frame pic → SVG dos alvos de terminal (`pinFrame`). Só os das `nets`
-   *  podem empatar — ex.: todos na mesma altura casam também 1" abaixo. */
-  terminals?: PicPoint[];
+  /** O frame do SVG (`map.canvas` do dune): põe os terminais das `nets` nas
+   *  unidades do viewBox (`pinToSvg`). Sem ele, nenhum alvo de terminal. */
+  canvas?: OverlayCanvas | null;
   /** Elementos clicáveis (slider): clicar abre o slider do valor. */
   elements?: SliderElement[];
   /** Elemento com o slider aberto (`aria-expanded`). */
@@ -267,7 +260,7 @@ export function SimFigure({
   nets = [],
   onToggleNet,
   onHoverNet,
-  terminals = [],
+  canvas = null,
   elements = [],
   selected = null,
   onSelectElement,
@@ -287,7 +280,7 @@ export function SimFigure({
         `${n.name}:${n.trace}:${n.shapes.join(",")}:${(n.pins ?? []).map((p) => `${p.x},${p.y}`).join(";")}`,
     )
     .join("|");
-  const terminalsKey = terminals.map((p) => `${p.x},${p.y}`).join(";");
+  const canvasKey = canvas ? `${canvas.w},${canvas.h},${canvas.origin[0]},${canvas.origin[1]}` : "";
   const elKey = elements.map((e) => `${e.refdes}:${e.shapes.join(",")}:${e.label}`).join("|");
   const alteredKey = elements
     .map((e) => (e.altered ? `${e.refdes}=${e.altered.value}:${e.altered.keyword ?? ""}` : ""))
@@ -328,23 +321,15 @@ export function SimFigure({
         addTouchPad(clone as SVGGraphicsElement);
       });
     }
-    // Alvos nos TERMINAIS (pinos dos elementos): a posição pic → SVG sai da
-    // translação que casa os terminais com as pontas desenhadas (`pinFrame`).
-    // Rede sem forma própria (pino a pino) ganha o alvo de teclado no 1º pino.
+    // Alvos nos TERMINAIS (pinos dos elementos): pic → SVG pelo frame exato
+    // do `map.canvas` (`pinToSvg`). Rede sem forma própria (pino a pino)
+    // ganha o alvo de teclado no 1º pino.
     const svgEl = root.querySelector("svg");
-    const wantPins = [...byName.values()].some((n) => n.pins?.length);
-    const frame =
-      svgEl && wantPins
-        ? pinFrame(
-            svgEndpoints(svgEl),
-            terminals.length ? terminals : [...byName.values()].flatMap((n) => n.pins ?? []),
-          )
-        : null;
-    if (svgEl && frame) {
+    if (svgEl && canvas) {
       const scale = svgEl.getScreenCTM?.()?.a || 1;
       for (const net of byName.values()) {
         for (const p of net.pins ?? []) {
-          const [x, y] = pinToSvg(p, frame);
+          const [x, y] = pinToSvg(p, canvas);
           const g = addPinTarget(svgEl, net.name, x, y, scale);
           if (keyboard.has(net.name)) continue;
           keyboard.add(net.name);
@@ -356,7 +341,7 @@ export function SimFigure({
     }
     root.classList.toggle("probe-on", byName.size > 0 || elements.length > 0);
     // `hitKey` resume a geometria de `nets`: trocar só a COR não recria clones
-  }, [svg, hitKey, t, elKey, terminalsKey]);
+  }, [svg, hitKey, t, elKey, canvasKey]);
 
   // Caixas de acerto dos ELEMENTOS ajustáveis (clicar abre o slider).
   useLayoutEffect(() => {
@@ -380,7 +365,7 @@ export function SimFigure({
     const active = document.activeElement;
     if (active !== null && active !== document.body) return;
     if (!restoreFocus(root, last.key)) lastFocus.current = null;
-  }, [svg, hitKey, t, elKey, terminalsKey]);
+  }, [svg, hitKey, t, elKey, canvasKey]);
   const trackFocus = (e: FocusEvent) => {
     const node = e.target as Element;
     const key = focusKeyOf(node);

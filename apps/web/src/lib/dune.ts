@@ -11,6 +11,7 @@ import type {
   Diagnostic as SimDiagnostic,
   EngineOptions,
   Measurement,
+  OverlayCanvas,
   OverlayPin,
   OverlayMap,
   PicExtraction,
@@ -86,4 +87,4 @@ export function renderPic(source: string): string {
 export type PicRun = TypedPicRun;
 export type Plot = TypedPlot;
 
-export type { EngineOptions, Measurement, OverlayMap, OverlayPin, PicExtraction, PicSimOptions, SimDiagnostic, SimError };
+export type { EngineOptions, Measurement, OverlayCanvas, OverlayMap, OverlayPin, PicExtraction, PicSimOptions, SimDiagnostic, SimError };

@@ -5,7 +5,7 @@ import { cn } from "@rpic/design-system";
 import type { Anim, Interaction, ObjectGeometry } from "@/lib/rpic";
 import type { PicMapping } from "@/lib/picCoords";
 import type { CanvasSettings } from "@/lib/storage";
-import type { SourceCalls, SourceEdit } from "@/lib/simSource";
+import type { SourceEdit } from "@/lib/simSource";
 import { copyText, formatXml, toMarkdownSnippet } from "@/lib/exports";
 import { toPythonSnippet, toRSnippet } from "@/lib/bindings";
 import { useI18n } from "@/lib/i18n";
@@ -51,9 +51,6 @@ interface PreviewTabsProps {
   objects?: ObjectGeometry[];
   onJumpToLine?: (line: number, col?: number) => void;
   onSourceChange?: (s: string) => void;
-  /** Chamadas rotuladas do fonte spice (do compile do preview) — o Simular
-   *  escreve nelas o valor dos sliders. */
-  simCalls?: SourceCalls | null;
   /** Escrita de volta do Simular: UMA edição desfazível no editor. */
   onSourceEdit?: (edit: SourceEdit, base: string) => boolean;
   /** `animate scroll` no fonte — o PreviewPane troca autoplay por scrubber. */
@@ -229,7 +226,6 @@ export function PreviewTabs({
               active={tab === "simulate"}
               tabs={tab === "simulate" ? tabsList : null}
               onJumpToLine={props.onJumpToLine}
-              calls={props.simCalls}
               onSourceEdit={props.onSourceEdit}
             />
           </div>

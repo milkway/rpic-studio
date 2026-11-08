@@ -38,9 +38,14 @@ const okFor = (id: number): SimResponse => ({
   run: {
     plots: [],
     measurements: [],
+    pss: [],
     notes: [],
     diagnostics: [],
-    pic: { netlist: "", diagnostics: [], map: { elements: [], nets: [] } },
+    pic: {
+      netlist: "",
+      diagnostics: [],
+      map: { elements: [], nets: [], canvas: { w: 0, h: 0, origin: [0, 0], rescale: 1 } },
+    },
   },
 });
 

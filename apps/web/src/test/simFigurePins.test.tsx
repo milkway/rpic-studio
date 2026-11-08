@@ -12,6 +12,14 @@ const nets: ProbeNet[] = [
   { name: "b", trace: "v(b)", shapes: [], pins: [{ x: 0.2, y: 0 }], color: null },
 ];
 
+/** O frame do viewBox 100×100: a origem pic em (10, 50) unidades SVG. */
+const CANVAS = {
+  w: 100 / 96,
+  h: 100 / 96,
+  origin: [10 / 96, 50 / 96] as [number, number],
+  rescale: 1,
+};
+
 /** Caixa de tela de um círculo: centro (cx, cy) em px, raio 11 px. */
 function place(el: Element, cx: number, cy: number) {
   el.getBoundingClientRect = () =>
@@ -25,10 +33,7 @@ it("dois pinos a 20 px: cada um alterna a SUA rede, mesmo onde os círculos se s
       figure={{ svg: SVG }}
       highlight={[]}
       nets={nets}
-      terminals={[
-        { x: 0, y: 0 },
-        { x: 0.2, y: 0 },
-      ]}
+      canvas={CANVAS}
       onToggleNet={(n) => toggled.push(n)}
     />,
   );
@@ -37,7 +42,7 @@ it("dois pinos a 20 px: cada um alterna a SUA rede, mesmo onde os círculos se s
   const b = fig.querySelector('.sim-hit-pin[data-net="b"] circle')!;
   expect(a).not.toBeNull();
   expect(b).not.toBeNull();
-  // posições no SVG: o frame casou os terminais com as pontas do fio
+  // posições no SVG: o frame do `canvas` põe os terminais nas pontas do fio
   expect(Number(a.getAttribute("cx"))).toBeCloseTo(10);
   expect(Number(b.getAttribute("cx"))).toBeCloseTo(29.2);
   place(a, 100, 100);

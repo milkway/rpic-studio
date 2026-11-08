@@ -27,11 +27,10 @@ import { withAlter, type SimControl } from "@/lib/simValues";
 import {
   applySourceEdit,
   valueEdit,
-  type SourceCalls,
   type SourceEdit,
   type WriteBackFailure,
 } from "@/lib/simSource";
-import { useSimulation } from "@/lib/useSimulation";
+import { pinCanvas, useSimulation } from "@/lib/useSimulation";
 import { measureRows } from "@/lib/simMeasure";
 import { PREFS_EVENT, pushPrefsSoon } from "@/lib/prefs";
 import { loadSimFineSteps, saveSettings } from "@/lib/storage";
@@ -54,9 +53,6 @@ interface SimulatePanelProps {
   active: boolean;
   tabs?: ReactNode;
   onJumpToLine?: (line: number, col?: number) => void;
-  /** Chamadas rotuladas do fonte (do compile do preview): onde o valor do
-   *  slider é escrito de volta. Só valem se `calls.source === source`. */
-  calls?: SourceCalls | null;
   /** Escrita de volta: troca um trecho do fonte (o editor a aplica como UMA
    *  edição desfazível). Ausente = slider só mexe na simulação. */
   onSourceEdit?: (edit: SourceEdit, base: string) => boolean;
@@ -82,7 +78,6 @@ export function SimulatePanel({
   active,
   tabs,
   onJumpToLine,
-  calls = null,
   onSourceEdit,
   workerFactory,
 }: SimulatePanelProps) {
@@ -122,9 +117,11 @@ export function SimulatePanel({
   const figWrapRef = useRef<HTMLDivElement>(null);
   /** Resultado da última escrita de volta (linha de status sob a figura). */
   const [writeNote, setWriteNote] = useState<{ ok: boolean; text: string } | null>(null);
-  /** Chamadas do fonte que ESTE painel acabou de reescrever (posições já
-   *  ajustadas): valem até o preview recompilar o texto novo (debounce). */
-  const ownCalls = useRef<SourceCalls | null>(null);
+  /** Mapa que ESTE painel acabou de ajustar ao reescrever o fonte (spans de
+   *  valor já deslocados): usado para `source` só enquanto a extração da
+   *  execução ainda é de outro texto — chegada a da adoção (`picSource`),
+   *  vale a do dune. */
+  const ownMap = useRef<{ source: string; map: OverlayMap } | null>(null);
   const statusRef = useRef<HTMLSpanElement>(null);
   const toast = useToast();
 
@@ -174,11 +171,6 @@ export function SimulatePanel({
       ];
     });
   }, [map, traceNames, visible]);
-  // todos os terminais (terra inclusa): registram o frame pic → SVG dos alvos
-  const terminals = useMemo(
-    () => map?.elements.flatMap((el) => (el.pins ?? []).map((p) => ({ x: p.x, y: p.y }))) ?? [],
-    [map],
-  );
   const diagnostics: SimDiagnostic[] = useMemo(() => {
     if (failure) {
       // `pic` com erro: os diagnósticos do lançamento JÁ são os da extração
@@ -265,44 +257,43 @@ export function SimulatePanel({
     sim.setAlters(withAlter(sim.alters, c, value), commit);
 
   const WB_REASON: Record<WriteBackFailure, MessageKey> = {
-    "no-call": "sim.wb.noCall",
-    "unknown-macro": "sim.wb.unknownMacro",
+    "no-element": "sim.wb.noElement",
+    "no-span": "sim.wb.noSpan",
+    "no-param": "sim.wb.noParam",
     "not-literal": "sim.wb.notLiteral",
     stale: "sim.wb.stale",
     unavailable: "sim.wb.unavailable",
   };
-  /** Escreve o valor solto no argumento de valor da chamada do elemento: o
-   *  fonte passa a dizer o que a sessão simula, então o elemento deixa de
-   *  estar alterado (a sessão ADOTA o texto novo, sem reabrir). Sem posição
-   *  confiável, nada é escrito e a linha de status diz por quê. */
+  /** Escreve o valor solto no argumento de valor da chamada do elemento, pelos
+   *  spans do `OverlayMap` da execução (dune ≥ 0.3.4): o fonte passa a dizer
+   *  o que a sessão simula, então o elemento deixa de estar alterado (a sessão
+   *  ADOTA o texto novo, sem reabrir). Sem posição confiável, nada é escrito e
+   *  a linha de status diz por quê. */
   const writeBack = (c: SimControl, value: number) => {
     if (!onSourceEdit || value === c.value) return;
-    const fail = (reason: WriteBackFailure, macro?: string) =>
+    const fail = (reason: WriteBackFailure) =>
       setWriteNote({
         ok: false,
         text: t("sim.notWritten", {
           refdes: c.refdes,
-          reason: t(WB_REASON[reason], { refdes: c.refdes, macro: macro ?? "" }),
+          // `AC`/`DC` como no campo do slider; senão o nome do parâmetro
+          reason: t(WB_REASON[reason], { refdes: c.refdes, param: sourceKeyword(c) ?? c.param }),
         }),
       });
-    const own = ownCalls.current;
-    const current =
-      own && own.source === source
-        ? own.calls
-        : calls && calls.source === source
-          ? calls.calls
-          : null;
-    // código mudou desde a execução ≠ posições ainda não prontas p/ este texto
-    // (debounce do preview, ou a última compilação falhou)
+    // código mudou desde a execução: os spans do mapa são de outro texto
     if (sim.source !== source) return fail("stale");
+    const own = ownMap.current;
+    const current = sim.picSource !== source && own && own.source === source ? own.map : map;
     if (!current) return fail("unavailable");
+    // (spans velhos para este texto — ex.: mapa anterior à adoção — dão `stale`
+    // no `valueEdit`, que confere o texto em cada span)
     const r = valueEdit(source, current, c.refdes, c.param, value);
-    if (!r.ok) return fail(r.reason, r.macro);
+    if (!r.ok) return fail(r.reason);
     // o editor só aplica contra o texto em que a edição foi calculada; se não
     // aplicou, a sessão NÃO adota um fonte que o editor nunca recebeu
     if (!onSourceEdit(r.edit, source)) return fail("stale");
     const next = applySourceEdit(source, r.edit);
-    ownCalls.current = { source: next, calls: r.calls };
+    ownMap.current = { source: next, map: r.map };
     sim.adopt(next, { [c.refdes]: value });
     const keyword = sourceKeyword(c);
     setWriteNote({
@@ -444,7 +435,7 @@ export function SimulatePanel({
             figure={shownFigure}
             highlight={highlight}
             nets={probeNets}
-            terminals={terminals}
+            canvas={pinCanvas(sim)}
             onToggleNet={toggleNet}
             onHoverNet={setHoverNet}
             elements={sliderElements}

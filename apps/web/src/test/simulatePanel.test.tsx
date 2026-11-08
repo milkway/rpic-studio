@@ -3,11 +3,8 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { act, fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
-import { useMemo, useState, type ReactNode } from "react";
-import { ready } from "@strategicprojects/rpic";
-import prelude from "virtual:dune-prelude";
+import { useState, type ReactNode } from "react";
 import { ensureDune, extractPic, openSession, renderPic } from "@/lib/dune";
-import { compileWithPrelude } from "@/lib/dunePrelude";
 import { applySourceEdit, type SourceEdit } from "@/lib/simSource";
 import { I18nProvider } from "@/lib/i18n";
 import { applyPrefs } from "@/lib/prefs";
@@ -37,7 +34,6 @@ function Providers({ children }: { children: ReactNode }) {
 const render = (ui: Parameters<typeof rtlRender>[0]) => rtlRender(ui, { wrapper: Providers });
 
 beforeAll(async () => {
-  await ready(readFileSync(require.resolve("@strategicprojects/rpic/pkg/rpic_wasm_bg.wasm")));
   await ensureDune(
     readFileSync(require.resolve("@strategicprojects/dune-sim/pkg/dune_wasm_bg.wasm")),
   );
@@ -385,39 +381,27 @@ describe("SimulatePanel", () => {
   });
 
   describe("escrita de volta no fonte (issue #22)", () => {
-    /** O painel com o fonte num estado (o "editor"): as chamadas vêm do MESMO
-     *  compile com prelude que o preview faz. */
+    /** O painel com o fonte num estado (o "editor"): as posições vêm do
+     *  `OverlayMap` da própria execução (dune ≥ 0.3.4). */
     function Harness({
       initial,
       edits,
       workers,
       reject = false,
-      noCalls = false,
     }: {
       initial: string;
       edits: SourceEdit[];
       workers: InlineWorker[];
       /** O "editor" recusa a edição (texto divergente/fora do documento). */
       reject?: boolean;
-      /** Sem posições (preview ainda compilando / em erro). */
-      noCalls?: boolean;
     }) {
       const [source, setSource] = useState(initial);
-      const calls = useMemo(
-        () => ({
-          source,
-          calls:
-            compileWithPrelude(source, prelude, { circuits: true, texlabels: false }).calls ?? [],
-        }),
-        [source],
-      );
       return (
         <I18nProvider>
           <pre data-testid="harness-source">{source}</pre>
           <SimulatePanel
             source={source}
             active
-            calls={noCalls ? null : calls}
             onSourceEdit={(e, base) => {
               if (reject || base !== source) return false;
               edits.push(e);
@@ -584,9 +568,13 @@ describe("SimulatePanel", () => {
       expect(screen.getByTestId("sim-altered-chip")).toBeInTheDocument();
     });
 
-    it("sem posições ainda: não escreve e diz para esperar o preview (≠ código mudou)", async () => {
+    it("sem span confiável (macro wrapper do usuário): não escreve e diz por quê (≠ código mudou)", async () => {
+      const src = RC_FIGURE.replace(
+        "R1: resistor(Vin, Vout, 1k)",
+        "define myr { resistor($1, $2, $3) }\nR1: myr(Vin, Vout, 1k)",
+      );
       const edits: SourceEdit[] = [];
-      render(<Harness initial={RC_FIGURE} edits={edits} workers={[]} noCalls />);
+      render(<Harness initial={src} edits={edits} workers={[]} />);
       await openSlider("R1");
       const range = screen.getByTestId("sim-slider-range") as HTMLInputElement;
       fireEvent.change(range, { target: { value: range.max } });
@@ -594,8 +582,9 @@ describe("SimulatePanel", () => {
       expect(edits).toHaveLength(0);
       const note = screen.getByTestId("sim-writeback");
       expect(note).toHaveAttribute("data-ok", "0");
-      expect(note.textContent).toMatch(/positions aren't ready/);
+      expect(note.textContent).toMatch(/R1.*no trustworthy position/);
       expect(note.textContent).not.toMatch(/changed since/);
+      expect(screen.getByTestId("sim-altered-chip")).toBeInTheDocument();
     });
 
     it("editor que recusa a edição: a sessão não adota, fica alterado e diz que o código mudou", async () => {

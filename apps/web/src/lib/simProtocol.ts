@@ -51,7 +51,7 @@ export const FINE_TMAX_DIVISOR = 10;
  *  no structured clone do postMessage). */
 export interface SimFailure {
   message: string;
-  /** `pic` | `options` | `parse` | `elaborate` | `analysis` | `alter` | `internal` | `load`. */
+  /** `pic` | `options` | `parse` | `elaborate` | `analysis` | `pss` | `alter` | `internal` | `load`. */
   kind: string;
   diagnostics: SimDiagnostic[];
   /** Extração (netlist incluso) quando o erro veio depois dela. */
@@ -84,6 +84,9 @@ interface Common {
   /** O fonte da sessão viva DEPOIS do pedido (ausente = sem sessão): é a
    *  confirmação das adoções — o cliente descarta os passos até ele. */
   liveSource?: string;
+  /** O fonte de onde saiu a extração (`run.pic`/`error.pic`) desta resposta:
+   *  a figura só casa com o `map.canvas` dela se for do MESMO texto. */
+  picSource?: string;
 }
 
 export type SimResponse =
@@ -201,6 +204,9 @@ interface Live {
   opts: string;
   session: SimSession;
   pic: PicExtraction;
+  /** O texto de onde `pic` saiu (≠ `source` se a extração do texto adotado
+   *  falhou ou a API não a oferece). */
+  picSource: string;
   /** Os controles da sessão (refdes, parâmetro, valor do fonte). */
   controls: SimControl[];
   /** refdes → valor do fonte (p/ desfazer uma alteração). */
@@ -211,7 +217,11 @@ interface Live {
   fine: boolean;
 }
 
-const EMPTY_PIC: PicExtraction = { netlist: "", diagnostics: [], map: { elements: [], nets: [] } };
+const EMPTY_PIC: PicExtraction = {
+  netlist: "",
+  diagnostics: [],
+  map: { elements: [], nets: [], canvas: { w: 0, h: 0, origin: [0, 0], rescale: 1 } },
+};
 
 /** A sessão viva do worker. `handle` nunca lança. */
 export class SimHost {
@@ -232,7 +242,7 @@ export class SimHost {
   private adoptSource(
     source: string,
     originals: Readonly<Record<string, number>>,
-  ): { figure: SimFigureResult; controls: SimControl[] } {
+  ): { figure?: SimFigureResult; controls: SimControl[] } {
     const live = this.live!;
     const nextOriginals = new Map(live.originals);
     const nextApplied = new Map(live.applied);
@@ -263,21 +273,29 @@ export class SimHost {
       throw e;
     }
     let pic = live.pic;
+    let picSource = live.picSource;
+    let extractFailed = false;
     if (this.api.extractPic) {
       try {
-        // o mapa (ids sN) não muda com um valor — só o netlist
-        pic = { ...this.api.extractPic(source), map: live.pic.map };
+        // extração INTEIRA do texto novo: os ids sN não mudam com um valor,
+        // mas os spans de escrita de volta (`value`/`params`) e o `canvas`
+        // (rótulo mais largo = outra página) do mapa são deste texto
+        pic = this.api.extractPic(source);
+        picSource = source;
       } catch {
-        // fica o netlist anterior
+        // ficam o netlist/mapa anteriores — e a figura anterior: figura e
+        // mapa (frame dos terminais) têm de ser do MESMO texto
+        extractFailed = true;
       }
     }
     const controls = live.controls.map((c) =>
       Object.hasOwn(originals, c.refdes) ? { ...c, value: originals[c.refdes] } : c,
     );
-    const figure = renderFigure(this.api, source);
+    const figure = extractFailed ? undefined : renderFigure(this.api, source);
     Object.assign(live, {
       source,
       pic,
+      picSource,
       controls,
       originals: nextOriginals,
       applied: nextApplied,
@@ -287,7 +305,10 @@ export class SimHost {
 
   async handle(req: SimRequest): Promise<SimResponse> {
     const res = await this.handleRun(req);
-    return this.live ? { ...res, liveSource: this.live.source } : res;
+    // sem sessão viva, a extração (se houver, no erro) é a do próprio pedido
+    return this.live
+      ? { ...res, liveSource: this.live.source, picSource: this.live.picSource }
+      : { ...res, picSource: req.source };
   }
 
   private async handleRun(req: SimRequest): Promise<SimResponse> {
@@ -366,6 +387,7 @@ export class SimHost {
         opts: optsKey(req.opts),
         session,
         pic,
+        picSource: req.source,
         controls,
         originals: new Map(controls.map((c) => [c.refdes, c.value])),
         applied: new Map(),
