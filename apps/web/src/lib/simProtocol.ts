@@ -51,7 +51,7 @@ export const FINE_TMAX_DIVISOR = 10;
  *  no structured clone do postMessage). */
 export interface SimFailure {
   message: string;
-  /** `pic` | `options` | `parse` | `elaborate` | `analysis` | `alter` | `internal` | `load`. */
+  /** `pic` | `options` | `parse` | `elaborate` | `analysis` | `pss` | `alter` | `internal` | `load`. */
   kind: string;
   diagnostics: SimDiagnostic[];
   /** Extração (netlist incluso) quando o erro veio depois dela. */
@@ -211,7 +211,11 @@ interface Live {
   fine: boolean;
 }
 
-const EMPTY_PIC: PicExtraction = { netlist: "", diagnostics: [], map: { elements: [], nets: [] } };
+const EMPTY_PIC: PicExtraction = {
+  netlist: "",
+  diagnostics: [],
+  map: { elements: [], nets: [], canvas: { w: 0, h: 0, origin: [0, 0], rescale: 1 } },
+};
 
 /** A sessão viva do worker. `handle` nunca lança. */
 export class SimHost {
@@ -265,8 +269,10 @@ export class SimHost {
     let pic = live.pic;
     if (this.api.extractPic) {
       try {
-        // o mapa (ids sN) não muda com um valor — só o netlist
-        pic = { ...this.api.extractPic(source), map: live.pic.map };
+        // extração INTEIRA do texto novo: os ids sN não mudam com um valor,
+        // mas os spans de escrita de volta (`value`/`params`) e o `canvas`
+        // (rótulo mais largo = outra página) do mapa são deste texto
+        pic = this.api.extractPic(source);
       } catch {
         // fica o netlist anterior
       }

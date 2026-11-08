@@ -28,7 +28,7 @@ function fakeSession(params: Params): SimSession {
 const picOf = (refdes: string[]): PicExtraction => ({
   netlist: "",
   diagnostics: [],
-  map: { elements: refdes.map((r) => ({ refdes: r, shapes: { start: 0, end: 0 }, pins: [] })), nets: [] },
+  map: { elements: refdes.map((r) => ({ refdes: r, shapes: { start: 0, end: 0 }, pins: [], value: null, params: [], principal: null })), nets: [], canvas: { w: 0, h: 0, origin: [0, 0], rescale: 1 } },
 });
 
 describe("sessionControls: nome do parâmetro principal", () => {
@@ -76,10 +76,11 @@ describe("SimHost: parâmetro do controle e adoção do fonte reescrito", () => 
         diagnostics: [],
         map: {
           elements: [
-            { refdes: "V1", shapes: { start: 0, end: 1 }, pins: [] },
-            { refdes: "R1", shapes: { start: 1, end: 2 }, pins: [] },
+            { refdes: "V1", shapes: { start: 0, end: 1 }, pins: [], value: null, params: [], principal: null },
+            { refdes: "R1", shapes: { start: 1, end: 2 }, pins: [], value: null, params: [], principal: null },
           ],
           nets: [],
+          canvas: { w: 0, h: 0, origin: [0, 0], rescale: 1 },
         },
       },
       options: undefined,
@@ -227,8 +228,8 @@ describe("SimHost: modo passos finos (issue #19)", () => {
       alter: () => undefined,
       alterable: () => [],
       param: () => null,
-      runTyped: () => ({ plots: [], measurements: [], notes: [], diagnostics: [] }),
-      pic: { netlist: "", diagnostics: [], map: { elements: [], nets: [] } },
+      runTyped: () => ({ plots: [], measurements: [], notes: [], diagnostics: [], pss: [] }),
+      pic: { netlist: "", diagnostics: [], map: { elements: [], nets: [], canvas: { w: 0, h: 0, origin: [0, 0], rescale: 1 } } },
       get options() {
         return options;
       },

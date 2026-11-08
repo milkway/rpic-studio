@@ -28,9 +28,14 @@ class FakeWorker implements WorkerLike {
 const RUN: PicRun = {
   plots: [],
   measurements: [],
+  pss: [],
   notes: ["boa"],
   diagnostics: [],
-  pic: { netlist: "R1 a 0 1k", diagnostics: [], map: { elements: [], nets: [] } },
+  pic: {
+    netlist: "R1 a 0 1k",
+    diagnostics: [],
+    map: { elements: [], nets: [], canvas: { w: 0, h: 0, origin: [0, 0], rescale: 1 } },
+  },
 };
 const timing = { open: 0, alter: 0, run: 0 };
 const ok = (id: number, fresh: boolean): SimResponse => ({
