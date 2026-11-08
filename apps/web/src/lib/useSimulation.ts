@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SimCancelled, SimClient, SimSuperseded, type WorkerFactory } from "./simClient";
-import type { SimAdopt, SimFailure, SimFigureResult, SimResponse, SimTiming } from "./simProtocol";
+import type {
+  SimAdopt,
+  SimDisplayGrid,
+  SimFailure,
+  SimFigureResult,
+  SimResponse,
+  SimTiming,
+} from "./simProtocol";
 import type { Alters, SimControl } from "./simValues";
 import type { OverlayCanvas, PicRun } from "./dune";
 
@@ -39,9 +46,13 @@ export interface SimulationState {
   /** Conta as execuções NOVAS (Simular), não os re-runs: estado de vista que
    *  zera a cada execução (plot escolhido, probes, cursor) sobrevive ao slider. */
   epoch: number;
-  /** Modo "passos finos" (`trtol = 1` + TMAX ÷ 10): vai em todo pedido, os
-   *  re-runs de slider inclusive. É modo de VISUALIZAÇÃO — o deck não muda. */
+  /** Modo "grade fina" (grade de exibição, issue #33): vai em todo pedido,
+   *  os re-runs de slider inclusive. É modo de VISUALIZAÇÃO — o fonte e o
+   *  netlist mostrado não mudam; o worker roda o deck refinado. */
   fine: boolean;
+  /** A grade do `run` na tela (`null` = sem run): o rótulo do gráfico diz
+   *  isto, não o estado do botão — a resposta ao toggle pode estar a caminho. */
+  grid: { mode: SimDisplayGrid; deckPoints: number[] | null } | null;
 }
 
 const IDLE: SimulationState = {
@@ -62,6 +73,7 @@ const IDLE: SimulationState = {
   sentAt: null,
   epoch: 0,
   fine: false,
+  grid: null,
 };
 
 /** Intervalo mínimo entre re-runs durante o arrasto (ms): no máximo ~25/s;
@@ -113,6 +125,12 @@ export function useSimulation(factory?: WorkerFactory, initialFine = false) {
       // resultado bom na tela — o erro aparece junto, sem apagar o gráfico
       // no meio do arrasto. Execução nova que falha limpa.
       run: res.type === "ok" ? res.run : rerun ? s.run : null,
+      grid:
+        res.type === "ok"
+          ? { mode: res.displayGrid ?? "deck", deckPoints: res.deckPoints ?? null }
+          : rerun
+            ? s.grid
+            : null,
       failure: res.type === "ok" ? null : res.error,
       // num re-run a figura/controles da sessão seguem; se o worker reabriu
       // a sessão (ex.: depois de Cancelar) ou adotou um fonte reescrito, vêm
@@ -264,10 +282,32 @@ export function useSimulation(factory?: WorkerFactory, initialFine = false) {
     [dispatch],
   );
 
-  /** Liga/desliga os "passos finos". Com uma sessão em uso (rodando ou com
-   *  resultado na tela; não numa falha sem resultado), re-roda UMA vez como re-run (a sessão troca as
-   *  opções pelos setters, sem reabrir: plot/probes/cursor ficam). Ocioso ou
-   *  cancelado, só guarda o modo para o próximo Simular. */
+  /** O editor de análise reescreveu um cartão (`.tran`/`.ac`/`.dc`) do
+   *  fonte: o DECK mudou, então o worker REABRE a sessão no texto novo (fonte
+   *  novo = sessão nova) — mas como re-run: o pedido leva o conjunto COMPLETO
+   *  `alters` (os sliders seguem) e o `epoch` não conta (plot/probes/cursor
+   *  ficam). A cadeia de adoções pendente morre: a reabertura já lê o texto
+   *  com tudo o que foi escrito. Também re-roda uma execução que FALHOU (o
+   *  cartão corrigido é o caso típico); sem nada na tela, só guarda o fonte. */
+  const reopen = useCallback(
+    (source: string) => {
+      const s = stateRef.current;
+      if (s.source === null || s.source === source) return;
+      pendingAdopt.current = [];
+      stateRef.current = { ...s, source };
+      setState((cur) => ({ ...cur, source }));
+      if (s.status === "idle" || (s.status === "cancelled" && s.run === null)) return;
+      if (timer.current !== null) window.clearTimeout(timer.current);
+      dispatch();
+    },
+    [dispatch],
+  );
+
+  /** Liga/desliga a "grade fina". Com uma sessão em uso (rodando ou com
+   *  resultado na tela; não numa falha sem resultado), re-roda UMA vez como
+   *  re-run: o worker REABRE a sessão no outro deck (o denso ou o fiel), com
+   *  o conjunto `alters` — plot/probes/cursor ficam. Ocioso ou cancelado, só
+   *  guarda o modo para o próximo Simular. */
   const setFine = useCallback(
     (fine: boolean) => {
       const s = stateRef.current;
@@ -292,7 +332,7 @@ export function useSimulation(factory?: WorkerFactory, initialFine = false) {
     clientRef.current?.cancel();
   }, []);
 
-  return { ...state, start, cancel, setAlters, adopt, setFine };
+  return { ...state, start, cancel, setAlters, adopt, reopen, setFine };
 }
 
 /** O frame dos terminais (`map.canvas`) SÓ quando figura e extração mostradas

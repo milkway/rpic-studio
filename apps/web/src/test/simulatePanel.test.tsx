@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { act, fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import { useState, type ReactNode } from "react";
-import { ensureDune, extractPic, openSession, renderPic } from "@/lib/dune";
+import { ensureDune, extractPic, openDeck, openSession, renderPic } from "@/lib/dune";
 import { applySourceEdit, type SourceEdit } from "@/lib/simSource";
 import { I18nProvider } from "@/lib/i18n";
 import { applyPrefs } from "@/lib/prefs";
@@ -51,7 +51,7 @@ class InlineWorker implements WorkerLike {
   /** O que o host respondeu a cada pedido (sessão reaberta?). */
   responses: { fresh: boolean; source: string; npoints: number[] }[] = [];
   // a sessão vive no "worker", como no real
-  host = new SimHost({ ensure: () => ensureDune(), openSession, renderPic, extractPic });
+  host = new SimHost({ ensure: () => ensureDune(), openSession, renderPic, extractPic, openDeck });
   /** Modo passo a passo: o pedido espera `process()` (o worker o trata) e a
    *  resposta espera `deliver()` (chega à UI) — p/ intercalar a UI entre os dois. */
   manual = false;
@@ -622,13 +622,154 @@ describe("SimulatePanel", () => {
         }),
       );
     });
+
+    describe("editor de análise (issue #33)", () => {
+      async function runIt() {
+        fireEvent.click(screen.getByTestId("sim-run"));
+        await waitFor(() =>
+          expect(screen.getByTestId("sim-status")).toHaveAttribute("data-state", "done"),
+        );
+      }
+      const field = (key: string) => screen.getByTestId(`sim-card-${key}`) as HTMLInputElement;
+      const type = (key: string, text: string, enter = true) => {
+        const el = field(key);
+        fireEvent.focus(el);
+        fireEvent.change(el, { target: { value: text } });
+        if (enter) fireEvent.keyDown(el, { key: "Enter" });
+      };
+      const tmaxOf = (res: SimResponse) => {
+        if (res.type !== "ok") return NaN;
+        const t = res.run.plots[0].columns[0];
+        return t[t.length - 1];
+      };
+
+      it("campos do .tran; editar o fim escreve o cartão (UMA edição) e re-roda; sliders seguem", async () => {
+        const edits: SourceEdit[] = [];
+        const workers: InlineWorker[] = [];
+        // a escala de tempo de cada resposta, lida ANTES da transferência (que
+        // desliga os buffers do lado do worker)
+        const results: { fresh: boolean; tmax: number }[] = [];
+        render(<Harness initial={RC_FIGURE} edits={edits} workers={workers} />);
+        await runIt();
+        const card = screen.getByTestId("sim-card");
+        expect(card).toHaveAttribute("data-card", "tran:0");
+        expect(card).toHaveAttribute("data-readonly", "0");
+        expect(card.textContent).toContain(".tran");
+        expect([field("tstart").value, field("tstop").value, field("tstep").value]).toEqual([
+          "0",
+          "5m",
+          "20u",
+        ]);
+        expect(screen.queryByTestId("sim-card-tmax")).toBeNull();
+
+        // um slider alterado (arrasto, sem escrever) antes do cartão
+        const w = workers[0];
+        const fig = await screen.findByTestId("sim-figure");
+        const pad = await waitFor(() => {
+          const p = fig.querySelector('.sim-hit-el[data-el="R1"]');
+          expect(p).not.toBeNull();
+          return p!;
+        });
+        fireEvent.click(pad);
+        fireEvent.change(screen.getByTestId("sim-slider-range"), { target: { value: "600" } });
+        await waitFor(() => expect(w.sent.at(-1)?.alters?.R1).toBeDefined());
+        const r1 = w.sent.at(-1)!.alters!.R1;
+        await waitFor(() => expect(w.responses).toHaveLength(w.sent.length));
+        const before = edits.length;
+
+        // o host responde; guardamos as respostas p/ olhar a escala de tempo
+        const orig = w.host.handle.bind(w.host);
+        w.host.handle = async (m) => {
+          const r = await orig(m);
+          results.push({ fresh: r.fresh, tmax: tmaxOf(r) });
+          return r;
+        };
+        type("tstop", "10m");
+        expect(edits).toHaveLength(before + 1);
+        expect(srcLine(".tran")).toBe(".tran 20u 10m");
+        expect(screen.getByTestId("sim-writeback")).toHaveAttribute("data-ok", "1");
+        expect(screen.getByTestId("sim-writeback").textContent).toContain(".tran 20u 10m");
+        // o campo já mostra o valor novo (antes da resposta)
+        expect(field("tstop").value).toBe("10m");
+        await waitFor(() => expect(results).toHaveLength(1));
+        const req = w.sent.at(-1)!;
+        expect(req.source).toContain(".tran 20u 10m");
+        expect(req.alters).toEqual({ R1: r1 }); // o slider segue alterado
+        expect(results[0].fresh).toBe(true); // deck novo = sessão reaberta
+        expect(results[0].tmax).toBeCloseTo(10e-3, 9);
+        expect(workers).toHaveLength(1);
+        // o run novo traz o netlist com o cartão novo; seguir editando funciona
+        await waitFor(() =>
+          expect(screen.getByTestId("sim-netlist-code").textContent).toContain(".tran 20u 10m"),
+        );
+        expect(screen.getByTestId("sim-card")).toHaveAttribute("data-readonly", "0");
+        expect(screen.getByTestId("sim-altered-chip")).toBeInTheDocument();
+        expect(screen.queryByTestId("sim-stale")).toBeNull();
+        // TSTART ausente: inserido após o TSTOP
+        type("tstart", "1m");
+        expect(srcLine(".tran")).toBe(".tran 20u 10m 1m");
+        await waitFor(() => expect(results).toHaveLength(2));
+        expect(results[1].tmax).toBeCloseTo(10e-3, 9);
+      });
+
+      it("valor inválido: fica o antigo + erro visual, nada escrito; Esc desfaz", async () => {
+        const edits: SourceEdit[] = [];
+        const workers: InlineWorker[] = [];
+        render(<Harness initial={RC_FIGURE} edits={edits} workers={workers} />);
+        await runIt();
+        const n = workers[0].sent.length;
+        type("tstop", "abc");
+        expect(field("tstop")).toHaveAttribute("aria-invalid", "true");
+        expect(edits).toHaveLength(0);
+        type("tstop", "0"); // fim = início
+        expect(field("tstop")).toHaveAttribute("aria-invalid", "true");
+        fireEvent.keyDown(field("tstop"), { key: "Escape" });
+        expect(field("tstop").value).toBe("5m");
+        expect(field("tstop")).not.toHaveAttribute("aria-invalid");
+        fireEvent.blur(field("tstop"));
+        expect(edits).toHaveLength(0);
+        expect(workers[0].sent).toHaveLength(n);
+        // inválido e blur: volta ao antigo, sem escrever
+        type("tstep", "-1", false);
+        fireEvent.blur(field("tstep"));
+        expect(field("tstep").value).toBe("20u");
+        expect(edits).toHaveLength(0);
+      });
+
+      it(".op só leitura; .ac com pontos por década editáveis", async () => {
+        const edits: SourceEdit[] = [];
+        render(<Harness initial={DIVIDER_FIGURE} edits={edits} workers={[]} />);
+        await runIt();
+        const cards = screen.getAllByTestId("sim-card");
+        expect(cards.map((c) => [c.dataset.card, c.dataset.readonly])).toEqual([
+          ["op:0", "1"],
+          ["ac:0", "0"],
+        ]);
+        expect(cards[1].textContent).toContain(".ac dec");
+        expect(cards[1].textContent).toContain("pts/dec");
+        type("points", "50");
+        expect(srcLine(".ac")).toBe(".ac dec 50 10 100k");
+      });
+
+      it("editor que recusa a edição do cartão: nada escrito nem re-rodado, a linha diz por quê", async () => {
+        const edits: SourceEdit[] = [];
+        const workers: InlineWorker[] = [];
+        render(<Harness initial={RC_FIGURE} edits={edits} workers={workers} reject />);
+        await runIt();
+        const n = workers[0].sent.length;
+        type("tstop", "10m");
+        expect(edits).toHaveLength(0);
+        expect(screen.getByTestId("sim-writeback")).toHaveAttribute("data-ok", "0");
+        expect(workers[0].sent).toHaveLength(n);
+      });
+    });
   });
 });
 
-describe("passos finos (issue #19)", () => {
+describe("grade fina (issue #33; o toggle dos passos finos, #19)", () => {
   afterEach(() => window.localStorage.clear());
 
-  it("alternar re-roda UMA vez na mesma sessão com mais pontos, e persiste", async () => {
+  it("alternar re-roda UMA vez (reabre no deck denso) com ≥ 600 pontos, rotula e persiste", async () => {
     const workers: InlineWorker[] = [];
     render(
       <SimulatePanel
@@ -651,15 +792,29 @@ describe("passos finos (issue #19)", () => {
     expect(w.sent).toHaveLength(1);
     expect(w.sent[0].fine).toBeUndefined();
     const coarse = w.responses[0].npoints[0];
+    // modo desligado: sem rótulo de grade
+    expect(screen.queryByTestId("sim-grid")).toBeNull();
 
     fireEvent.click(toggle);
     expect(toggle).toHaveAttribute("aria-pressed", "true");
     await waitFor(() => expect(w.responses).toHaveLength(2));
     expect(w.sent).toHaveLength(2); // UM re-run
     expect(w.sent[1]).toMatchObject({ source: RC_FIGURE, fine: true });
-    expect(w.responses[1].fresh).toBe(false); // sem reabrir a sessão
-    expect(w.responses[1].npoints[0]).toBeGreaterThan(coarse * 3);
+    expect(w.responses[1].fresh).toBe(true); // outro deck = sessão reaberta no worker
+    const dense = w.responses[1].npoints[0];
+    expect(dense).toBeGreaterThanOrEqual(600);
+    expect(dense).toBeGreaterThan(coarse);
     expect(workers).toHaveLength(1);
+    // o gráfico diz que é a grade de exibição, e quantos pontos o deck tem
+    await waitFor(() =>
+      expect(screen.getByTestId("sim-grid")).toHaveAttribute("data-grid", "dense"),
+    );
+    expect(screen.getByTestId("sim-grid").textContent).toBe(
+      `display grid · ${dense} points (deck: ${coarse})`,
+    );
+    // e o netlist mostrado segue o deck FIEL
+    expect(screen.getByTestId("sim-netlist-code").textContent).toContain(".tran 20u 5m");
+    expect(screen.getByTestId("sim-netlist-code").textContent).not.toContain("8.333333e-6");
     expect(JSON.parse(window.localStorage.getItem("rpic:settings.v1")!).simFineSteps).toBe(true);
 
     // slider no modo fino: o re-run leva o modo
@@ -681,6 +836,48 @@ describe("passos finos (issue #19)", () => {
     await waitFor(() => expect(w.sent.at(-1)?.fine).toBeUndefined());
     await waitFor(() => expect(w.responses.at(-1)?.npoints[0]).toBe(coarse));
     expect(JSON.parse(window.localStorage.getItem("rpic:settings.v1")!).simFineSteps).toBe(false);
+    await waitFor(() => expect(screen.queryByTestId("sim-grid")).toBeNull());
+  });
+
+  it("rótulo do gráfico: deck já denso = grade do deck; denso que falha = recuo dito", async () => {
+    window.localStorage.setItem("rpic:settings.v1", JSON.stringify({ simFineSteps: true }));
+    // PIN_FIGURE: `.tran 1u 1m` já tem TMAX efetivo ≤ span/600 — nada a refinar
+    const a = render(
+      <SimulatePanel source={PIN_FIGURE} active workerFactory={() => new InlineWorker()} />,
+    );
+    fireEvent.click(screen.getByTestId("sim-run"));
+    await waitFor(() =>
+      expect(screen.getByTestId("sim-grid")).toHaveAttribute("data-grid", "deck"),
+    );
+    expect(screen.getByTestId("sim-grid").textContent).toMatch(/^deck grid · \d+ points$/);
+    a.unmount();
+    // o deck denso não abre: o gráfico é o do deck, e o rótulo diz
+    render(
+      <SimulatePanel
+        source={RC_FIGURE}
+        active
+        workerFactory={() => {
+          const w = new InlineWorker();
+          w.host = new SimHost({
+            ensure: () => ensureDune(),
+            openSession,
+            renderPic,
+            extractPic,
+            openDeck: () => {
+              throw new Error("dense deck refused");
+            },
+          });
+          return w;
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("sim-run"));
+    await waitFor(() =>
+      expect(screen.getByTestId("sim-grid")).toHaveAttribute("data-grid", "fallback"),
+    );
+    expect(screen.getByTestId("sim-grid").textContent).toMatch(
+      /^deck grid · \d+ points \(dense run failed\)$/,
+    );
   });
 
   it("o modo salvo vale no 1º Simular; prefs da conta (rpic:prefs) são relidas", async () => {

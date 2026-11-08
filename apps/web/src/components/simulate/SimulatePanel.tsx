@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Footprints, Loader2, Play, SlidersHorizontal, Square, X, Zap } from "lucide-react";
+import { Loader2, Play, SlidersHorizontal, Spline, Square, X, Zap } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import type { OverlayMap, Plot, SimDiagnostic } from "@/lib/dune";
 import { detectSpice } from "@/lib/detect";
@@ -32,6 +32,14 @@ import {
 } from "@/lib/simSource";
 import { pinCanvas, useSimulation } from "@/lib/useSimulation";
 import { measureRows } from "@/lib/simMeasure";
+import {
+  analysisCards,
+  cardEdit,
+  cardReadOnly,
+  type AnalysisCard,
+  type CardFieldKey,
+  type CardWriteFailure,
+} from "@/lib/simAnalysis";
 import { PREFS_EVENT, pushPrefsSoon } from "@/lib/prefs";
 import { loadSimFineSteps, saveSettings } from "@/lib/storage";
 import { Tip } from "@/components/ui/Tooltip";
@@ -45,6 +53,7 @@ import { ElementSlider, sourceKeyword } from "./ElementSlider";
 import { TimeScrubber } from "./TimeScrubber";
 import { groupByUnit, MAX_TRACES, traceStyle, WaveformChart } from "./WaveformChart";
 import { MeasurePanel, NetlistBlock, ScalarTable, SimDiagnostics } from "./SimResultParts";
+import { AnalysisEditor } from "./AnalysisEditor";
 
 interface SimulatePanelProps {
   source: string;
@@ -82,7 +91,8 @@ export function SimulatePanel({
   workerFactory,
 }: SimulatePanelProps) {
   const { t } = useI18n();
-  // "passos finos" persistido com as outras preferências (rpic:settings.v1);
+  // "grade fina" persistida com as outras preferências (rpic:settings.v1,
+  // chave `simFineSteps` — a do antigo "passos finos", mesmo toggle);
   // o estado vivo é o do hook (vai em todo pedido ao worker)
   // lido UMA vez (inicializador preguiçoso, como o MapPane), não a cada render
   const [initialFine] = useState(loadSimFineSteps);
@@ -193,6 +203,12 @@ export function SimulatePanel({
     [series],
   );
   useEffect(() => setCursor(null), [sim.epoch, plotIdx]);
+  // a faixa de tempo mudou (cartão `.tran` reescrito): cursor fora dela some
+  useEffect(() => {
+    setCursor((c) =>
+      c !== null && timeRange && (c < timeRange[0] || c > timeRange[1]) ? null : c,
+    );
+  }, [timeRange]);
 
   // ---- sliders: elementos ajustáveis da sessão ----
   const controls = sim.controls;
@@ -314,6 +330,56 @@ export function SimulatePanel({
     pad?.focus({ preventScroll: true });
   };
 
+  // ---- editor de análise (issue #33): cartões do netlist → campos ----
+  const netlistText = pic?.netlist ?? "";
+  const runCards = useMemo(() => analysisCards(netlistText), [netlistText]);
+  /** Cartões que ESTE painel acabou de escrever: valem para `source` só
+   *  enquanto a extração na tela ainda é de outro texto (a reabertura está a
+   *  caminho) — senão o campo mostraria o valor velho e o cartão, no fonte
+   *  já reescrito, pareceria divergente. */
+  const ownCards = useRef<{ source: string; cards: AnalysisCard[] } | null>(null);
+  const cards =
+    ownCards.current && ownCards.current.source === source && sim.picSource !== source
+      ? ownCards.current.cards
+      : runCards;
+  const CARD_REASON: Record<CardWriteFailure | "stale" | "noEditor", MessageKey> = {
+    readonly: "sim.an.ro.form",
+    "not-found": "sim.an.ro.notFound",
+    mismatch: "sim.an.ro.mismatch",
+    count: "sim.an.ro.count",
+    invalid: "sim.an.ro.form",
+    stale: "sim.an.ro.stale",
+    noEditor: "sim.an.ro.noEditor",
+  };
+  const cardReason = (card: AnalysisCard): string | null => {
+    if (card.readonly === "analysis") return t("sim.an.ro.analysis");
+    if (card.readonly === "form") return t("sim.an.ro.form");
+    if (!onSourceEdit) return t(CARD_REASON.noEditor);
+    // código mudou desde a execução (fora as escritas deste painel)
+    if (sim.source !== source) return t(CARD_REASON.stale);
+    const r = cardReadOnly(source, card, cards);
+    return r === null ? null : t(CARD_REASON[r]);
+  };
+  /** Escreve o campo no cartão do fonte (UMA edição do editor, desfazível) e
+   *  REABRE a sessão no texto novo (o deck mudou) — sliders seguem. */
+  const writeCard = (card: AnalysisCard, key: CardFieldKey, text: string) => {
+    if (!onSourceEdit) return;
+    const fail = (reason: CardWriteFailure | "stale") =>
+      setWriteNote({ ok: false, text: `${card.chip}: ${t(CARD_REASON[reason])}` });
+    if (sim.source !== source) return fail("stale");
+    const r = cardEdit(source, card, cards, key, text);
+    if (!r.ok) return fail(r.reason);
+    if (!onSourceEdit(r.edit, source)) return fail("stale");
+    const next = applySourceEdit(source, r.edit);
+    const [rewritten] = analysisCards(r.card);
+    ownCards.current = {
+      source: next,
+      cards: cards.map((c) => (c === card ? { ...rewritten, ordinal: card.ordinal } : c)),
+    };
+    sim.reopen(next);
+    setWriteNote({ ok: true, text: t("sim.an.written", { card: r.card }) });
+  };
+
   // latência do slider: do envio do pedido ao quadro seguinte ao commit do
   // resultado (alter + re-run no worker + transferência + render) — exposta
   // em `data-*` p/ medição (e2e), sem re-render
@@ -352,13 +418,33 @@ export function SimulatePanel({
   const measurements = sim.run?.measurements;
   // a figura mostrada (ou null): UMA condição, já estreitada para o JSX
   const shownFigure = active && pic !== null ? sim.figure : null;
-  const netlist = pic?.netlist ?? "";
+  const netlist = netlistText;
   // UMA vez por run (e netlist), não por render nem por instância do painel
   const measures = useMemo(
     () => (measurements?.length ? measureRows(measurements, netlist) : []),
     [measurements, netlist],
   );
   const measurePanel = measures.length > 0 && <MeasurePanel rows={measures} />;
+  // a grade do run NA TELA (não o estado do botão: a resposta ao toggle pode
+  // estar a caminho) — com o modo ligado, ou enquanto o run mostrado é denso
+  const gridNote = (() => {
+    const g = sim.grid;
+    if (!g || !plot || (!sim.fine && g.mode === "deck")) return null;
+    const n = String(plot.npoints);
+    if (g.mode === "dense") {
+      const m = g.deckPoints?.[plots.indexOf(plot)];
+      return {
+        mode: g.mode,
+        text:
+          m === undefined ? t("sim.grid.dense", { n }) : t("sim.grid.denseOf", { n, m: String(m) }),
+        tip: t("sim.grid.denseTip"),
+      };
+    }
+    if (g.mode === "fallback") {
+      return { mode: g.mode, text: t("sim.grid.fallback", { n }), tip: t("sim.grid.fallbackTip") };
+    }
+    return { mode: g.mode, text: t("sim.grid.deck", { n }), tip: t("sim.fineTip") };
+  })();
   const run = () => {
     setWriteNote(null);
     sim.start(source);
@@ -399,7 +485,7 @@ export function SimulatePanel({
                   "bg-(--color-accent-soft) text-(--color-success) hover:bg-(--color-accent-soft)",
               )}
             >
-              <Footprints size={13} />
+              <Spline size={13} />
               <span className="max-sm:hidden">{t("sim.fine")}</span>
             </Button>
           </Tip>
@@ -537,6 +623,10 @@ export function SimulatePanel({
           </div>
         )}
 
+        {cards.length > 0 && (
+          <AnalysisEditor cards={cards} readOnly={cardReason} onCommit={writeCard} />
+        )}
+
         {swept.length > 1 && (
           <div
             className="flex flex-wrap items-center gap-1"
@@ -593,6 +683,23 @@ export function SimulatePanel({
                 />
               </div>
             ))}
+            {gridNote && (
+              <Tip label={gridNote.tip}>
+                <p
+                  tabIndex={0}
+                  className={cn(
+                    "w-fit font-mono text-[10.5px]",
+                    gridNote.mode === "fallback"
+                      ? "text-(--color-warning)"
+                      : "text-(--color-text-muted)",
+                  )}
+                  data-testid="sim-grid"
+                  data-grid={gridNote.mode}
+                >
+                  {gridNote.text}
+                </p>
+              </Tip>
+            )}
           </section>
         )}
 

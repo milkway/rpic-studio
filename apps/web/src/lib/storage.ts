@@ -11,7 +11,8 @@ export interface Settings {
   layout: "horizontal" | "vertical";
   /** painel Mapa: fator dos rótulos (`textScale`), um de `MAP_TEXT_SCALES` */
   mapTextScale?: number;
-  /** painel Simular: modo "passos finos" (`trtol = 1` + TMAX ÷ 10) */
+  /** painel Simular: modo "grade fina" (grade de exibição densa, issue #33;
+   *  a chave é a do antigo "passos finos" #19 — o mesmo toggle, sem migrar) */
   simFineSteps?: boolean;
 }
 
@@ -24,7 +25,7 @@ export function loadMapTextScale(): number {
   return (MAP_TEXT_SCALES as readonly number[]).includes(v as number) ? (v as number) : 1;
 }
 
-/** O modo "passos finos" do painel Simular salvo (só `true` liga). */
+/** O modo "grade fina" do painel Simular salvo (só `true` liga). */
 export function loadSimFineSteps(): boolean {
   return loadSettings().simFineSteps === true;
 }
