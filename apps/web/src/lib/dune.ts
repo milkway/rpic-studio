@@ -10,6 +10,7 @@ import * as dune from "@strategicprojects/dune-sim";
 import type {
   Diagnostic as SimDiagnostic,
   EngineOptions,
+  ExtractOptions,
   Measurement,
   OverlayCanvas,
   OverlayPin,
@@ -17,6 +18,7 @@ import type {
   PicExtraction,
   PicSimOptions,
   SimError,
+  SimOptions,
   TypedPicRun,
   TypedPlot,
   TypedRawfile,
@@ -52,11 +54,7 @@ export interface SimSession {
   param(refdes: string, param?: string): number | Float64Array | null;
   alterable(refdes: string): string[];
   runTyped(): TypedRawfile;
-  /** Opções de engine da sessão (`trtol`, `method`…); `null` = as do deck.
-   *  Valem a partir do próximo run, sem reabrir. */
-  options: EngineOptions | null | undefined;
-  /** Divide o TMAX efetivo de todo `.tran` (número ≥ 1); `null` = sem divisor. */
-  tmaxDivisor: number | null | undefined;
+  /** A extração (só numa sessão aberta de figura, `fromPic`). */
   readonly pic: PicExtraction | undefined;
   free(): void;
 }
@@ -69,9 +67,16 @@ export function openSession(source: string, opts?: PicSimOptions): SimSession {
   return dune.Session.fromPic(source, opts);
 }
 
+/** Sessão de um deck SPICE (o netlist da grade de exibição, issue #33): sem
+ *  extração (`pic` ausente); os elementos se alteram pelo refdes do deck, os
+ *  mesmos da figura. Lança `SimError`. Requer `ensureDune()`. */
+export function openDeck(deck: string, opts?: SimOptions): SimSession {
+  return dune.Session.fromDeck(deck, opts);
+}
+
 /** Só a extração (netlist + mapa), sem simular. Requer `ensureDune()`. */
-export function extractPic(source: string): PicExtraction {
-  return dune.extractPic(source);
+export function extractPic(source: string, opts?: ExtractOptions): PicExtraction {
+  return dune.extractPic(source, opts);
 }
 
 /** SVG da figura compilada pelo rpic INTERNO do dune com o prelude — a MESMA
@@ -87,4 +92,16 @@ export function renderPic(source: string): string {
 export type PicRun = TypedPicRun;
 export type Plot = TypedPlot;
 
-export type { EngineOptions, Measurement, OverlayCanvas, OverlayMap, OverlayPin, PicExtraction, PicSimOptions, SimDiagnostic, SimError };
+export type {
+  EngineOptions,
+  ExtractOptions,
+  Measurement,
+  OverlayCanvas,
+  OverlayMap,
+  OverlayPin,
+  PicExtraction,
+  PicSimOptions,
+  SimDiagnostic,
+  SimError,
+  SimOptions,
+};

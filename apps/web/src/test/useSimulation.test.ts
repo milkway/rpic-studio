@@ -198,6 +198,87 @@ it("passos finos numa execução que FALHOU sem resultado: não re-roda nem vira
   expect(w.last()).toMatchObject({ fine: true });
 });
 
+describe("useSimulation: cartão reescrito e grade (issue #33)", () => {
+  it("reopen: re-run no fonte novo com o conjunto alters; epoch fica; cadeia de adoções morre", async () => {
+    const { hook, workers } = await setup();
+    const w = workers[0];
+    act(() => hook.result.current.setAlters({ R1: 2e3 }, true));
+    await act(async () => w.reply(ok(w.last().id, false)));
+    // uma escrita de slider pendente (A→B) e, antes da resposta, o cartão
+    act(() => hook.result.current.adopt("B", { C1: 1e-6 }));
+    expect(w.last().adopt).toHaveLength(1);
+    const epoch = hook.result.current.epoch;
+    act(() => hook.result.current.reopen("B2"));
+    expect(hook.result.current.source).toBe("B2");
+    // a resposta da adoção ainda chega; o reopen entra na fila (o mais novo)
+    await act(async () => w.reply({ ...ok(w.last().id, false), liveSource: "B" }));
+    const req = w.last();
+    expect(req).toMatchObject({ source: "B2", alters: { R1: 2e3 } });
+    expect(req.adopt).toBeUndefined();
+    await act(async () => w.reply({ ...ok(req.id, true), liveSource: "B2", displayGrid: "deck" }));
+    const s = hook.result.current;
+    expect(s.epoch).toBe(epoch); // plot/probes/cursor ficam
+    expect(s.rerun).toBe(true);
+    expect(s.alters).toEqual({ R1: 2e3 });
+    expect(workers).toHaveLength(1);
+  });
+
+  it("reopen numa execução que falhou (cartão a corrigir) re-roda; ocioso só guarda", async () => {
+    const workers: FakeWorker[] = [];
+    const hook = renderHook(() =>
+      useSimulation(() => {
+        const w = new FakeWorker();
+        workers.push(w);
+        return w;
+      }),
+    );
+    act(() => hook.result.current.start("src"));
+    const w = workers[0];
+    await act(async () =>
+      w.reply({
+        type: "error",
+        id: w.last().id,
+        fresh: true,
+        ms: 1,
+        timing,
+        error: { message: "timestep too small", kind: "analysis", diagnostics: [], pic: RUN.pic },
+      }),
+    );
+    act(() => hook.result.current.reopen("fixed"));
+    expect(w.last()).toMatchObject({ source: "fixed" });
+    await act(async () => w.reply(ok(w.last().id, true)));
+    expect(hook.result.current.status).toBe("done");
+    expect(hook.result.current.run).toBe(RUN);
+  });
+
+  it("grid: a da resposta na tela; re-run que falha mantém a do run mostrado", async () => {
+    const { hook, workers } = await setup();
+    const w = workers[0];
+    expect(hook.result.current.grid).toBe("deck");
+    act(() => hook.result.current.setFine(true));
+    // a resposta ao toggle ainda não chegou: o run mostrado é o da grade do deck
+    expect(hook.result.current.fine).toBe(true);
+    expect(hook.result.current.grid).toBe("deck");
+    await act(async () => w.reply({ ...ok(w.last().id, true), displayGrid: "dense" }));
+    expect(hook.result.current.grid).toBe("dense");
+    act(() => hook.result.current.setAlters({ R1: 0 }, true));
+    await act(async () =>
+      w.reply({
+        type: "error",
+        id: w.last().id,
+        fresh: false,
+        ms: 1,
+        timing,
+        error: { message: "bad", kind: "alter", diagnostics: [] },
+      }),
+    );
+    expect(hook.result.current.grid).toBe("dense");
+    act(() => hook.result.current.setAlters({ R1: 2e3 }, true));
+    await act(async () => w.reply({ ...ok(w.last().id, true), displayGrid: "fallback" }));
+    expect(hook.result.current.grid).toBe("fallback");
+  });
+});
+
 describe("useSimulation: frame dos terminais = figura e extração do MESMO texto", () => {
   const runOf = (ox: number): PicRun => ({
     ...RUN,

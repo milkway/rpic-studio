@@ -8,6 +8,7 @@ import { copyText } from "@/lib/exports";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
+import { Tip } from "@/components/ui/Tooltip";
 
 /** Lista de diagnósticos (extração pic + parser do netlist). Os da PRÓPRIA
  *  figura (`file: null`) pulam o editor para linha/coluna, como o
@@ -208,7 +209,15 @@ export function ScalarTable({
  *  run, os re-runs de slider inclusive (o valor "respira" com o arrasto).
  *  As linhas vêm prontas (`measureRows`, memoizado no painel): as duas
  *  instâncias — sob a figura e no topo do sheet do slider — dividem o cálculo. */
-export function MeasurePanel({ rows }: { rows: readonly MeasureRow[] }) {
+/** Painel das medidas `.measure`. `displayGrid` = o run é o da grade de
+ *  exibição (deck denso): o cabeçalho diz que os valores vêm dela. */
+export function MeasurePanel({
+  rows,
+  displayGrid = false,
+}: {
+  rows: readonly MeasureRow[];
+  displayGrid?: boolean;
+}) {
   const { t } = useI18n();
   if (rows.length === 0) return null;
   return (
@@ -219,6 +228,17 @@ export function MeasurePanel({ rows }: { rows: readonly MeasureRow[] }) {
     >
       <h3 className="font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
         {t("sim.measures")}
+        {displayGrid && (
+          <Tip label={t("sim.measuresDenseTip")}>
+            <span
+              tabIndex={0}
+              className="ml-1.5 tracking-normal normal-case"
+              data-testid="sim-measures-grid"
+            >
+              {t("sim.measuresDense")}
+            </span>
+          </Tip>
+        )}
       </h3>
       <ul className="max-h-28 overflow-auto font-mono text-[11.5px]">
         {rows.map((r) => (
