@@ -5,6 +5,7 @@
 // medida (WHEN/TRIG → tempo; FIND/MAX… → a do vetor) e a análise (escala).
 import type { Measurement } from "./dune";
 import { formatSI } from "./waveform";
+import { logicalLines } from "./simAnalysis";
 
 /** Unidade da ESCALA por análise (`.dc` varre o que a fonte for: sem unidade). */
 const SCALE_UNIT: Readonly<Record<string, string>> = { tran: "s", ac: "Hz", sp: "Hz", dc: "" };
@@ -29,18 +30,6 @@ interface CardInfo {
   value: string;
   /** Unidade de `with` (o valor do vetor em MIN_AT/MAX_AT). */
   vector: string;
-}
-
-/** Linhas lógicas do netlist: continuação SPICE (`+` no início) junta-se à
- *  anterior. */
-function logicalLines(netlist: string): string[] {
-  const out: string[] = [];
-  for (const raw of netlist.split(/\r?\n/)) {
-    const cont = /^\s*\+(.*)$/.exec(raw);
-    if (cont && out.length) out[out.length - 1] += ` ${cont[1]}`;
-    else out.push(raw);
-  }
-  return out;
 }
 
 /** Cartões `.meas[ure] <análise> <nome> <TIPO> <expr> …` do netlist →

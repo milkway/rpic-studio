@@ -44,7 +44,7 @@ export interface RunInput {
   opts?: PicSimOptions;
   alters?: Alters;
   adopt?: readonly SimAdopt[];
-  /** Modo "passos finos" (ver `SimRequest.fine`). */
+  /** Modo "grade fina" (ver `SimRequest.fine`). */
   fine?: boolean;
 }
 

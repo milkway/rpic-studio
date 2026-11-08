@@ -7,7 +7,20 @@
 // seguintes do MESMO fonte só aplicam as alterações (`alter`) e re-resolvem
 // (`runTyped`) — é o que torna o slider ao vivo possível. Fonte novo = sessão
 // nova. Cancelar mata o worker (e a sessão junto): o próximo pedido reabre.
-import type { PicExtraction, PicRun, PicSimOptions, SimDiagnostic, SimSession } from "./dune";
+//
+// Grade de exibição (issue #33, `SimRequest.fine`): a sessão abre do deck
+// DENSO (`displayDeck` do netlist extraído, `Session.fromDeck`) em vez do
+// fiel (`Session.fromPic`) — a extração (netlist + mapa) e a figura seguem as
+// do fonte. Deck diferente = sessão diferente: alternar o modo REABRE.
+import type {
+  PicExtraction,
+  PicRun,
+  PicSimOptions,
+  SimDiagnostic,
+  SimOptions,
+  SimSession,
+} from "./dune";
+import { displayDeck } from "./simAnalysis";
 import { unitForRefdes, type Alters, type SimControl } from "./simValues";
 import { hasAcAnalysis } from "./simSource";
 
@@ -35,17 +48,19 @@ export interface SimRequest {
   alters?: Alters;
   /** Cadeia de reescritas não confirmadas, em ordem; a última termina em `source`. */
   adopt?: readonly SimAdopt[];
-  /** Modo "passos finos" (visualização): `trtol = 1` + TMAX ÷ 10 na sessão,
-   *  pelos setters do dune-sim — sem reabrir, sem mexer no deck. Ausente = o
-   *  deck como está (o worker volta ao modo normal). */
+  /** Modo "grade fina" (só VISUALIZAÇÃO, issue #33): a sessão roda o deck
+   *  com os cartões de análise refinados para ≥ `DISPLAY_PTS` pontos
+   *  (`displayDeck`) — o fonte, o netlist mostrado e as tolerâncias da
+   *  engine ficam os do deck. Ausente = o deck como está. Mudar o modo
+   *  REABRE a sessão (outro deck), reaplicando o conjunto `alters`. */
   fine?: boolean;
 }
 
-/** Opções de engine do modo "passos finos": a estimativa de erro do
- *  transiente sem a folga 7× do Berkeley (`trtol` padrão = 7). */
-export const FINE_OPTIONS = { trtol: 1 } as const;
-/** Divisor do TMAX efetivo de todo `.tran` no modo "passos finos". */
-export const FINE_TMAX_DIVISOR = 10;
+/** Em que grade o run da resposta foi calculado: `dense` = a de exibição
+ *  (deck refinado); `deck` = a do próprio deck (modo normal, ou nada a
+ *  refinar — já denso/cartão ilegível); `fallback` = o modo pediu a densa,
+ *  mas ela falhou (abrir ou rodar) e o run é o do deck fiel. */
+export type SimDisplayGrid = "dense" | "deck" | "fallback";
 
 /** Erro do simulador já serializável (um `Error` perde `kind`/`diagnostics`
  *  no structured clone do postMessage). */
@@ -87,6 +102,12 @@ interface Common {
   /** O fonte de onde saiu a extração (`run.pic`/`error.pic`) desta resposta:
    *  a figura só casa com o `map.canvas` dela se for do MESMO texto. */
   picSource?: string;
+  /** A grade do run desta resposta (ausente = sem sessão). */
+  displayGrid?: SimDisplayGrid;
+  /** Em `dense`: os pontos de cada plot (na ordem de `run.plots`) do deck
+   *  FIEL, medidos UMA vez na abertura (com as alterações de então). Ausente
+   *  se o run fiel falhou (a grade densa pode sobreviver onde a do deck não). */
+  deckPoints?: number[];
 }
 
 export type SimResponse =
@@ -99,6 +120,9 @@ export interface SimApi {
   /** Re-extração ao adotar um fonte reescrito (netlist com o valor novo).
    *  Ausente: o netlist mostrado fica o da abertura. */
   extractPic?: (source: string) => PicExtraction;
+  /** Sessão de um deck SPICE (`Session.fromDeck`) — a grade de exibição.
+   *  Ausente: o modo fica na grade do deck (`deck`). */
+  openDeck?: (deck: string, opts?: SimOptions) => SimSession;
 }
 
 export function toSimFailure(e: unknown, fallbackKind = "internal"): SimFailure {
@@ -199,6 +223,14 @@ export function sessionControls(session: SimSession, pic: PicExtraction): SimCon
 
 const optsKey = (opts?: PicSimOptions) => JSON.stringify(opts ?? null);
 
+/** As opções de simulação (sem as de extração, `snap`) p/ o `fromDeck`. */
+function simOptions(opts?: PicSimOptions): SimOptions | undefined {
+  if (!opts) return undefined;
+  const rest: PicSimOptions = { ...opts };
+  delete rest.snap;
+  return rest;
+}
+
 interface Live {
   source: string;
   opts: string;
@@ -213,8 +245,14 @@ interface Live {
   originals: Map<string, number>;
   /** O que está aplicado na sessão agora. */
   applied: Map<string, number>;
-  /** Modo "passos finos" aplicado na sessão agora (abre no normal). */
+  /** O modo pedido na abertura (`SimRequest.fine`): mudar = reabrir. */
   fine: boolean;
+  /** A grade em que a sessão roda. */
+  grid: SimDisplayGrid;
+  /** O deck denso da sessão (`displayDeck` do netlist de `pic`), em `dense`. */
+  deck: string | null;
+  /** Pontos por plot do deck fiel (só em `dense`; `null` = não medidos). */
+  deckPoints: number[] | null;
 }
 
 const EMPTY_PIC: PicExtraction = {
@@ -228,6 +266,11 @@ export class SimHost {
   private live: Live | null = null;
 
   constructor(private readonly api: SimApi) {}
+
+  /** O deck denso da sessão viva (`null` fora da grade densa) — diagnóstico. */
+  get displayDeck(): string | null {
+    return this.live?.deck ?? null;
+  }
 
   /** Libera a sessão (o wasm guarda o circuito até `free`). */
   dispose(): void {
@@ -274,6 +317,7 @@ export class SimHost {
     }
     let pic = live.pic;
     let picSource = live.picSource;
+    let deck = live.deck;
     let extractFailed = false;
     if (this.api.extractPic) {
       try {
@@ -282,6 +326,10 @@ export class SimHost {
         // (rótulo mais largo = outra página) do mapa são deste texto
         pic = this.api.extractPic(source);
         picSource = source;
+        // grade fina: o deck denso passa a ser o do netlist NOVO (a sessão já
+        // tem o valor novo pelo `alter` — equivale a abrir esse deck; o texto
+        // é o que uma reabertura de recuo usaria)
+        if (live.grid === "dense") deck = displayDeck(pic.netlist);
       } catch {
         // ficam o netlist/mapa anteriores — e a figura anterior: figura e
         // mapa (frame dos terminais) têm de ser do MESMO texto
@@ -299,6 +347,7 @@ export class SimHost {
       controls,
       originals: nextOriginals,
       applied: nextApplied,
+      deck,
     });
     return { figure, controls };
   }
@@ -306,9 +355,75 @@ export class SimHost {
   async handle(req: SimRequest): Promise<SimResponse> {
     const res = await this.handleRun(req);
     // sem sessão viva, a extração (se houver, no erro) é a do próprio pedido
-    return this.live
-      ? { ...res, liveSource: this.live.source, picSource: this.live.picSource }
-      : { ...res, picSource: req.source };
+    const live = this.live;
+    if (!live) return { ...res, picSource: req.source };
+    return {
+      ...res,
+      liveSource: live.source,
+      picSource: live.picSource,
+      displayGrid: live.grid,
+      ...(live.grid === "dense" && live.deckPoints ? { deckPoints: live.deckPoints } : {}),
+    };
+  }
+
+  /** Abre a sessão do pedido. Modo normal: `fromPic` (a grade do deck). Grade
+   *  fina: abre a FIEL (extração, controles e — uma vez — os pontos do deck),
+   *  refina o netlist (`displayDeck`) e abre o deck denso (`fromDeck`); nada a
+   *  refinar = fica a fiel (`deck`); o denso que não abre = a fiel
+   *  (`fallback`). Lança o erro da abertura fiel. */
+  private openLive(req: SimRequest): Live {
+    const faithful = this.api.openSession(req.source, req.opts);
+    // `fromPic` sempre traz a extração; o fallback só satisfaz o tipo
+    const pic = faithful.pic ?? EMPTY_PIC;
+    const controls = sessionControls(faithful, pic);
+    const live: Live = {
+      source: req.source,
+      opts: optsKey(req.opts),
+      session: faithful,
+      pic,
+      picSource: req.source,
+      controls,
+      originals: new Map(controls.map((c) => [c.refdes, c.value])),
+      applied: new Map(),
+      fine: req.fine === true,
+      grid: "deck",
+      deck: null,
+      deckPoints: null,
+    };
+    if (!live.fine || !this.api.openDeck) return live;
+    const deck = displayDeck(pic.netlist);
+    if (deck === pic.netlist) return live; // já denso, ou cartões ilegíveis
+    let deckPoints: number[] | null = null;
+    try {
+      applyAlters(live, req.alters ?? {});
+      deckPoints = faithful.runTyped().plots.map((p) => p.npoints);
+    } catch {
+      // o deck fiel não roda (ou um alter falhou): sem contagem do deck; o
+      // caminho comum reaplica e diz o erro, se for o caso
+    }
+    let session: SimSession;
+    try {
+      session = this.api.openDeck(deck, simOptions(req.opts));
+    } catch {
+      return { ...live, grid: "fallback" };
+    }
+    faithful.free();
+    return { ...live, session, applied: new Map(), grid: "dense", deck, deckPoints };
+  }
+
+  /** O deck denso falhou ao rodar: troca pela sessão FIEL do mesmo fonte
+   *  (`fallback` até a próxima reabertura), com o conjunto `alters` reaplicado. */
+  private fallBack(live: Live, req: SimRequest): void {
+    const session = this.api.openSession(live.source, req.opts);
+    live.session.free();
+    Object.assign(live, {
+      session,
+      applied: new Map(),
+      grid: "fallback",
+      deck: null,
+      deckPoints: null,
+    });
+    applyAlters(live, req.alters ?? {});
   }
 
   private async handleRun(req: SimRequest): Promise<SimResponse> {
@@ -337,7 +452,8 @@ export class SimHost {
       start >= 0 &&
       chain.at(-1)!.to === req.source &&
       live0.source !== req.source &&
-      live0.opts === optsKey(req.opts)
+      live0.opts === optsKey(req.opts) &&
+      live0.fine === (req.fine === true)
     ) {
       // os passos dali em diante, na ordem (o mais novo vence por refdes)
       const originals = Object.assign({}, ...chain.slice(start).map((st) => st.originals));
@@ -357,15 +473,17 @@ export class SimHost {
       }
       timing.alter = performance.now() - tAdopt;
     }
-    const fresh =
-      !this.live || this.live.source !== req.source || this.live.opts !== optsKey(req.opts);
+    let fresh =
+      !this.live ||
+      this.live.source !== req.source ||
+      this.live.opts !== optsKey(req.opts) ||
+      this.live.fine !== (req.fine === true);
     if (fresh) {
       this.dispose();
       const figure = renderFigure(this.api, req.source);
       const tOpen = performance.now();
-      let session: SimSession;
       try {
-        session = this.api.openSession(req.source, req.opts);
+        this.live = this.openLive(req);
       } catch (e) {
         timing.open = performance.now() - tOpen;
         return {
@@ -379,22 +497,8 @@ export class SimHost {
           timing,
         };
       }
-      // `fromPic` sempre traz a extração; o fallback só satisfaz o tipo
-      const pic = session.pic ?? EMPTY_PIC;
-      const controls = sessionControls(session, pic);
-      this.live = {
-        source: req.source,
-        opts: optsKey(req.opts),
-        session,
-        pic,
-        picSource: req.source,
-        controls,
-        originals: new Map(controls.map((c) => [c.refdes, c.value])),
-        applied: new Map(),
-        fine: false,
-      };
       timing.open = performance.now() - tOpen;
-      extra = { figure, controls };
+      extra = { figure, controls: this.live.controls };
     }
     const live = this.live!;
     const fail = (e: unknown): SimResponse => ({
@@ -409,7 +513,6 @@ export class SimHost {
 
     const tAlter = performance.now();
     try {
-      applyMode(live, req.fine === true);
       applyAlters(live, req.alters ?? {});
     } catch (e) {
       timing.alter += performance.now() - tAlter;
@@ -419,7 +522,19 @@ export class SimHost {
 
     const tRun = performance.now();
     try {
-      const raw = live.session.runTyped();
+      let raw: ReturnType<SimSession["runTyped"]>;
+      try {
+        raw = live.session.runTyped();
+      } catch (e) {
+        if (live.grid !== "dense") throw e;
+        // a grade densa não sobrevive (passo fino num caso de canto): o run
+        // é o do deck FIEL, e a resposta diz `fallback` — o gráfico nunca
+        // mostra a grade do deck calado com o modo ligado
+        this.fallBack(live, req);
+        fresh = true;
+        extra = { ...extra, controls: live.controls };
+        raw = live.session.runTyped();
+      }
       timing.run = performance.now() - tRun;
       return {
         type: "ok",
@@ -443,16 +558,6 @@ function alterOne(live: Live, refdes: string, value: number): void {
   const param = live.controls.find((c) => c.refdes === refdes)?.param;
   if (param) live.session.alter(refdes, param, value);
   else live.session.alter(refdes, value);
-}
-
-/** Liga/desliga o modo "passos finos" na sessão viva (setters `options` e
- *  `tmaxDivisor` do dune-sim ≥ 0.3.3): só mexe quando muda. Desligar devolve
- *  as opções do deck (`null`) e limpa o divisor. */
-function applyMode(live: Live, fine: boolean): void {
-  if (live.fine === fine) return;
-  live.session.options = fine ? { ...FINE_OPTIONS } : null;
-  live.session.tmaxDivisor = fine ? FINE_TMAX_DIVISOR : null;
-  live.fine = fine;
 }
 
 /** Leva a sessão de `applied` a `want`: desfaz quem saiu, aplica quem mudou. */
