@@ -533,6 +533,8 @@ test("preview de fonte spice usa o prelude do dune: sem erro falso, e o SIM simu
     if (/dune_wasm_bg.*\.wasm/.test(r.url())) duneRequests.push(r.url());
   });
   await openWith(page, RLC_FIGURE, "light");
+  // uma fonte spice abre na aba Simular (#40): a figura está na aba Imagem
+  await page.getByRole("tab", { name: /^(Image|IMG)$/ }).click();
   const stage = page.getByTestId("preview-stage");
   await expect(stage.locator('svg g[id="s0"]')).toBeAttached({ timeout: 20_000 });
   // além da carência do "vermelho preguiçoso" (600 ms): nenhum erro aparece
@@ -558,6 +560,8 @@ test("fonte spice: elemento do prelude é inspecionável — duplo-clique pula p
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openWith(page, RLC_FIGURE, "light");
+  // uma fonte spice abre na aba Simular (#40): a figura está na aba Imagem
+  await page.getByRole("tab", { name: /^(Image|IMG)$/ }).click();
   const stage = page.getByTestId("preview-stage");
   await expect(stage.locator('svg g[id="s0"]')).toBeAttached({ timeout: 20_000 });
   await expect(page.getByTestId("objects-handle").first()).toBeAttached({ timeout: 5_000 });
@@ -604,7 +608,7 @@ test("passos finos: alternar re-roda a sessão com mais pontos e persiste (#19)"
   // após o clique no gatilho: sai e volta)
   await page.mouse.move(5, 5);
   await fine.hover();
-  await expect(page.getByRole("tooltip")).toContainText("does not change the deck");
+  await expect(page.getByRole("tooltip")).toContainText("the code and the netlist stay the deck's");
   await page.reload();
   await page.getByRole("tab", { name: /Simulate|SIM/ }).click();
   await expect(page.getByTestId("sim-fine")).toHaveAttribute("aria-pressed", "true");
