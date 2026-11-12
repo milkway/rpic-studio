@@ -1,6 +1,8 @@
 // Exemplos curados: do repositório rpic-lang (examples/) e adaptações dos
 // diagramas do pikup (box.pe.gov.br/app/pikup) portadas de Pikchr para rpic.
 // `circuits` indica que precisa da biblioteca nativa; `tags` vira badges.
+// Os exemplos `simulate` (fonte `spice = 1`) vêm de milkway/dune `corpus/pic/`:
+// abrem na aba Simular e são simulados um a um em `test/simExamples.test.ts`.
 import type { Locale } from "./i18n";
 
 interface Localized {
@@ -14,6 +16,7 @@ export type ExampleTag =
   | "macros"
   | "extensions"
   | "circuits"
+  | "simulate"
   | "flow"
   | "blocks"
   | "graph"
@@ -25,6 +28,7 @@ export const TAG_META: Record<ExampleTag, { label: Localized; dot: string }> = {
   macros: { label: { en: "Macros", pt: "Macros" }, dot: "#7c3aed" },
   extensions: { label: { en: "Extensions", pt: "Extensões" }, dot: "#0f766e" },
   circuits: { label: { en: "Circuits", pt: "Circuitos" }, dot: "#2e7d32" },
+  simulate: { label: { en: "Simulation", pt: "Simulação" }, dot: "#b91c1c" },
   flow: { label: { en: "Flowchart", pt: "Fluxograma" }, dot: "#c2410c" },
   blocks: { label: { en: "Block diagram", pt: "Diagrama de blocos" }, dot: "#1d4ed8" },
   graph: { label: { en: "Graph", pt: "Grafo" }, dot: "#be185d" },
@@ -575,6 +579,163 @@ current(SW,NW)
 clabel((-0.5,0.7),"9V")
 clabel((0.65,1.66),"F1")
 clabel((3.7,0.7),"L1")
+.PE`,
+  },
+  {
+    id: "sim-rc",
+    title: { en: "RC step response (simulate)", pt: "Resposta ao degrau RC (simular)" },
+    description: {
+      en: "A 0 → 5 V step into an RC low-pass: transient analysis with a .measure of the rise time.",
+      pt: "Degrau de 0 → 5 V num passa-baixas RC: análise transiente com .measure do tempo de subida.",
+    },
+    tags: ["circuits", "simulate"],
+    circuits: true,
+    source: `.PS
+# RC low-pass driven by a 0 -> 5 V step; tau = R1*C1 = 1 ms.
+spice = 1
+Vin: (0,1.5); Vout: (2.5,1.5)
+V1: vsource(Vin, (0,0), PULSE(0 5 0 1u 1u 10m 20m), "G₁")
+R1: resistor(Vin, Vout, 1k)
+C1: capacitor(Vout, (2.5,0), 1u)
+line from V1.N to C1.N
+ground((1.25,0))
+dot at Vin; dot at Vout
+"in" above at Vin + (0,0.05)
+"out" above at Vout + (0,0.05)
+.tran 20u 5m
+.measure tran trise TRIG v(Vout) VAL=0.5 RISE=1 TARG v(Vout) VAL=4.5 RISE=1
+.PE`,
+  },
+  {
+    id: "sim-rlc",
+    title: { en: "RLC resonance (simulate)", pt: "Ressonância RLC (simular)" },
+    description: {
+      en: "Series RLC under an AC sweep: the peak at f0 = 1.59 kHz with Q = 5.",
+      pt: "RLC série numa varredura AC: o pico em f0 = 1,59 kHz com Q = 5.",
+    },
+    tags: ["circuits", "simulate"],
+    circuits: true,
+    source: `.PS
+# Series RLC driven by a 1 V AC source, output across C1:
+# f0 = 1/(2 pi sqrt(L1 C1)) = 1.59 kHz, Q = sqrt(L1/C1)/R1 = 5.
+spice = 1
+Vin: (0,1.5); Vout: (3,1.5)
+V1: vsource(Vin, (0,0), AC 1)
+R1: resistor(Vin, (1.5,1.5), 20)
+L1: inductor(R1.N, Vout, 10m)
+C1: capacitor(Vout, (3,0), 1u)
+line from V1.N to C1.N
+ground((1.5,0))
+dot at Vout
+"out" above at Vout + (0,0.05)
+.ac dec 20 100 100k
+.PE`,
+  },
+  {
+    id: "sim-rectifier",
+    title: { en: "Half-wave rectifier (simulate)", pt: "Retificador de meia onda (simular)" },
+    description: {
+      en: "A diode and a reservoir capacitor turn a 60 Hz sine into rippled DC.",
+      pt: "Um diodo e um capacitor de filtro transformam uma senoide de 60 Hz em CC com ondulação.",
+    },
+    tags: ["circuits", "simulate"],
+    circuits: true,
+    source: `.PS
+# Half-wave rectifier with a reservoir capacitor: 10 V 60 Hz sine,
+# load R1 || C1 (tau = 100 ms >> 16.7 ms period).
+spice = 1
+Vout: (1.75,1.5)
+V1: acsource((0,1.5), (0,0), SIN(0 10 60))
+D1: diode(V1.P, Vout, DMOD)
+C1: capacitor(Vout, (1.75,0), 100u)
+R1: resistor((3,1.5), (3,0), 1k)
+line from Vout to R1.P
+line from V1.N to R1.N
+ground((0.9,0))
+dot at Vout; dot at C1.N
+"out" above at Vout + (0,0.05)
+.model DMOD D(IS=1e-14 RS=0.5)
+.tran 0.1m 50m
+.PE`,
+  },
+  {
+    id: "sim-bjt-amp",
+    title: { en: "BJT amplifier (simulate)", pt: "Amplificador BJT (simular)" },
+    description: {
+      en: "Common-emitter stage: operating point and a 1 kHz transient, gain about −4.5.",
+      pt: "Estágio emissor comum: ponto de operação e transiente de 1 kHz, ganho de cerca de −4,5.",
+    },
+    tags: ["circuits", "simulate"],
+    circuits: true,
+    source: `.PS
+# Common-emitter amplifier: divider bias R1/R2, collector load R3,
+# emitter degeneration R4 (gain ~ -R3/R4), input coupled through C1.
+spice = 1
+Q1: npn((3,1.5), QN, "T₁")
+Vb:   (2,1.5)
+Vcc:  (5,3.5)
+Vin:  (1,1.5)
+Vout: (3.16,2.4)
+
+V2: acsource((0.3,1.5), (0.3,0), SIN(0 10m 1k), "G₁")
+C1: capacitor(Vin, Vb, 10u)
+R1: resistor((2,3.5), Vb, 47k)
+R2: resistor(Vb, (2,0), 10k)
+R3: resistor((3.16,3.5), Vout, 4.7k)
+R4: resistor(Q1.E, (3.16,0), 1k)
+V1: vsource(Vcc, (5,0), DC 12, "VCC")
+
+line from V2.P to C1.P
+line from C1.N to Q1.B
+line from R3.N to Q1.C
+line from R3.N to (4.1,2.4); circle rad 0.04 at (4.14,2.4)
+"out" ljust at (4.2,2.4)
+line from R1.P to V1.P
+line from V2.N to V1.N
+dot at R1.N; dot at R3.P; dot at R2.N; dot at R4.N; dot at R3.N
+ground((3.9,0))
+.model QN NPN(IS=1e-14 BF=100 VAF=100)
+.op
+.tran 10u 3m
+.PE`,
+  },
+  {
+    id: "sim-cmos-inverter",
+    title: { en: "CMOS inverter (simulate)", pt: "Inversor CMOS (simular)" },
+    description: {
+      en: "A PMOS/NMOS pair driving 1 pF: the output switches rail to rail.",
+      pt: "Um par PMOS/NMOS acionando 1 pF: a saída chaveia de trilho a trilho.",
+    },
+    tags: ["circuits", "simulate"],
+    circuits: true,
+    source: `.PS
+# CMOS inverter (MOS1) driving 1 pF: a 0 -> 5 V input pulse flips the
+# output rail to rail; no static current in either state.
+spice = 1
+M2: pmos((2,2.1), PMOD W=8u L=1u, "T₂")
+M1: nmos((2,0.9), NMOD W=4u L=1u, "T₁")
+Vin:  (1.2,1.5)
+Vout: (M1.D.x,1.5)
+Vdd:  (M2.S.x,2.7)
+
+V1: vsource((0.3,1.5), (0.3,0), PULSE(0 5 5n 1n 1n 20n 50n), "G₁")
+V2: vsource((6.2,2.7), (6.2,0), DC 5, "VDD")
+C1: capacitor((4.2,1.5), (4.2,0), 1p)
+line from M2.D to M1.D
+line from M1.G to (Vin.x,M1.G.y) then to (Vin.x,M2.G.y) then to M2.G
+line from V1.P to Vin
+line from Vout to C1.P
+line from M2.S to Vdd then to V2.P
+line from M1.S to (M1.S.x,0)
+line from V1.N to V2.N
+dot at Vin; dot at Vout; dot at C1.P; dot at (M1.S.x,0); dot at C1.N
+"in" above at (0.75,1.55)
+line from C1.P to (4.8,1.5); circle rad 0.04 at (4.84,1.5)
+"out" above at (4.84,1.55)
+ground((1.2,0))
+.model NMOD NMOS(LEVEL=1 VTO=0.7 KP=110u LAMBDA=0.04)
+.model PMOD PMOS(LEVEL=1 VTO=-0.7 KP=50u LAMBDA=0.05)
+.tran 0.1n 60n
 .PE`,
   },
   {

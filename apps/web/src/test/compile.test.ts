@@ -6,6 +6,9 @@ import { ready } from "@strategicprojects/rpic";
 import { compile, errorPosition } from "@/lib/rpic";
 import { sanitizeSvg } from "@/lib/sanitize";
 import { examples } from "@/lib/examples";
+import { detectSpice } from "@/lib/detect";
+import { compileFigure } from "@/lib/dunePrelude";
+import prelude from "virtual:dune-prelude";
 
 const require = createRequire(import.meta.url);
 
@@ -24,7 +27,12 @@ describe("compilador rpic (WASM real)", () => {
 
   it("todos os exemplos embarcados compilam", () => {
     for (const ex of examples) {
-      const out = compile(ex.source, { circuits: ex.circuits });
+      // fonte `spice = 1`: com o prelude do dune, como o preview e a miniatura
+      const out = compileFigure(
+        ex.source,
+        { circuits: ex.circuits },
+        detectSpice(ex.source) ? prelude : null,
+      );
       expect(out.svg, `exemplo "${ex.id}" deve gerar SVG`).toContain("<svg");
     }
   });
