@@ -691,3 +691,18 @@ test("terminais: figura pino a pino sonda a rede no pino; corpo abre o slider (#
   await page.mouse.click(r1.x, r1.y);
   await expect(page.getByTestId("sim-slider")).toHaveAttribute("data-refdes", "R1");
 });
+
+// Os cinco exemplos `simulate` do menu: cada um abre na aba Simular e roda.
+for (const name of [/RC.*simul/i, /RLC.*simul/i, /(rectifier|retificador).*simul/i, /BJT.*simul/i, /CMOS.*simul/i]) {
+  test(`exemplo do menu ${name} abre na aba Simular e simula`, async ({ page }) => {
+    await page.goto("/");
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await page.waitForSelector('[data-testid="preview-stage"] svg', { timeout: 20_000 });
+    await page.getByTestId("examples-menu").click();
+    await page.getByRole("menuitem", { name }).click();
+    await expect(page.getByTestId("simulate-panel")).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId("sim-run").click();
+    await expect(page.getByTestId("sim-status")).toHaveAttribute("data-state", "done", { timeout: 20_000 });
+  });
+}
