@@ -71,7 +71,7 @@ export function rewriteNumber(token: string, value: number): string {
 }
 
 /** Offset UTF-16 de (linha, coluna em codepoints), ambos 1-based. */
-function offsetOf(source: string, line: number, col: number): number | null {
+export function offsetOf(source: string, line: number, col: number): number | null {
   let start = 0;
   for (let l = 1; l < line; l++) {
     const nl = source.indexOf("\n", start);
@@ -155,7 +155,7 @@ export function shiftMap(
 
 /** Offsets UTF-16 `[from, to)` de um span, se o texto do fonte nele for
  *  exatamente `text`; senão `null` (posições velhas). */
-function locate(source: string, item: SpannedText): { from: number; to: number } | null {
+export function locate(source: string, item: SpannedText): { from: number; to: number } | null {
   const from = offsetOf(source, item.span.line, item.span.col);
   const to = offsetOf(source, item.span.end_line, item.span.end_col);
   if (from === null || to === null || source.slice(from, to) !== item.text) return null;
@@ -163,7 +163,7 @@ function locate(source: string, item: SpannedText): { from: number; to: number }
 }
 
 /** Um número SPICE literal com cauda de unidade (`4.7k`, `10mF`, `1kΩ`). */
-const LITERAL = new RegExp(`^${SPICE_NUMBER}\\p{L}*$`, "iu");
+export const LITERAL = new RegExp(`^${SPICE_NUMBER}\\p{L}*$`, "iu");
 
 /** A edição que escreve `value` no parâmetro `param` do elemento `refdes`,
  *  pelos spans do `map` da execução de `source`. Confere que o valor E o
