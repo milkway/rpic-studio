@@ -149,3 +149,23 @@ test("abas Python e R trazem snippets dos bindings com o código atual", async (
   await expect(page.getByTestId("code-view-r")).toContainText("library(rpic)");
   await expect(page.getByTestId("code-view-r")).toContainText("rpic_svg(src)");
 });
+
+test("menu de exemplos cabe na janela e rola até o último item", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await page.getByTestId("examples-menu").click();
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeVisible();
+  const box = (await menu.boundingBox())!;
+  expect(box.y + box.height).toBeLessThanOrEqual(600);
+  // a lista é mais longa que a janela: rola por dentro
+  expect(await menu.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  const last = menu.getByRole("menuitem").last();
+  await last.scrollIntoViewIfNeeded();
+  await expect(last).toBeInViewport();
+  const code = page.locator('[data-testid="code-pane"] .cm-content');
+  const before = await code.textContent();
+  await last.click();
+  await expect(menu).toBeHidden();
+  // o último exemplo carregou no editor
+  await expect(code).not.toHaveText(before!);
+});

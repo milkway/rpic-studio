@@ -15,9 +15,13 @@ export function DropdownContent({
       <Dropdown.Content
         sideOffset={6}
         align="end"
+        collisionPadding={8}
         className={cn(
           "z-50 min-w-52 rounded-(--radius-md) border border-(--color-border) bg-(--color-surface)",
           "p-1.5 shadow-(--shadow-pop)",
+          // Uma lista longa (o menu de exemplos) rola dentro do espaço que sobra
+          // até a borda da janela, em vez de passar dela.
+          "max-h-(--radix-dropdown-menu-content-available-height) overflow-y-auto overscroll-contain",
           className,
         )}
         {...props}
