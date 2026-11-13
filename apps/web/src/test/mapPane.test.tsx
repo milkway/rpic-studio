@@ -33,13 +33,16 @@ class InlineWorker implements GeoWorkerLike {
   onmessage: ((e: MessageEvent<GeoResponse>) => void) | null = null;
   onerror: ((e: ErrorEvent) => void) | null = null;
   posted = 0;
+  /** Pedidos já respondidos (entregues ao `onmessage`). */
+  answered = 0;
   last: GeoRequest | null = null;
   postMessage(msg: GeoRequest) {
     this.posted++;
     this.last = msg;
-    void handleGeoRequest(msg, { ensure: () => ensureGeo(), compileGeo }).then((res) =>
-      this.onmessage?.({ data: structuredClone(res) } as MessageEvent<GeoResponse>),
-    );
+    void handleGeoRequest(msg, { ensure: () => ensureGeo(), compileGeo }).then((res) => {
+      this.onmessage?.({ data: structuredClone(res) } as MessageEvent<GeoResponse>);
+      this.answered++;
+    });
   }
   terminate() {}
 }
@@ -108,11 +111,12 @@ describe("MapPane", () => {
 
     fireEvent.change(screen.getByTestId("map-frame"), { target: { value: "mercator" } });
     await waitFor(() => expect(screen.getByTestId("map-status").textContent).toContain("(mercator)"));
-    expect(map.calls.fit).toBe(2);
+    // idem: o fitTo é do efeito passivo, depois do render que troca o status
+    await waitFor(() => expect(map.calls.fit).toBe(2));
 
     rerender(examples.find((e) => e.id === "geo-radius")!.source, 1);
     await waitFor(() => expect(screen.getByTestId("map-status").textContent).toContain("1000 m/in"));
-    expect(map.calls.fit).toBe(3);
+    await waitFor(() => expect(map.calls.fit).toBe(3));
   });
 
   it("erro de pic aparece como no editor (linha clicável); o último desenho fica", async () => {
@@ -198,12 +202,16 @@ describe("MapPane — tamanho dos rótulos", () => {
     fireEvent.change(screen.getByTestId("map-text-scale"), { target: { value: "2" } });
     expect(map.calls.fit).toBe(1); // redesenhar o desenho VELHO não consome o pedido armado
     await waitFor(() => expect(screen.getByTestId("map-status").textContent).toContain("1000 m/in"));
-    expect(map.calls.fit).toBe(2);
+    // o fitTo é do efeito passivo, depois do render que troca o status
+    await waitFor(() => expect(map.calls.fit).toBe(2));
     const scaled = compileGeo(RADIUS, { layers: { textScale: 2 } }).layers!;
     expect(textSize(map.calls.layers)).toBe(textSize(scaled));
     // depois disso, edição comum e nova troca de tamanho não reenquadram
+    const drawn = map.calls.set;
     rerender(RADIUS.replace("geo_scale = 1000  ", "geo_scale = 900   "), 1);
     await waitFor(() => expect(screen.getByTestId("map-status").textContent).toContain("900 m/in"));
+    // espera o efeito que desenha (e que enquadraria): só então "não enquadrou" diz algo
+    await waitFor(() => expect(map.calls.set).toBe(drawn + 1));
     fireEvent.change(screen.getByTestId("map-text-scale"), { target: { value: "1.25" } });
     expect(map.calls.fit).toBe(2);
   });
@@ -266,20 +274,29 @@ describe("MapPane — quando reenquadrar", () => {
     await waitFor(() => expect(map.calls.fit).toBe(1));
     rerender(CALLOUT, 1); // exemplo/link com a MESMA fonte: nenhum resultado novo
     expect(map.calls.fit).toBe(2);
+    const drawn = map.calls.set;
     rerender(CALLOUT.replace("geo_scale = 400", "geo_scale = 500"), 1);
     await waitFor(() => expect(screen.getByTestId("map-status").textContent).toContain("500 m/in"));
+    // o desenho novo chegou ao mapa (efeito passivo) — e não enquadrou
+    await waitFor(() => expect(map.calls.set).toBe(drawn + 1));
     expect(map.calls.fit).toBe(2);
   });
 
   it("troca de frame que falha desarma: consertar a fonte depois não enquadra", async () => {
-    const { map, rerender } = setup(CALLOUT, { fitKey: 0 });
+    const { map, worker, rerender } = setup(CALLOUT, { fitKey: 0 });
     await waitFor(() => expect(map.calls.fit).toBe(1));
     rerender(CALLOUT + "\nbxo\n", 0);
     await waitFor(() => expect(screen.getByTestId("map-status")).toHaveAttribute("data-state", "error"));
+    const sent = worker.posted;
     fireEvent.change(screen.getByTestId("map-frame"), { target: { value: "mercator" } });
-    await new Promise((r) => setTimeout(r, 300)); // o pedido mercator responde (erro)
+    // o pedido mercator sai e responde (erro) — sem contar com um tempo fixo
+    await waitFor(() => expect(worker.posted).toBe(sent + 1));
+    await waitFor(() => expect(worker.answered).toBe(worker.posted));
+    const drawn = map.calls.set;
     rerender(CALLOUT, 0); // edição comum
     await waitFor(() => expect(screen.getByTestId("map-status").textContent).toContain("(mercator)"));
+    // o desenho mercator chegou ao mapa (efeito passivo) — e não enquadrou
+    await waitFor(() => expect(map.calls.set).toBe(drawn + 1));
     expect(map.calls.fit).toBe(1);
   });
 
