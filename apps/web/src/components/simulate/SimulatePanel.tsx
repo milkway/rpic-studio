@@ -31,6 +31,12 @@ import {
   type WriteBackFailure,
 } from "@/lib/simSource";
 import { pinCanvas, useSimulation } from "@/lib/useSimulation";
+import {
+  waveEdit,
+  waveformSources,
+  type SourceWaveform,
+  type WaveEditFailure,
+} from "@/lib/simWaveform";
 import { measureRows } from "@/lib/simMeasure";
 import {
   analysisCards,
@@ -51,6 +57,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/Popover";
 import { SimFigure, type ProbeNet, type SliderElement } from "./SimFigure";
 import { ElementSlider, sourceKeyword } from "./ElementSlider";
+import { WaveformEditor, waveArgLabel } from "./WaveformEditor";
 import { TimeScrubber } from "./TimeScrubber";
 import { groupByUnit, MAX_TRACES, traceStyle, WaveformChart } from "./WaveformChart";
 import { MeasurePanel, NetlistBlock, ScalarTable, SimDiagnostics } from "./SimResultParts";
@@ -214,13 +221,34 @@ export function SimulatePanel({
   // ---- sliders: elementos ajustáveis da sessão ----
   const controls = sim.controls;
   const control: SimControl | null = controls.find((c) => c.refdes === selectedEl) ?? null;
+  /** O mapa cujos spans valem para `source`: o que este painel deslocou ao
+   *  reescrever o fonte, enquanto a extração da execução ainda é de outro
+   *  texto; senão o da execução. */
+  const mapFor = (): OverlayMap | null => {
+    const own = ownMap.current;
+    return sim.picSource !== source && own && own.source === source ? own.map : map;
+  };
+  // ---- fontes com forma de onda (`PULSE(…)`, `SIN(…)`…): sem valor escalar,
+  // ficam fora dos sliders; clicar nelas abre o editor de argumentos ----
+  const spanMap = mapFor();
+  const waves: SourceWaveform[] = useMemo(() => {
+    // código mudou desde a execução: os spans são de outro texto
+    if (!spanMap || sim.source !== source) return [];
+    return waveformSources(source, spanMap).filter(
+      (w) => !controls.some((c) => c.refdes.toLowerCase() === w.refdes.toLowerCase()),
+    );
+  }, [spanMap, sim.source, source, controls]);
+  const wave: SourceWaveform | null =
+    control === null ? (waves.find((w) => w.refdes === selectedEl) ?? null) : null;
+  const waveKey = waves.map((w) => w.refdes).join(" ");
   useEffect(() => {
-    // sessão nova (outros elementos): fecha o slider se o elemento sumiu
-    setSelectedEl((cur) => (cur && controls.some((c) => c.refdes === cur) ? cur : null));
-  }, [controls]);
+    // sessão nova (outros elementos): fecha o slider/editor se o elemento sumiu
+    const open = new Set([...controls.map((c) => c.refdes), ...waveKey.split(" ")]);
+    setSelectedEl((cur) => (cur && open.has(cur) ? cur : null));
+  }, [controls, waveKey]);
   const sliderElements: SliderElement[] = useMemo(() => {
     if (!map) return [];
-    return controls.map((c) => {
+    const adjustable: SliderElement[] = controls.map((c) => {
       const v = sim.alters[c.refdes];
       return {
         refdes: c.refdes,
@@ -230,7 +258,14 @@ export function SimulatePanel({
           v === undefined ? null : { original: c.value, value: v, keyword: sourceKeyword(c) },
       };
     });
-  }, [map, controls, sim.alters, t]);
+    const sources: SliderElement[] = waves.map((w) => ({
+      refdes: w.refdes,
+      shapes: elementShapes(map, w.refdes),
+      label: t("sim.wave.edit", { refdes: w.refdes }),
+      altered: null,
+    }));
+    return [...adjustable, ...sources];
+  }, [map, controls, waves, sim.alters, t]);
   const alteredList = controls.filter((c) => sim.alters[c.refdes] !== undefined);
 
   // âncora do slider (desktop): sob a caixa do elemento, dentro do contêiner
@@ -318,6 +353,40 @@ export function SimulatePanel({
       text: t("sim.writtenBack", {
         refdes: c.refdes,
         value: keyword ? `${keyword} ${r.written}` : r.written,
+      }),
+    });
+  };
+  const WAVE_REASON: Record<WaveEditFailure, MessageKey> = {
+    "no-wave": "sim.wave.fail.noWave",
+    "no-arg": "sim.wave.fail.noWave",
+    "not-literal": "sim.wave.fail.notLiteral",
+    invalid: "sim.wave.fail.invalid",
+  };
+  /** Escreve um argumento da forma de onda no fonte (UMA edição do editor,
+   *  desfazível) e REABRE a sessão no texto novo — a fonte mudou de forma, o
+   *  que nenhum `alter` de valor escalar cobre; sliders seguem. */
+  const writeWave = (w: SourceWaveform, index: number, text: string) => {
+    if (!onSourceEdit) return;
+    const fail = (reason: MessageKey) =>
+      setWriteNote({
+        ok: false,
+        text: t("sim.wave.notWritten", { refdes: w.refdes, reason: t(reason) }),
+      });
+    if (sim.source !== source) return fail("sim.wb.stale");
+    const current = mapFor();
+    if (!current) return fail("sim.wb.unavailable");
+    const r = waveEdit(source, current, w.refdes, index, text);
+    if (!r.ok) return fail(WAVE_REASON[r.reason]);
+    if (!onSourceEdit(r.edit, source)) return fail("sim.wb.stale");
+    const next = applySourceEdit(source, r.edit);
+    ownMap.current = { source: next, map: r.map };
+    sim.reopen(next);
+    setWriteNote({
+      ok: true,
+      text: t("sim.wave.written", {
+        refdes: w.refdes,
+        name: t(waveArgLabel(w, w.args[index])),
+        value: r.written,
       }),
     });
   };
@@ -534,16 +603,16 @@ export function SimulatePanel({
             onSelectElement={(refdes) => setSelectedEl((cur) => (cur === refdes ? null : refdes))}
             onHoverElement={setHoverEl}
           />
-          {(probeNets.length > 0 || controls.length > 0 || alteredList.length > 0 || writeNote) && (
+          {(probeNets.length > 0 || sliderElements.length > 0 || alteredList.length > 0 || writeNote) && (
             <div className="mt-1.5 flex min-w-0 flex-wrap items-center justify-center gap-x-3 gap-y-1">
-              {(probeNets.length > 0 || controls.length > 0) && (
+              {(probeNets.length > 0 || sliderElements.length > 0) && (
                 <p
                   className="min-w-0 text-center font-mono text-[10.5px] text-(--color-text-muted)"
                   data-testid="sim-probe-hint"
                 >
                   {probeNets.length > 0 && t("sim.probeHint")}
-                  {probeNets.length > 0 && controls.length > 0 && " · "}
-                  {controls.length > 0 && t("sim.sliderHint")}
+                  {probeNets.length > 0 && sliderElements.length > 0 && " · "}
+                  {sliderElements.length > 0 && t("sim.sliderHint")}
                 </p>
               )}
               {writeNote && (
@@ -573,7 +642,7 @@ export function SimulatePanel({
               bottom sheet do slider, e o valor acompanha o arrasto */}
           {measurePanel && (
             // com o slider aberto no celular, as medidas sobem para o topo do sheet
-            <div className={cn("mt-2", control && "max-sm:hidden")}>{measurePanel}</div>
+            <div className={cn("mt-2", (control || wave) && "max-sm:hidden")}>{measurePanel}</div>
           )}
           {control && (
             <ElementSlider
@@ -583,6 +652,16 @@ export function SimulatePanel({
               onChange={(v, commit) => setValue(control, v, commit)}
               onSettle={(v) => writeBack(control, v)}
               onReset={() => setValue(control, null, true)}
+              onClose={closeSlider}
+              anchor={anchor}
+              mobileTop={measurePanel || undefined}
+            />
+          )}
+          {wave && (
+            <WaveformEditor
+              key={wave.refdes}
+              wave={wave}
+              onCommit={(index, text) => writeWave(wave, index, text)}
               onClose={closeSlider}
               anchor={anchor}
               mobileTop={measurePanel || undefined}

@@ -299,8 +299,9 @@ test("slider: clicar no resistor abre o slider ancorado; arrastar muda o gráfic
   });
   await runRC(page);
   const loads = duneRequests.length;
-  // a fonte só com PULSE (sem DC) não tem slider
-  await expect(page.locator('.sim-hit-el[data-el="V1"]')).toHaveCount(0);
+  // a fonte só com PULSE (sem DC) não tem slider: o alvo dela abre o editor
+  // de forma de onda (teste próprio abaixo)
+  await expect(page.locator('.sim-hit-el[data-el="V1"]')).toHaveCount(1);
 
   const r1 = await elementPoint(page, "R1");
   await page.mouse.click(r1.x, r1.y);
@@ -706,3 +707,90 @@ for (const name of [/RC.*simul/i, /RLC.*simul/i, /(rectifier|retificador).*simul
     await expect(page.getByTestId("sim-status")).toHaveAttribute("data-state", "done", { timeout: 20_000 });
   });
 }
+
+test("fonte PULSE: clicar abre o editor de forma de onda; cada campo reescreve o fonte e re-simula", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWith(page, RC, "light");
+  await runRC(page);
+  const code = page.locator('[data-testid="code-pane"] .cm-content');
+  const before = await traceDs(page);
+
+  const v1 = await elementPoint(page, "V1");
+  await page.mouse.click(v1.x, v1.y);
+  const wave = page.getByTestId("sim-wave");
+  await expect(wave).toBeVisible();
+  await expect(wave).toHaveAttribute("data-refdes", "V1");
+  await expect(page.getByTestId("sim-wave-fn")).toHaveText("PULSE");
+  await expect(page.getByTestId("sim-slider")).toHaveCount(0);
+  await expect(page.getByTestId("sim-wave-row")).toHaveCount(7);
+  // ancorado sob a fonte, dentro da janela
+  const box = (await wave.boundingBox())!;
+  expect(box.y).toBeGreaterThan(v1.y);
+  expect(box.y + box.height).toBeLessThanOrEqual(900);
+  await page.screenshot({ path: info.outputPath("simulate-wave.png") });
+
+  // valor do pulso 5 → 3: o fonte muda e o gráfico acompanha
+  const v2 = page.getByTestId("sim-wave-v2");
+  await expect(v2).toHaveValue("5");
+  await v2.fill("3");
+  await v2.press("Enter");
+  await expect(code).toContainText("PULSE(0 3 0 1u 1u 10m 20m)");
+  await expect(page.getByTestId("sim-writeback")).toHaveAttribute("data-ok", "1");
+  await expect(page.getByTestId("sim-status")).toHaveAttribute("data-state", "done");
+  // re-simulou com 3 V: o eixo (auto-escala) perde a marca de 4 V; o traçado,
+  // reescalado, é o mesmo
+  const chart = page.getByTestId("sim-chart").first();
+  await expect(chart).not.toContainText("4 V");
+  await expect(chart).toContainText("2 V");
+  // o editor segue aberto, já com o valor novo
+  await expect(wave).toBeVisible();
+  await expect(v2).toHaveValue("3");
+
+  // 2ª edição em seguida (outro argumento, comprimento diferente)
+  const pw = page.getByTestId("sim-wave-pw");
+  await pw.fill("2.5m");
+  await pw.press("Enter");
+  await expect(code).toContainText("PULSE(0 3 0 1u 1u 2.5m 20m)");
+  await expect(wave).toBeVisible();
+  await expect(pw).toHaveValue("2.5m");
+  // o pulso agora cai aos 2,5 ms, dentro da janela: outro traçado
+  await expect.poll(() => traceDs(page)).not.toEqual(before);
+
+  // entrada inválida: fica marcada e nada é escrito; Esc desfaz o digitado
+  await v2.fill("abc");
+  await v2.press("Enter");
+  await expect(v2).toHaveAttribute("aria-invalid", "true");
+  await expect(code).toContainText("PULSE(0 3 0 1u 1u 2.5m 20m)");
+  await v2.press("Escape");
+  await expect(v2).toHaveValue("3");
+  await expect(wave).toBeVisible();
+  await page.screenshot({ path: info.outputPath("simulate-wave-edited.png") });
+  // Esc de novo fecha
+  await v2.press("Escape");
+  await expect(wave).toHaveCount(0);
+
+  // cada escrita é UMA edição desfazível do editor
+  await code.click();
+  const mod = process.platform === "darwin" ? "Meta" : "Control";
+  await page.keyboard.press(`${mod}+z`);
+  await expect(code).toContainText("PULSE(0 3 0 1u 1u 10m 20m)");
+  await page.keyboard.press(`${mod}+z`);
+  await expect(code).toContainText("PULSE(0 5 0 1u 1u 10m 20m)");
+});
+
+test("fonte PULSE no celular: o editor é um bottom sheet dentro da tela", async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 780 });
+  await openWith(page, RC, "light");
+  await page.getByRole("tab", { name: /SIM/ }).click();
+  await runRC(page);
+  await page.locator('.sim-hit-el[data-el="V1"]').focus();
+  await page.keyboard.press("Enter");
+  const wave = page.getByTestId("sim-wave");
+  await expect(wave).toBeVisible();
+  const box = (await wave.boundingBox())!;
+  expect(box.x).toBe(0);
+  expect(Math.round(box.y + box.height)).toBe(780);
+  await page.screenshot({ path: info.outputPath("simulate-wave-mobile.png") });
+});

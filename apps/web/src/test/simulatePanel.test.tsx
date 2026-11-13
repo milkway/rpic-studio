@@ -205,14 +205,16 @@ describe("SimulatePanel", () => {
       expect(screen.getByTestId("sim-status")).toHaveAttribute("data-state", "done"),
     );
     const fig = await screen.findByTestId("sim-figure");
-    // R1 e C1 têm alvo; V1 (só PULSE) não
+    // R1 e C1 têm alvo de slider; o de V1 (só PULSE) abre o editor de forma de onda
     const pad = await waitFor(() => {
       const p = fig.querySelector('.sim-hit-el[data-el="R1"]');
       expect(p).not.toBeNull();
       return p!;
     });
     expect(fig.querySelector('.sim-hit-el[data-el="C1"]')).not.toBeNull();
-    expect(fig.querySelector('.sim-hit-el[data-el="V1"]')).toBeNull();
+    expect(fig.querySelector('.sim-hit-el[data-el="V1"]')?.getAttribute("aria-label")).toBe(
+      "Edit the waveform of V1",
+    );
     expect(pad.getAttribute("role")).toBe("button");
 
     // cursor no fim do .tran: o valor de v(vout) na legenda é a sonda do resultado
@@ -436,6 +438,57 @@ describe("SimulatePanel", () => {
       (screen.getByTestId("harness-source").textContent ?? "")
         .split("\n")
         .find((l) => l.startsWith(prefix));
+
+    it("fonte PULSE: o alvo abre o editor de forma de onda; Enter escreve o argumento no fonte", async () => {
+      const edits: SourceEdit[] = [];
+      const workers: InlineWorker[] = [];
+      render(<Harness initial={RC_FIGURE} edits={edits} workers={workers} />);
+      await openSlider("V1");
+      expect(screen.getByTestId("sim-wave")).toHaveAttribute("data-refdes", "V1");
+      expect(screen.getByTestId("sim-wave-fn").textContent).toBe("PULSE");
+      expect(screen.queryByTestId("sim-slider")).toBeNull();
+      const field = () => screen.getByTestId("sim-wave-v2") as HTMLInputElement;
+      expect(field().value).toBe("5");
+
+      fireEvent.change(field(), { target: { value: "3" } });
+      fireEvent.keyDown(field(), { key: "Enter" });
+      expect(edits).toHaveLength(1);
+      expect(edits[0].insert).toBe("3");
+      expect(srcLine("V1:")).toContain("PULSE(0 3 0 1u 1u 10m 20m)");
+      await waitFor(() =>
+        expect(screen.getByTestId("sim-writeback")).toHaveAttribute("data-ok", "1"),
+      );
+      // a sessão reabre no texto novo; o editor segue aberto com o valor escrito
+      await waitFor(() =>
+        expect(screen.getByTestId("sim-status")).toHaveAttribute("data-state", "done"),
+      );
+      expect(field().value).toBe("3");
+
+      // 2ª escrita em seguida (os spans já são os do texto novo)
+      const pw = screen.getByTestId("sim-wave-pw") as HTMLInputElement;
+      fireEvent.change(pw, { target: { value: "2.5m" } });
+      fireEvent.keyDown(pw, { key: "Enter" });
+      expect(edits).toHaveLength(2);
+      expect(srcLine("V1:")).toContain("PULSE(0 3 0 1u 1u 2.5m 20m)");
+
+      // entrada inválida: marcada, nada escrito
+      fireEvent.change(field(), { target: { value: "abc" } });
+      fireEvent.keyDown(field(), { key: "Enter" });
+      expect(field()).toHaveAttribute("aria-invalid", "true");
+      expect(edits).toHaveLength(2);
+    });
+
+    it("fonte PULSE: o editor que recusa a edição não muda nada e o painel diz por quê", async () => {
+      const edits: SourceEdit[] = [];
+      render(<Harness initial={RC_FIGURE} edits={edits} workers={[]} reject />);
+      await openSlider("V1");
+      const v2 = screen.getByTestId("sim-wave-v2") as HTMLInputElement;
+      fireEvent.change(v2, { target: { value: "3" } });
+      fireEvent.keyDown(v2, { key: "Enter" });
+      expect(edits).toHaveLength(0);
+      expect(screen.getByTestId("sim-writeback")).toHaveAttribute("data-ok", "0");
+      expect(srcLine("V1:")).toContain("PULSE(0 5 0");
+    });
 
     it("arrastar não escreve; soltar escreve o valor, e o elemento deixa de estar alterado", async () => {
       const edits: SourceEdit[] = [];
