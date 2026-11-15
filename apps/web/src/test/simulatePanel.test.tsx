@@ -2,7 +2,14 @@
 // handler do worker real com o dune real (bytes) — protocolo + UI + realce.
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { act, fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState, type ReactNode } from "react";
 import { ensureDune, extractPic, openDeck, openSession, renderPic } from "@/lib/dune";
 import { applySourceEdit, type SourceEdit } from "@/lib/simSource";
@@ -13,7 +20,15 @@ import { SimHost, transferablesOf, type SimRequest, type SimResponse } from "@/l
 import type { WorkerLike } from "@/lib/simClient";
 import { SimulatePanel } from "@/components/simulate/SimulatePanel";
 import { TooltipProvider } from "@/components/ui/Tooltip";
-import { DIVIDER_FIGURE, MEASURE_FIGURE, PIN_FIGURE, RC_FIGURE, RLC_FIGURE } from "./fixtures-sim";
+import {
+  DIVIDER_FIGURE,
+  FOUR_FIGURE,
+  MEASURE_FIGURE,
+  PIN_FIGURE,
+  RANDOM_FIGURE,
+  RC_FIGURE,
+  RLC_FIGURE,
+} from "./fixtures-sim";
 
 const require = createRequire(import.meta.url);
 
@@ -981,6 +996,99 @@ describe("grade fina (issue #33; o toggle dos passos finos, #19)", () => {
     expect(screen.getByTestId("sim-fine")).toHaveAttribute("aria-pressed", "false");
     await waitFor(() => expect(workers[0].sent).toHaveLength(2));
     expect(workers[0].sent[1].fine).toBeUndefined();
+  });
+});
+
+describe("tabelas de Fourier (.four, dune-sim 0.11)", () => {
+  const done = () =>
+    waitFor(() => expect(screen.getByTestId("sim-status")).toHaveAttribute("data-state", "done"));
+
+  it("sem .four não aparece", async () => {
+    render(<SimulatePanel source={RC_FIGURE} active workerFactory={() => new InlineWorker()} />);
+    fireEvent.click(screen.getByTestId("sim-run"));
+    await done();
+    expect(screen.queryByTestId("sim-fourier")).toBeNull();
+  });
+
+  it("um grupo por vetor: harmônicos + THD; o vetor que falha mostra a razão", async () => {
+    render(<SimulatePanel source={FOUR_FIGURE} active workerFactory={() => new InlineWorker()} />);
+    fireEvent.click(screen.getByTestId("sim-run"));
+    await done();
+    const groups = await screen.findAllByTestId("sim-fourier-group");
+    expect(groups.map((g) => [g.dataset.vector, g.dataset.error])).toEqual([
+      ["v(vout)", "0"],
+      ["v(nope)", "1"],
+    ]);
+    const rows = [...groups[0].querySelectorAll('[data-testid="sim-fourier-row"]')].map(
+      (tr) => [...tr.querySelectorAll("td")].map((td) => td.textContent),
+    );
+    expect(rows).toHaveLength(10); // nfreqs padrão: DC + 9 harmônicos
+    // a fundamental: 1 kHz, |H| = 1/√(1+(2π·1k·1m)²) = 0,157, normalizada 1
+    expect(rows[1][0]).toBe("1");
+    expect(rows[1][1]).toBe("1 kHz");
+    expect(rows[1][2]).toMatch(/^157\.\d mV$/);
+    expect(rows[1][3]).toMatch(/^−8\d\.\d°$/);
+    expect(rows[1][4]).toBe("1");
+    expect(within(groups[0]).getByTestId("sim-fourier-thd").textContent).toMatch(/^THD [\d.]+ %$/);
+    expect(groups[0].textContent).toContain("fundamental 1 kHz");
+    expect(groups[1].textContent).toMatch(/failed: .*nope/);
+    expect(groups[1].querySelector("table")).toBeNull();
+  });
+});
+
+describe("funções aleatórias: sortear a semente (dune-sim 0.12)", () => {
+  const done = () =>
+    waitFor(() => expect(screen.getByTestId("sim-status")).toHaveAttribute("data-state", "done"));
+  const trise = () =>
+    screen.getAllByTestId("sim-measure-value")[0].textContent ?? "";
+
+  it("deck sem função aleatória não mostra o controle", async () => {
+    render(<SimulatePanel source={RC_FIGURE} active workerFactory={() => new InlineWorker()} />);
+    fireEvent.click(screen.getByTestId("sim-run"));
+    await done();
+    expect(screen.queryByTestId("sim-seed")).toBeNull();
+  });
+
+  it("nominal → Sortear reabre com a semente e muda a medida → Nominal volta", async () => {
+    const workers: InlineWorker[] = [];
+    render(
+      <SimulatePanel
+        source={RANDOM_FIGURE}
+        active
+        workerFactory={() => {
+          const w = new InlineWorker();
+          workers.push(w);
+          return w;
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("sim-run"));
+    await done();
+    const seed = await screen.findByTestId("sim-seed");
+    expect(screen.getByTestId("sim-seed-value").textContent).toBe("nominal");
+    expect(screen.queryByTestId("sim-seed-clear")).toBeNull();
+    expect(workers[0].sent[0].opts).toBeUndefined();
+    const nominal = trise();
+    expect(nominal).toBe("2.2 ms"); // τ·ln 9 com R1 = 1k
+    // o aviso do dune (nominal) está nos diagnósticos
+    expect(screen.getByTestId("sim-diagnostics").textContent).toContain("nominal value");
+
+    fireEvent.click(screen.getByTestId("sim-seed-draw"));
+    await waitFor(() => expect(seed.dataset.seed).not.toBe(""));
+    const n = Number(seed.dataset.seed);
+    expect(Number.isInteger(n) && n >= 1 && n <= 0xffff_ffff).toBe(true);
+    expect(workers[0].sent[1].opts).toEqual({ options: { seed: n } });
+    await waitFor(() => expect(trise()).not.toBe(nominal));
+    expect(screen.getByTestId("sim-status")).toHaveAttribute("data-rerun", "1");
+    expect(screen.getByTestId("sim-seed-value").textContent).toBe(`seed ${n}`);
+    expect(screen.queryByTestId("sim-seed-unused")).toBeNull();
+    // sorteado: o aviso de "nominal" some
+    expect(screen.queryByTestId("sim-diagnostics")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("sim-seed-clear"));
+    await waitFor(() => expect(trise()).toBe(nominal));
+    expect(screen.getByTestId("sim-seed-value").textContent).toBe("nominal");
+    expect(workers[0].sent.at(-1)!.opts).toBeUndefined();
   });
 });
 

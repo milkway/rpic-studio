@@ -38,6 +38,9 @@ const okFor = (id: number): SimResponse => ({
   run: {
     plots: [],
     measurements: [],
+    fourier: [],
+    seed: null,
+    randomMode: "nominal",
     pss: [],
     notes: [],
     diagnostics: [],

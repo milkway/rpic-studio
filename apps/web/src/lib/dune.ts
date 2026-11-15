@@ -11,6 +11,7 @@ import type {
   Diagnostic as SimDiagnostic,
   EngineOptions,
   ExtractOptions,
+  FourierRow,
   Measurement,
   OverlayCanvas,
   OverlayPin,
@@ -95,6 +96,7 @@ export type Plot = TypedPlot;
 export type {
   EngineOptions,
   ExtractOptions,
+  FourierRow,
   Measurement,
   OverlayCanvas,
   OverlayMap,

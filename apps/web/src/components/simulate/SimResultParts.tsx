@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { AlertTriangle, Check, ChevronRight, Copy, TriangleAlert } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight, Copy, Dices, TriangleAlert } from "lucide-react";
 import { cn } from "@rpic/design-system";
 import type { Plot, SimDiagnostic } from "@/lib/dune";
 import type { MeasureRow } from "@/lib/simMeasure";
+import { formatPlain, type FourierGroup } from "@/lib/simFourier";
 import { formatSI, isComplex, unitOf } from "@/lib/waveform";
 import { copyText } from "@/lib/exports";
 import { useI18n } from "@/lib/i18n";
@@ -273,6 +274,177 @@ export function MeasurePanel({
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+/** Tabelas de Fourier (`.four`) do run: uma por vetor de cada cartão, com a
+ *  THD e a fundamental no cabeçalho e uma linha por harmônico (frequência,
+ *  magnitude, fase em graus, magnitude normalizada pela fundamental). Vetor
+ *  sem tabela mostra a razão e NUNCA some. Atualiza a cada run, os re-runs de
+ *  slider inclusive. `displayGrid` = o run é o da grade de exibição. */
+export function FourierPanel({
+  groups,
+  displayGrid = false,
+}: {
+  groups: readonly FourierGroup[];
+  displayGrid?: boolean;
+}) {
+  const { t } = useI18n();
+  if (groups.length === 0) return null;
+  return (
+    <section className="space-y-2" data-testid="sim-fourier" aria-label={t("sim.fourier")}>
+      {groups.map((g) => (
+        <div
+          key={g.key}
+          data-testid="sim-fourier-group"
+          data-vector={g.vector}
+          data-error={g.error === null ? "0" : "1"}
+          className="space-y-1"
+        >
+          <h3 className="flex min-w-0 flex-wrap items-baseline gap-x-2 font-mono text-[10.5px] tracking-widest text-(--color-text-muted) uppercase">
+            <span>{t("sim.fourier")}</span>
+            <span className="tracking-normal text-(--color-text) normal-case">{g.vector}</span>
+            {g.thd !== null && (
+              <span
+                className="tracking-normal text-(--color-text-body) normal-case tabular-nums"
+                data-testid="sim-fourier-thd"
+              >
+                {t("sim.fourier.thd", { v: formatPlain(g.thd) })}
+              </span>
+            )}
+            {g.fundamental !== null && (
+              <span className="tracking-normal normal-case tabular-nums">
+                {t("sim.fourier.f0", { f: formatSI(g.fundamental, "Hz") })}
+              </span>
+            )}
+            {displayGrid && (
+              <Tip label={t("sim.measuresDenseTip")}>
+                <span tabIndex={0} className="tracking-normal normal-case">
+                  {t("sim.measuresDense")}
+                </span>
+              </Tip>
+            )}
+          </h3>
+          {g.error !== null ? (
+            <p className="font-mono text-[11.5px] text-(--color-warning)">
+              {t("sim.measureFailed", { reason: g.error })}
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse font-mono text-[11.5px]">
+                <thead>
+                  <tr className="text-right text-(--color-text-muted)">
+                    <th className="py-0.5 pr-3 text-left font-normal">{t("sim.fourier.n")}</th>
+                    <th className="py-0.5 pr-3 font-normal">{t("sim.fourier.freq")}</th>
+                    <th className="py-0.5 pr-3 font-normal">{t("sim.fourier.mag")}</th>
+                    <th className="py-0.5 pr-3 font-normal">{t("sim.fourier.phase")}</th>
+                    <th className="py-0.5 font-normal">{t("sim.fourier.norm")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {g.harmonics.map((h) => (
+                    <tr
+                      key={h.harmonic}
+                      data-testid="sim-fourier-row"
+                      className="border-t border-(--color-border) text-right text-(--color-text-body) tabular-nums"
+                    >
+                      <td className="py-0.5 pr-3 text-left">{h.harmonic}</td>
+                      <td className="py-0.5 pr-3">{formatSI(h.frequency, "Hz", 4)}</td>
+                      <td className="py-0.5 pr-3">{formatSI(h.magnitude, g.unit, 4)}</td>
+                      <td className="py-0.5 pr-3">
+                        {h.phase === null ? "—" : `${h.phase.toFixed(1).replace("-", "−")}°`}
+                      </td>
+                      <td className="py-0.5">{formatPlain(h.norm)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+/** Sorteio das funções aleatórias do deck (`agauss`, `gauss`, `aunif`,
+ *  `unif`, `limit`): sem semente o dune as avalia no valor NOMINAL; "Sortear"
+ *  manda uma semente nova (uma amostra de Monte Carlo, reproduzível pelo
+ *  número mostrado) e "Nominal" a retira. `shown` = a semente em vigor (a
+ *  pedida, ou a do próprio deck — `.options seed=`); `unused` = há semente
+ *  mas o deck não chama função aleatória. */
+export function SeedControl({
+  shown,
+  requested,
+  unused,
+  onDraw,
+  onClear,
+}: {
+  shown: number | null;
+  requested: boolean;
+  unused: boolean;
+  onDraw: () => void;
+  onClear: () => void;
+}) {
+  const { t } = useI18n();
+  const toast = useToast();
+  return (
+    <section
+      className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-(--radius-md) border border-(--color-border) bg-(--color-surface) px-2.5 py-1"
+      data-testid="sim-seed"
+      data-seed={shown ?? ""}
+      aria-label={t("sim.seed.title")}
+    >
+      <h3 className="font-mono text-[10px] tracking-widest text-(--color-text-muted) uppercase">
+        {t("sim.seed.title")}
+      </h3>
+      <span
+        className={cn(
+          "font-mono text-[11.5px] tabular-nums",
+          shown === null ? "text-(--color-text-muted)" : "text-(--color-text)",
+        )}
+        data-testid="sim-seed-value"
+      >
+        {shown === null ? t("sim.seed.nominal") : t("sim.seed.value", { n: String(shown) })}
+      </span>
+      {shown !== null && (
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t("sim.seed.copy")}
+          data-testid="sim-seed-copy"
+          onClick={async () => {
+            await copyText(`.options seed=${shown}`);
+            toast(t("preview.copiedToClipboard"));
+          }}
+        >
+          <Copy size={12} />
+        </Button>
+      )}
+      <div className="ml-auto flex shrink-0 items-center gap-1">
+        {requested && (
+          <Tip label={t("sim.seed.clearTip")}>
+            <Button variant="ghost" size="sm" onClick={onClear} data-testid="sim-seed-clear">
+              {t("sim.seed.clear")}
+            </Button>
+          </Tip>
+        )}
+        <Tip label={t("sim.seed.drawTip")}>
+          <Button variant="outline" size="sm" onClick={onDraw} data-testid="sim-seed-draw">
+            <Dices size={13} />
+            {t("sim.seed.draw")}
+          </Button>
+        </Tip>
+      </div>
+      {unused && (
+        <p
+          className="w-full font-mono text-[10.5px] text-(--color-text-muted)"
+          data-testid="sim-seed-unused"
+        >
+          {t("sim.seed.unused")}
+        </p>
+      )}
     </section>
   );
 }

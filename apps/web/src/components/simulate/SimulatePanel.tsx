@@ -26,6 +26,8 @@ import { finiteRange, formatSI, hasScale, plotSeries } from "@/lib/waveform";
 import { withAlter, type SimControl } from "@/lib/simValues";
 import {
   applySourceEdit,
+  drawSeed,
+  usesRandom,
   valueEdit,
   type SourceEdit,
   type WriteBackFailure,
@@ -38,6 +40,7 @@ import {
   type WaveEditFailure,
 } from "@/lib/simWaveform";
 import { measureRows } from "@/lib/simMeasure";
+import { fourierGroups } from "@/lib/simFourier";
 import {
   analysisCards,
   cardEdit,
@@ -60,7 +63,14 @@ import { ElementSlider, sourceKeyword } from "./ElementSlider";
 import { WaveformEditor, waveArgLabel } from "./WaveformEditor";
 import { TimeScrubber } from "./TimeScrubber";
 import { groupByUnit, MAX_TRACES, traceStyle, WaveformChart } from "./WaveformChart";
-import { MeasurePanel, NetlistBlock, ScalarTable, SimDiagnostics } from "./SimResultParts";
+import {
+  FourierPanel,
+  MeasurePanel,
+  NetlistBlock,
+  ScalarTable,
+  SeedControl,
+  SimDiagnostics,
+} from "./SimResultParts";
 import { AnalysisEditor } from "./AnalysisEditor";
 
 interface SimulatePanelProps {
@@ -499,6 +509,18 @@ export function SimulatePanel({
   const measurePanel = measures.length > 0 && (
     <MeasurePanel rows={measures} displayGrid={sim.grid === "dense"} />
   );
+  // tabelas `.four` do run na tela (mesma regra das medidas)
+  const fourierRows = sim.run?.fourier;
+  const fourier = useMemo(
+    () => (fourierRows?.length ? fourierGroups(fourierRows) : []),
+    [fourierRows],
+  );
+  // funções aleatórias: o controle aparece quando o deck as chama, quando há
+  // uma semente pedida, ou quando o run foi sorteado pela do próprio deck
+  const random = useMemo(() => usesRandom(netlist), [netlist]);
+  const seeded = sim.run?.randomMode === "seeded";
+  const shownSeed = sim.seed ?? (seeded ? (sim.run?.seed ?? null) : null);
+  const showSeed = pic !== null && (random || seeded || sim.seed !== null);
   // a grade do run NA TELA (não o estado do botão: a resposta ao toggle pode
   // estar a caminho) — com o modo ligado, ou enquanto o run mostrado é denso
   const gridNote = (() => {
@@ -711,6 +733,16 @@ export function SimulatePanel({
           <AnalysisEditor cards={cards} readOnly={cardReason} onCommit={writeCard} />
         )}
 
+        {showSeed && (
+          <SeedControl
+            shown={shownSeed}
+            requested={sim.seed !== null}
+            unused={sim.seed !== null && sim.run !== null && !seeded && !random}
+            onDraw={() => sim.setSeed(drawSeed())}
+            onClear={() => sim.setSeed(null)}
+          />
+        )}
+
         {swept.length > 1 && (
           <div
             className="flex flex-wrap items-center gap-1"
@@ -790,6 +822,8 @@ export function SimulatePanel({
         {scalars.map((p, i) => (
           <ScalarTable key={i} plot={p} onHover={setFocus} />
         ))}
+
+        <FourierPanel groups={fourier} displayGrid={sim.grid === "dense"} />
 
         {sim.status === "done" && plots.length === 0 && (
           <EmptyState>{t("sim.noPlots", { code: ".tran 1u 1m" })}</EmptyState>

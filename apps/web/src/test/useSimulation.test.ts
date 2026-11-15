@@ -28,6 +28,9 @@ class FakeWorker implements WorkerLike {
 const RUN: PicRun = {
   plots: [],
   measurements: [],
+  fourier: [],
+  seed: null,
+  randomMode: "nominal",
   pss: [],
   notes: ["boa"],
   diagnostics: [],
@@ -121,6 +124,50 @@ describe("useSimulation: re-run que falha", () => {
     expect(workers[1].last()).toMatchObject({ alters: { R1: 2e3 } });
     await act(async () => workers[1].reply(ok(workers[1].last().id, true)));
     expect(hook.result.current.status).toBe("done");
+  });
+});
+
+describe("useSimulation: semente das funções aleatórias", () => {
+  it("sem semente o pedido não leva `opts`; trocar re-roda UMA vez e os pedidos seguintes a levam", async () => {
+    const { hook, workers } = await setup();
+    const w = workers[0];
+    const n = w.sent.length;
+    expect(w.last().opts).toBeUndefined();
+    act(() => hook.result.current.setSeed(7));
+    expect(w.sent).toHaveLength(n + 1);
+    expect(w.last()).toMatchObject({ source: "src", opts: { options: { seed: 7 } } });
+    await act(async () => w.reply(ok(w.last().id, true)));
+    expect(hook.result.current.seed).toBe(7);
+    expect(hook.result.current.rerun).toBe(true);
+    // a mesma semente de novo: nada sai
+    act(() => hook.result.current.setSeed(7));
+    expect(w.sent).toHaveLength(n + 1);
+    // slider e Simular levam a semente
+    act(() => hook.result.current.setAlters({ R1: 2e3 }, true));
+    expect(w.last()).toMatchObject({ alters: { R1: 2e3 }, opts: { options: { seed: 7 } } });
+    await act(async () => w.reply(ok(w.last().id, false)));
+    act(() => hook.result.current.start("src"));
+    expect(w.last()).toMatchObject({ opts: { options: { seed: 7 } } });
+    await act(async () => w.reply(ok(w.last().id, false)));
+    // de volta ao nominal: o pedido sai sem `opts`
+    act(() => hook.result.current.setSeed(null));
+    expect(w.last().opts).toBeUndefined();
+    expect(hook.result.current.seed).toBeNull();
+  });
+
+  it("ocioso: só guarda a semente; o 1º Simular já a leva", () => {
+    const workers: FakeWorker[] = [];
+    const hook = renderHook(() =>
+      useSimulation(() => {
+        const w = new FakeWorker();
+        workers.push(w);
+        return w;
+      }),
+    );
+    act(() => hook.result.current.setSeed(42));
+    expect(workers).toHaveLength(0);
+    act(() => hook.result.current.start("src"));
+    expect(workers[0].last()).toMatchObject({ opts: { options: { seed: 42 } } });
   });
 });
 

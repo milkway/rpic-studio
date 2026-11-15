@@ -9,7 +9,7 @@ import type {
   SimTiming,
 } from "./simProtocol";
 import type { Alters, SimControl } from "./simValues";
-import type { OverlayCanvas, PicRun } from "./dune";
+import type { OverlayCanvas, PicRun, PicSimOptions } from "./dune";
 
 export type SimStatus = "idle" | "running" | "done" | "error" | "cancelled";
 
@@ -53,7 +53,17 @@ export interface SimulationState {
   /** A grade do `run` na tela (`null` = sem run): o rótulo do gráfico diz
    *  isto, não o estado do botão — a resposta ao toggle pode estar a caminho. */
   grid: SimDisplayGrid | null;
+  /** Semente das funções aleatórias do deck (`agauss`, `gauss`…) — vai como
+   *  `opts.options.seed` em todo pedido. `null` = sem semente: o dune as
+   *  avalia no valor nominal. O sorteio é feito quando a sessão ABRE, então
+   *  trocar a semente reabre a sessão (as alterações de slider seguem). */
+  seed: number | null;
 }
+
+/** As opções do pedido: só a semente, quando há (`undefined` = pedido sem
+ *  `opts`, como antes do dune-sim 0.12). */
+const optsOf = (seed: number | null): PicSimOptions | undefined =>
+  seed === null ? undefined : { options: { seed } };
 
 const IDLE: SimulationState = {
   status: "idle",
@@ -74,6 +84,7 @@ const IDLE: SimulationState = {
   epoch: 0,
   fine: false,
   grid: null,
+  seed: null,
 };
 
 /** Intervalo mínimo entre re-runs durante o arrasto (ms): no máximo ~25/s;
@@ -191,11 +202,12 @@ export function useSimulation(factory?: WorkerFactory, initialFine = false) {
         ...(same ? {} : { controls: [] }),
       }));
       const fine = prev.fine;
-      sentKey.current = JSON.stringify([source, alters, fine]);
+      const opts = optsOf(prev.seed);
+      sentKey.current = JSON.stringify([source, alters, fine, prev.seed]);
       pendingAdopt.current = [];
       const sentAt = performance.now();
       client()
-        .run(fine ? { source, alters, fine } : { source, alters })
+        .run({ source, alters, ...(fine ? { fine } : {}), ...(opts ? { opts } : {}) })
         .then(
           (res) => apply(res, false, sentAt, source),
           (e: unknown) => onReject(e),
@@ -206,9 +218,10 @@ export function useSimulation(factory?: WorkerFactory, initialFine = false) {
 
   const dispatch = useCallback(() => {
     timer.current = null;
-    const { source, alters, fine } = stateRef.current;
+    const { source, alters, fine, seed } = stateRef.current;
     if (source === null) return;
-    const key = JSON.stringify([source, alters, fine]);
+    const opts = optsOf(seed);
+    const key = JSON.stringify([source, alters, fine, seed]);
     if (key === sentKey.current) return;
     sentKey.current = key;
     lastSent.current = performance.now();
@@ -220,6 +233,7 @@ export function useSimulation(factory?: WorkerFactory, initialFine = false) {
         alters,
         ...(adopt.length ? { adopt } : {}),
         ...(fine ? { fine } : {}),
+        ...(opts ? { opts } : {}),
       })
       .then(
         (res) => {
@@ -325,6 +339,25 @@ export function useSimulation(factory?: WorkerFactory, initialFine = false) {
     [dispatch],
   );
 
+  /** Troca a semente das funções aleatórias (`null` = valores nominais). Com
+   *  uma sessão em uso, re-roda UMA vez como re-run: o worker REABRE a sessão
+   *  (as opções mudaram; o sorteio é da abertura) com o conjunto `alters` —
+   *  plot/probes/cursor ficam. Ocioso, cancelado ou em falha sem resultado, só
+   *  guarda a semente para o próximo Simular. */
+  const setSeed = useCallback(
+    (seed: number | null) => {
+      const s = stateRef.current;
+      if (s.seed === seed) return;
+      stateRef.current = { ...s, seed };
+      setState((cur) => ({ ...cur, seed }));
+      if (s.source === null || s.status === "idle" || s.status === "cancelled") return;
+      if (s.status === "error" && s.run === null) return;
+      if (timer.current !== null) window.clearTimeout(timer.current);
+      dispatch();
+    },
+    [dispatch],
+  );
+
   const cancel = useCallback(() => {
     if (timer.current !== null) window.clearTimeout(timer.current);
     timer.current = null;
@@ -332,7 +365,7 @@ export function useSimulation(factory?: WorkerFactory, initialFine = false) {
     clientRef.current?.cancel();
   }, []);
 
-  return { ...state, start, cancel, setAlters, adopt, reopen, setFine };
+  return { ...state, start, cancel, setAlters, adopt, reopen, setFine, setSeed };
 }
 
 /** O frame dos terminais (`map.canvas`) SÓ quando figura e extração mostradas

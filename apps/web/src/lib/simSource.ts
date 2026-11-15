@@ -210,3 +210,27 @@ export function applySourceEdit(source: string, edit: SourceEdit): string {
 export function hasAcAnalysis(netlist: string): boolean {
   return /^[ \t]*\.ac\b/im.test(netlist);
 }
+
+/** O deck chama uma função aleatória do ngspice (`agauss`, `gauss`, `aunif`,
+ *  `unif`, `limit`)? Sem semente o dune as avalia no valor NOMINAL; com
+ *  `options.seed` elas são sorteadas — é quando o painel oferece o sorteio.
+ *  Linhas de comentário (`*`) não contam. */
+export function usesRandom(netlist: string): boolean {
+  return netlist
+    .split(/\r?\n/)
+    .some((l) => !/^\s*\*/.test(l) && /\b(?:agauss|gauss|aunif|unif|limit)\s*\(/i.test(l));
+}
+
+/** Uma semente nova para o sorteio: inteiro de 1 a 2^32 − 1 (o intervalo que
+ *  `.options seed=` aceita). O Studio sorteia e MANDA o número (não
+ *  `"random"`): o pedido fica reproduzível e a sessão do worker só reabre
+ *  quando a semente muda. */
+export function drawSeed(): number {
+  const buf = new Uint32Array(1);
+  if (typeof crypto !== "undefined" && typeof crypto.getRandomValues === "function") {
+    crypto.getRandomValues(buf);
+  } else {
+    buf[0] = Math.floor(Math.random() * 0x1_0000_0000);
+  }
+  return buf[0] || 1;
+}

@@ -635,8 +635,8 @@ dot at Vout
     id: "sim-rectifier",
     title: { en: "Half-wave rectifier (simulate)", pt: "Retificador de meia onda (simular)" },
     description: {
-      en: "A diode and a reservoir capacitor turn a 60 Hz sine into rippled DC.",
-      pt: "Um diodo e um capacitor de filtro transformam uma senoide de 60 Hz em CC com ondulação.",
+      en: "A diode and a reservoir capacitor turn a 60 Hz sine into rippled DC; .four lists the ripple's harmonics.",
+      pt: "Um diodo e um capacitor de filtro transformam uma senoide de 60 Hz em CC com ondulação; o .four lista os harmônicos dela.",
     },
     tags: ["circuits", "simulate"],
     circuits: true,
@@ -656,6 +656,7 @@ dot at Vout; dot at C1.N
 "out" above at Vout + (0,0.05)
 .model DMOD D(IS=1e-14 RS=0.5)
 .tran 0.1m 50m
+.four 60 v(Vout)
 .PE`,
   },
   {
@@ -736,6 +737,33 @@ ground((1.2,0))
 .model NMOD NMOS(LEVEL=1 VTO=0.7 KP=110u LAMBDA=0.04)
 .model PMOD PMOS(LEVEL=1 VTO=-0.7 KP=50u LAMBDA=0.05)
 .tran 0.1n 60n
+.PE`,
+  },
+  {
+    id: "sim-tolerance",
+    title: { en: "Component tolerances (simulate)", pt: "Tolerância dos componentes (simular)" },
+    description: {
+      en: "An RC with 5 % and 10 % parts: Draw picks a Monte Carlo sample and the rise time moves with it.",
+      pt: "Um RC com peças de 5 % e 10 %: Sortear tira uma amostra de Monte Carlo e o tempo de subida muda com ela.",
+    },
+    tags: ["circuits", "simulate"],
+    circuits: true,
+    source: `.PS
+# RC low-pass with toleranced parts: R1 = 1k +/- 5 %, C1 = 1u +/- 10 %
+# (3 sigma). Without a seed the random functions return the nominal value;
+# "Draw" in the Simulate tab picks a seed, i.e. one Monte Carlo sample.
+spice = 1
+Vin: (0,1.5); Vout: (2.5,1.5)
+V1: vsource(Vin, (0,0), PULSE(0 5 0 1u 1u 10m 20m), "G₁")
+R1: resistor(Vin, Vout, {agauss(1k,50,3)})
+C1: capacitor(Vout, (2.5,0), {agauss(1u,0.1u,3)})
+line from V1.N to C1.N
+ground((1.25,0))
+dot at Vin; dot at Vout
+"in" above at Vin + (0,0.05)
+"out" above at Vout + (0,0.05)
+.tran 20u 5m
+.measure tran trise TRIG v(Vout) VAL=0.5 RISE=1 TARG v(Vout) VAL=4.5 RISE=1
 .PE`,
   },
   {
