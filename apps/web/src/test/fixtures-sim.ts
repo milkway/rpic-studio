@@ -67,3 +67,33 @@ ground((0,0)); line from V1.N to R2.N
 .tran 1u 1m
 .PE
 `;
+
+/** RC excitado por uma senoide de 1 kHz com um cartão `.four` (dune-sim ≥
+ *  0.11): a tabela de harmônicos de v(Vout) e a THD. */
+export const FOUR_FIGURE = `.PS
+spice = 1
+Vin: (0,1.5); Vout: (2.5,1.5)
+V1: vsource(Vin, (0,0), SIN(0 1 1k))
+R1: resistor(Vin, Vout, 1k)
+C1: capacitor(Vout, (2.5,0), 1u)
+line from V1.N to C1.N
+ground((1.25,0))
+.tran 10u 5m
+.four 1k v(Vout) v(nope)
+.PE
+`;
+
+/** RC com R1 sorteado (`agauss`, dune-sim ≥ 0.12): nominal sem semente,
+ *  outro valor a cada semente. */
+export const RANDOM_FIGURE = `.PS
+spice = 1
+Vin: (0,1.5); Vout: (2.5,1.5)
+V1: vsource(Vin, (0,0), PULSE(0 5 0 1u 1u 10m 20m))
+R1: resistor(Vin, Vout, {agauss(1k,300,1)})
+C1: capacitor(Vout, (2.5,0), 1u)
+line from V1.N to C1.N
+ground((1.25,0))
+.tran 20u 5m
+.measure tran trise TRIG v(Vout) VAL=0.5 RISE=1 TARG v(Vout) VAL=4.5 RISE=1
+.PE
+`;

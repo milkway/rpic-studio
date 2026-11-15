@@ -1,5 +1,11 @@
 import { test, expect, type Page } from "@playwright/test";
-import { MEASURE_FIGURE, PIN_FIGURE, RLC_FIGURE } from "../src/test/fixtures-sim";
+import {
+  FOUR_FIGURE,
+  MEASURE_FIGURE,
+  PIN_FIGURE,
+  RANDOM_FIGURE,
+  RLC_FIGURE,
+} from "../src/test/fixtures-sim";
 
 // Figura RC do corpus do dune (corpus/pic/rc.pic).
 const RC = `.PS
@@ -793,4 +799,71 @@ test("fonte PULSE no celular: o editor é um bottom sheet dentro da tela", async
   expect(box.x).toBe(0);
   expect(Math.round(box.y + box.height)).toBe(780);
   await page.screenshot({ path: info.outputPath("simulate-wave-mobile.png") });
+});
+
+for (const theme of ["light", "dark"] as const) {
+  test(`.four: tabela de harmônicos e THD por vetor; o que falha diz por quê (${theme})`, async ({
+    page,
+  }, info) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await openWith(page, FOUR_FIGURE, theme);
+    await runRC(page);
+    const groups = page.getByTestId("sim-fourier-group");
+    await expect(groups).toHaveCount(2);
+    const ok = groups.nth(0);
+    await expect(ok).toHaveAttribute("data-vector", "v(vout)");
+    await expect(ok.getByTestId("sim-fourier-row")).toHaveCount(10);
+    await expect(ok.getByTestId("sim-fourier-row").nth(1)).toContainText("1 kHz");
+    await expect(ok.getByTestId("sim-fourier-thd")).toContainText(/THD [\d.]+ %/);
+    await expect(groups.nth(1)).toHaveAttribute("data-error", "1");
+    await ok.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: info.outputPath(`simulate-fourier-${theme}.png`) });
+  });
+}
+
+test("funções aleatórias: Sortear re-roda com uma semente e a medida muda; Nominal volta", async ({
+  page,
+}, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openWith(page, RANDOM_FIGURE, "light");
+  await runRC(page);
+  const seed = page.getByTestId("sim-seed");
+  await expect(seed).toBeVisible();
+  await expect(page.getByTestId("sim-seed-value")).toHaveText("nominal");
+  const value = page.getByTestId("sim-measure-value").first();
+  await expect(value).toHaveText("2.2 ms");
+
+  await page.getByTestId("sim-seed-draw").click();
+  await expect(seed).toHaveAttribute("data-seed", /^[1-9]\d*$/);
+  await expect(value).not.toHaveText("2.2 ms");
+  const n = await seed.getAttribute("data-seed");
+  await expect(page.getByTestId("sim-seed-value")).toHaveText(`seed ${n}`);
+  const first = await value.textContent();
+  await page.screenshot({ path: info.outputPath("simulate-seed.png") });
+
+  // outra semente, outra amostra
+  await page.getByTestId("sim-seed-draw").click();
+  await expect(seed).not.toHaveAttribute("data-seed", n!);
+  await expect(value).not.toHaveText(first!);
+
+  await page.getByTestId("sim-seed-clear").click();
+  await expect(page.getByTestId("sim-seed-value")).toHaveText("nominal");
+  await expect(value).toHaveText("2.2 ms");
+});
+
+test("celular: o controle de semente e a tabela de Fourier cabem na tela", async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openWith(page, FOUR_FIGURE.replace("R1: resistor(Vin, Vout, 1k)", "R1: resistor(Vin, Vout, {agauss(1k,50,3)})"), "light");
+  await page.getByRole("tab", { name: /SIM/ }).click();
+  await runRC(page);
+  await page.getByTestId("sim-seed-draw").click();
+  await expect(page.getByTestId("sim-seed")).toHaveAttribute("data-seed", /^[1-9]\d*$/);
+  for (const id of ["sim-seed", "sim-fourier"]) {
+    const el = page.getByTestId(id);
+    await el.scrollIntoViewIfNeeded();
+    const box = (await el.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(390);
+    await page.screenshot({ path: info.outputPath(`simulate-${id}-mobile.png`) });
+  }
 });

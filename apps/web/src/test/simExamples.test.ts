@@ -30,13 +30,14 @@ function tran(run: ReturnType<typeof simulatePic>, name: string): Float64Array {
 const swing = (c: Float64Array) => Math.max(...c) - Math.min(...c);
 
 describe("exemplos simuláveis", () => {
-  it("há cinco, e a etiqueta casa com a marca `spice = 1`", () => {
+  it("há seis, e a etiqueta casa com a marca `spice = 1`", () => {
     expect(sims.map((e) => e.id)).toEqual([
       "sim-rc",
       "sim-rlc",
       "sim-rectifier",
       "sim-bjt-amp",
       "sim-cmos-inverter",
+      "sim-tolerance",
     ]);
     for (const ex of examples) expect(detectSpice(ex.source), ex.id).toBe(ex.tags.includes("simulate"));
   });
@@ -46,7 +47,10 @@ describe("exemplos simuláveis", () => {
     expect(b.svg).toContain("<svg");
     expect(b.warnings ?? []).toEqual([]);
     const run = simulatePic(ex.source);
-    expect(run.diagnostics).toEqual([]);
+    // sem semente, o deck com funções aleatórias avisa que usou o nominal
+    expect(run.diagnostics.map((d) => d.message)).toEqual(
+      ex.id === "sim-tolerance" ? [expect.stringContaining("nominal value")] : [],
+    );
     expect(run.pic.diagnostics).toEqual([]);
     expect(run.plots.length).toBeGreaterThan(0);
     for (const p of run.plots) {
@@ -78,5 +82,32 @@ describe("exemplos simuláveis", () => {
     const v = tran(simulatePic(byId("sim-cmos-inverter")), "v(vout)");
     expect(Math.max(...v)).toBeGreaterThan(4.9);
     expect(Math.min(...v)).toBeLessThan(0.1);
+  });
+
+  it("retificador: o .four dá a ondulação de 60 Hz e a THD", () => {
+    const rows = simulatePic(byId("sim-rectifier")).fourier;
+    expect(rows.length).toBeGreaterThan(2);
+    expect(rows.every((r) => r.vector === "v(vout)" && r.error === undefined)).toBe(true);
+    expect(rows[1]).toMatchObject({ harmonic: 1, frequency: 60 });
+    expect(rows[0].magnitude!).toBeGreaterThan(8); // a média: CC perto do pico
+    expect(rows[0].thd!).toBeGreaterThan(0);
+  });
+
+  it("tolerâncias: nominal sem semente; a semente sorteia e se repete", () => {
+    const src = byId("sim-tolerance");
+    const rise = (seed?: number) => {
+      const run = simulatePic(src, seed === undefined ? undefined : { options: { seed } });
+      return { t: run.measurements.find((m) => m.name === "trise")!.value!, run };
+    };
+    const nominal = rise();
+    expect(nominal.run.randomMode).toBe("nominal");
+    expect(nominal.run.seed).toBeNull();
+    expect(nominal.t).toBeCloseTo(2.197e-3, 5);
+    const a = rise(7);
+    expect(a.run).toMatchObject({ randomMode: "seeded", seed: 7 });
+    expect(a.run.diagnostics).toEqual([]);
+    expect(a.t).not.toBeCloseTo(nominal.t, 6);
+    expect(rise(7).t).toBe(a.t);
+    expect(rise(8).t).not.toBe(a.t);
   });
 });
