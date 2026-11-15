@@ -28,6 +28,9 @@ class FakeWorker implements WorkerLike {
 const RUN: PicRun = {
   plots: [],
   measurements: [],
+  fourier: [],
+  seed: null,
+  randomMode: "nominal",
   pss: [],
   notes: ["boa"],
   diagnostics: [],
